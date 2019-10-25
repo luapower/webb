@@ -68,6 +68,7 @@ action['config.js'] = function()
 
 	--initialize some required config values with defaults.
 	config('lang', 'en')
+	config('root_action', 'en')
 	config('templates_action', '__templates')
 	config('page_title_suffix', ' - '..host())
 
