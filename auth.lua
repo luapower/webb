@@ -584,7 +584,7 @@ action['session_install.txt'] = function()
 		pass        $hash,
 		facebookid  $name,
 		googleid    $name,
-		gimgurl     $url,  --google image url
+		gimgurl     $url, --google image url
 		active      $bool1,
 		name        $name,
 		phone       $name,

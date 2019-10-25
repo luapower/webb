@@ -620,7 +620,7 @@ end
 --filesystem API -------------------------------------------------------------
 
 function basepath(file)
-	return assert(config'www_dir', 'www')..(file and '/'..file or '')
+	return assert(config('www_dir', 'www'))..(file and '/'..file or '')
 end
 
 local fs = require'fs'
