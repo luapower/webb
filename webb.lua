@@ -617,12 +617,12 @@ function basepath(file)
 	return assert(config'webb_dir')..(file and '/'..file or '')
 end
 
-local lfs = require'lfs'
+local fs = require'fs'
 
 function filepath(file) --file -> path (if exists)
 	if file:find('..', 1, true) then return end --trying to escape
 	local path = basepath(file)
-	if not lfs.attributes(path, 'mode') then return end
+	if not fs.is(path) then return end
 	return path
 end
 
@@ -647,10 +647,10 @@ local function underscores(name)
 	return name:gsub('-', '_')
 end
 
-local lustache = require'lustache'
+local mustache = require'mustache'
 
 function render_string(s, data, partials)
-	return (lustache:render(s, data or env(), partials))
+	return (mustache.render(s, data or env(), partials))
 end
 
 function render_file(file, data, partials)
@@ -694,10 +694,9 @@ end
 --gather all the templates from the filesystem
 local load_templates = glue.memoize(function()
 	local t = {}
-	for file in lfs.dir(basepath()) do
-		if file:find'%.html%.mu$' and
-			lfs.attributes(basepath(file), 'mode') == 'file'
-		then
+	for file, d in fs.dir(basepath()) do
+		assert(file)
+		if file:find'%.html%.mu$' and fs.is(basepath(file), 'file') then
 			t[#t+1] = file
 		end
 	end
@@ -850,7 +849,7 @@ function catlist(listfile, ...)
 		else
 			local path = filepath(file)
 			if path then --plain file, get its mtime
-				local mtime = lfs.attributes(path, 'modification')
+				local mtime = fs.attr(path, 'mtime')
 				table.insert(t, tostring(mtime))
 				table.insert(c, function() out(readfile(file)) end)
 			elseif action then --file not found, try an action
