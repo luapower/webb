@@ -8,18 +8,18 @@ Webb is a procedural web framework for [openresty].
 
 Here's a very basic website sketch that uses some webb features.
 
-Create a file `nginx-server-test.conf` and type in it:
+Create a file `nginx-server-foo.conf` and type in it:
 
 ```
 server {
-	listen 127.0.0.1:8080;     # default is *:8000;
+	listen 127.0.0.1:8000;     # default is *:8000;
 	set $main_module "main";   # runs main.lua for every url.
 	set $hide_errors true;     # hide errors when crashing (for production).
 	include nginx-webb.conf;   # hook up webb to nginx.
 }
 ```
 
-Type `./nginx -s start` then check `http://127.0.0.1:8080`.
+Type `./nginx -s start` then check `http://127.0.0.1:8000`.
 
 You should get a 500 error because `main.lua` (our main file) is missing.
 Below is an example on how to set up this file.
@@ -57,6 +57,7 @@ return function()  --called for every URL. make your routing strategy here.
 	touch_usr() --update usr.atime on all requests, except image requests.
 	check(action(find_action(unpack(args()))))
 end
+```
 
 ### `config.lua`
 
@@ -118,14 +119,15 @@ www/webb.content-tools.js      contenteditable library
 ## Third-party modules
 
 ----------------------- ------ -----------------------------------------------
-resty.session           1.1    (included; current is 2.18)
-resty.socket            ?      (included; current is 0.0.7)
-lp.lua                  1.15   (included; current is ?)
-jquery.js               3.4.1  (included)
-mustache.js             3.1.0  (included)
-jquery.validate.js      1.19.1 (included)
-jquery.easing.js        1.3    (included)
-normalize.css           8.0.1  (included)
+resty.session           1.1    (current is 2.18)
+resty.socket            ?      (current is 0.0.7)
+lp.lua                  1.15
+jquery.js               3.4.1
+jquery.history.js       1.8.0
+jquery.validate.js      1.19.1
+jquery.easing.js        1.3
+mustache.js             3.1.0
+normalize.css           8.0.1
 ----------------------- ------ -----------------------------------------------
 
 ### Reset MySQL root password
