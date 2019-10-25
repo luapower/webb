@@ -115,8 +115,8 @@ anonymous then that user is also deleted afterwards.
 
 ]==]
 
-local random_string = require'resty_random'
-local resty_session = require'resty_session'
+local random_string = require'resty.random'
+local session = require'session'
 
 require'query'
 
@@ -127,12 +127,12 @@ end
 --session cookie -------------------------------------------------------------
 
 local session = once(function()
-	resty_session.cookie.persistent = true
-	resty_session.check.ssi = false --ssi will change after browser closes
-	resty_session.check.ua = false  --user could upgrade the browser
-	resty_session.cookie.lifetime = 2 * 365 * 24 * 3600 --2 years
-	resty_session.secret = config'session_secret'
-	return assert(resty_session.start())
+	session.cookie.persistent = true
+	session.check.ssi = false --ssi will change after browser closes
+	session.check.ua = false  --user could upgrade the browser
+	session.cookie.lifetime = 2 * 365 * 24 * 3600 --2 years
+	session.secret = config'session_secret'
+	return assert(session.start())
 end)
 
 local function session_uid()
@@ -569,8 +569,6 @@ end
 --install --------------------------------------------------------------------
 
 action['session_install.txt'] = function()
-
-	require'ddl'
 
 	droptable'usrtoken'
 	droptable'usr'

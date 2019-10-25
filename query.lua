@@ -26,7 +26,7 @@ QUERY/DDL
 
 ]==]
 
-local mysql = require'resty_mysql'
+local mysql = require'resty.mysql'
 
 --db connection --------------------------------------------------------------
 

@@ -9,12 +9,12 @@ Exports
 
 CONFIG
 
-	config'webb_dir'                        www dir (set by nginx wrapper)
 	config'base_url'                        optional, for absurl()
 
 CONFIG API
 
 	config(name[, default_val]) -> val      get/set config value
+	config{name->val}                       set multiple config values
 	S(name[, default_val])                  get/set internationalized string
 
 ENVIRONMENT
@@ -139,6 +139,12 @@ glue = require'glue'
 local conf = {}
 local null = conf
 function config(var, default)
+	if type(var) == 'table' then
+		for var, val in pairs(var) do
+			config(var, val)
+		end
+		return
+	end
 	local val = conf[var]
 	if val == nil then
 		val = os.getenv(var:upper())
@@ -614,7 +620,7 @@ end
 --filesystem API -------------------------------------------------------------
 
 function basepath(file)
-	return assert(config'webb_dir')..(file and '/'..file or '')
+	return assert(config'www_dir', 'www')..(file and '/'..file or '')
 end
 
 local fs = require'fs'

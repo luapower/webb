@@ -53,6 +53,13 @@ jsfile[[
 	config.js           --auto-generated with some values from config.lua
 ]]
 
+function action.home()
+	webbjs {
+		title = '...',
+		body = '...',
+	}
+end
+
 return function()  --called for every URL. make your routing strategy here.
 	touch_usr() --update usr.atime on all requests, except image requests.
 	check(action(find_action(unpack(args()))))
@@ -62,21 +69,29 @@ end
 ### `config.lua`
 
 Note: only need to add the lines for which the value is different than below.
+Also note: these can also be set as environment variables as well as nginx
+variables (`set` directive).
 
 ```
-config('lang', 'en')              --the default language
+config('lang', 'en') --the default language
 
-config('root_action', 'home')     --the action to run for the '/' path
-config('templates_action', '_templates')
-config('404_html_action', '404.html')
-config('404_png_action', '404.png')
-config('404_jpeg_action', '404.jpg')
+config('base_url', nil)   --website's base url: optional, for absurl().
+config('www_dir' , 'www') --the static files dir, relative to luapower's dir.
+
+config('root_action'      , 'home') --the action to run for the '/' path
+config('templates_action' , '_templates')
+config('404_html_action'  , '404.html')
+config('404_png_action'   , '404.png')
+config('404_jpeg_action'  , '404.jpg')
+
+config('separate_js_refs' , false) --concatenate all js files into all.js
+config('separate_css_refs', false) --concatenate all css files into all.css
 
 config('db_host', '127.0.0.1')    --the ip address of the local mysql server
 config('db_port', 3306)           --the port of the local mysql server
 config('db_name', '<db name>')    --the mysql database name
 config('db_user', 'root')         --the mysql user
-config('db_conn_timeout', 3)      --connection timeout in seconds
+config('db_conn_timeout' , 3)     --connection timeout in seconds
 config('db_query_timeout', 30)    --query timeout in seconds
 
 config('pass_token_lifetime', 3600) --remember-password token lifetime
@@ -119,8 +134,8 @@ www/webb.content-tools.js      contenteditable library
 ## Third-party modules
 
 ----------------------- ------ -----------------------------------------------
-resty.session           1.1    (current is 2.18)
-resty.socket            ?      (current is 0.0.7)
+resty/session.lua       1.1    bungle/lua-resty-session
+resty/socket.lua        0.0.4  thibaultcha/lua-resty-socket
 lp.lua                  1.15
 jquery.js               3.4.1
 jquery.history.js       1.8.0

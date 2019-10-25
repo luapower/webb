@@ -7,7 +7,24 @@ local time       = ngx.time
 local type       = type
 local json       = require "cjson"
 local aes        = require "resty.aes"
-local random_string = require'resty_random'
+local random_string = require'resty.random'.bytes
+
+local sub = string.sub
+local rep = string.rep
+local ceil = math.ceil
+
+local function salt(s)
+    if s then
+        local z = #s
+        if z < 8 then
+            return sub(rep(s, ceil(8 / z), 1, 8))
+        end
+        if z > 8 then
+            return sub(s, 1, 8)
+        end
+        return s
+    end
+end
 
 local ENCODE_CHARS = {
     ["+"] = "-",
@@ -162,7 +179,9 @@ function session.start(opts)
         self.id = i
         self.expires = e
         local k = hmac(self.secret, self.id .. self.expires)
-        local a = aes:new(k, self.id, aes.cipher(self.cipher.size, self.cipher.mode), self.cipher.hash, self.cipher.rounds)
+        local a = assert(aes:new(k, salt(self.id),
+            aes.cipher(self.cipher.size, self.cipher.mode),
+            self.cipher.hash, self.cipher.rounds))
         d = a:decrypt(d)
         if d and hmac(k, self.id .. self.expires .. d .. self.key) == h then
             local data = json.decode(d)
@@ -191,7 +210,10 @@ function session:save()
     local k = hmac(self.secret, self.id .. self.expires)
     local d = json.encode(self.data)
     local h = hmac(k, self.id .. self.expires .. d .. self.key)
-    local a = aes:new(k, self.id, aes.cipher(self.cipher.size, self.cipher.mode), self.cipher.hash, self.cipher.rounds)
+    local a = assert(aes:new(k, salt(self.id),
+        aes.cipher(self.cipher.size, self.cipher.mode),
+        self.cipher.hash,
+        self.cipher.rounds))
     return setcookie(self, encode(self.id) .. "|" .. self.expires .. "|" .. encode(a:encrypt(d)) .. "|" .. encode(h),
         self.cookie.persistent and self.expires)
 end

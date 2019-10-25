@@ -9,7 +9,7 @@ MAIL
 
 ]==]
 
-require'resty_socket'
+require'resty.socket'
 local smtp = require'socket.smtp'
 smtp.TIMEOUT = 6000
 local mime = require'mime'
