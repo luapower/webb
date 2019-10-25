@@ -119,7 +119,6 @@ config('db_pass',        nil)                   --the mysql password
 webb.lua                       main module
 action.lua                     routing module
 query.lua                      mysql query module
-ddl.lua                        ddl macros
 session.lua                    session and authentication module
 sendmail.lua                   sending emails
 webbjs.lua                     webb.js support module
@@ -136,6 +135,7 @@ www/webb.content-tools.js      contenteditable library
 ----------------------- ------ -----------------------------------------------
 resty/session.lua       1.1    bungle/lua-resty-session
 resty/socket.lua        0.0.4  thibaultcha/lua-resty-socket
+resty/mysql.lua         ?      built-in, db:read_result() modified for query.lua!
 lp.lua                  1.15
 jquery.js               3.4.1
 jquery.history.js       1.8.0
