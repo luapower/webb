@@ -26,6 +26,7 @@ QUERY/DDL
 
 ]==]
 
+require'webb'
 local mysql = require'webb_mysql'
 
 --db connection --------------------------------------------------------------

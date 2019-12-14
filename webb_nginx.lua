@@ -5,6 +5,8 @@
 
 ]]
 
+assert(ngx, 'runtime not nginx')
+
 --global error handler: log and print the error and exit with 500.
 --http error objects coming from webb are handled separately.
 local function try_call(func, ...)

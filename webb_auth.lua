@@ -115,10 +115,10 @@ anonymous then that user is also deleted afterwards.
 
 ]==]
 
+require'webb_query'
+
 local random_string = require'resty.random'
 local session = require'resty.session'
-
-require'webb_query'
 
 local function fullname(firstname, lastname)
 	return glue.trim((firstname or '')..' '..(lastname or ''))

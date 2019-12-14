@@ -9,6 +9,7 @@ MAIL
 
 ]==]
 
+require'webb'
 require'resty.socket'
 local smtp = require'socket.smtp'
 smtp.TIMEOUT = 6000

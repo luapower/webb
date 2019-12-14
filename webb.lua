@@ -132,6 +132,8 @@ is given, an inherited environment is created.
 
 ]==]
 
+assert(ngx, 'runtime not nginx')
+
 glue = require'glue'
 
 --cached config function -----------------------------------------------------

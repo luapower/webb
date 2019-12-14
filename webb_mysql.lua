@@ -1,6 +1,6 @@
 -- Copyright (C) Yichun Zhang (agentzh)
 
-
+assert(ngx, 'runtime not nginx')
 local bit = require "bit"
 local sub = string.sub
 local tcp = ngx.socket.tcp
@@ -22,7 +22,6 @@ local unpack = unpack
 local setmetatable = setmetatable
 local error = error
 local tonumber = tonumber
-
 
 if not ngx.config
    or not ngx.config.ngx_lua_version
