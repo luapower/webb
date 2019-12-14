@@ -1,6 +1,6 @@
 --[==[
 
-	webb framework | mail sending module
+	webb | sending email
 	Written by Cosmin Apreutesei. Public Domain.
 
 MAIL

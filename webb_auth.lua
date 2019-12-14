@@ -1,6 +1,6 @@
 --[==[
 
-	webb | cookie/db-based session & authentication module
+	webb | cookie/db-based session & authentication
 	Written by Cosmin Apreutesei. Public Domain.
 
 SESSIONS
@@ -26,7 +26,7 @@ CONFIG
 
 	template.reset_pass_email                 template for send_auth_token()
 
-	action['session_instal.txt']              (re)create usr & session tables
+	action['session_install.txt']             (re)create usr & session tables
 	action['login.json']                      login() server-side
 
 API DOCS
@@ -116,9 +116,9 @@ anonymous then that user is also deleted afterwards.
 ]==]
 
 local random_string = require'resty.random'
-local session = require'session'
+local session = require'resty.session'
 
-require'query'
+require'webb_query'
 
 local function fullname(firstname, lastname)
 	return glue.trim((firstname or '')..' '..(lastname or ''))

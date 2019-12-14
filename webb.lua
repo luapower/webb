@@ -49,7 +49,7 @@ OUTPUT
 	stringbuffer([t]) -> f(s1,...)/f()->s   create a string buffer
 	record(f) -> s                          run f and collect out() calls
 	out_buffering() -> t | f                check if we're buffering output
-	setheader(name, val)                    set a header (unless we buffering)
+	setheader(name, val)                    set a header (unless we're buffering)
 	print(...)                              like Lua's print but uses out()
 
 HTML ENCODING
