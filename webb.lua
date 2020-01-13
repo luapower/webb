@@ -457,17 +457,7 @@ end
 --print functions for debugging with no output buffering and flushing.
 
 print = print_wrapper(glue.printer(out, tostring))
-
-local pp_ = require'pp'
-
-pp = print_wrapper(glue.printer(function(v)
-	if type(v) == 'table' then
-		pp_.write(out, v, '   ', {})
-	else
-		out(v)
-	end
-end)
-)
+pp = require'pp'
 
 --scheduler ------------------------------------------------------------------
 
