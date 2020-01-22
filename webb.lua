@@ -651,6 +651,12 @@ function json(v)
 	end
 end
 
+function out_json(v)
+	local s = cjson.encode(v)
+	setmime'json'
+	out(s)
+end
+
 --filesystem API -------------------------------------------------------------
 
 local fs = require'fs'
