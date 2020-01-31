@@ -588,9 +588,9 @@ end
 
 --response API ---------------------------------------------------------------
 
-function http_error(code, ...)
-	local msg = ... and string.format(...)
-	local t = {type = 'http', http_code = code, message = msg}
+function http_error(code, fmt, ...)
+	local msg = type(fmt) == 'string' and string.format(fmt, ...) or fmt
+	local t = {type = 'http', http_code = code, message = tostring(msg)}
 	function t:__tostring()
 		return tostring(code)..(msg ~= nil and ' '..tostring(msg) or '')
 	end
@@ -647,6 +647,12 @@ function json(v)
 	else
 		error('invalid arg '..type(v))
 	end
+end
+
+function out_json(v)
+	local s = cjson.encode(v)
+	setmime'json'
+	out(s)
 end
 
 --filesystem API -------------------------------------------------------------
