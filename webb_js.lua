@@ -119,22 +119,22 @@ local function sepbuffer(sep)
 end
 
 cssfile = sepbuffer'\n'
-readfile['all.css.cat'] = function()
+wwwfile['all.css.cat'] = function()
 	return cssfile() .. ' inline.css' --append inline code at the end
 end
 
 jsfile = sepbuffer'\n'
-readfile['all.js.cat'] = function()
+wwwfile['all.js.cat'] = function()
 	return jsfile() .. ' inline.js' --append inline code at the end
 end
 
 css = sepbuffer'\n'
-readfile['inline.css'] = function()
+wwwfile['inline.css'] = function()
 	return css()
 end
 
 js = sepbuffer';\n'
-readfile['inline.js'] = function()
+wwwfile['inline.js'] = function()
 	return js()
 end
 
@@ -164,7 +164,7 @@ function jslist(cataction, separate)
 		return string.format('	<script src="%s" async></script>', lang_url('/'..cataction))
 	end
 	local out = stringbuffer()
-	for i,file in ipairs(catlist_files(readfile(cataction..'.cat'))) do
+	for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
 		out(string.format('	<script src="%s"></script>\n', lang_url('/'..file)))
 	end
 	return out()
@@ -175,7 +175,7 @@ function csslist(cataction, separate)
 		return string.format('	<link rel="stylesheet" type="text/css" href="/%s">', cataction)
 	end
 	local out = stringbuffer()
-	for i,file in ipairs(catlist_files(readfile(cataction..'.cat'))) do
+	for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
 		out(string.format('	<link rel="stylesheet" type="text/css" href="/%s">\n', file))
 	end
 	return out()

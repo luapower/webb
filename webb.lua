@@ -260,10 +260,8 @@ end
 
 local _args = once(function()
 	local t = {}
-	if ngx.var.uri ~= '/' then
-		for s in glue.gsplit(ngx.var.uri, '/', 2, true) do
-			t[#t+1] = ngx.unescape_uri(s)
-		end
+	for s in glue.gsplit(ngx.var.uri, '/', 2, true) do
+		t[#t+1] = ngx.unescape_uri(s)
 	end
 	glue.update(t, ngx.req.get_uri_args()) --add in the query args
 	return t
