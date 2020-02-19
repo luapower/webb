@@ -18,7 +18,7 @@ API
 
 	page_title([title], [body]) -> s    set/infer page title
 
-	webbjs(t)                           webbjs html action
+	webbjs(t)                           webbjs single-page app html action
 		t.head: s                        content for <head>
 		t.body: s                        content for <body>
 		t.title: s                       content for <title> (optional)
