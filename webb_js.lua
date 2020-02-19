@@ -147,6 +147,7 @@ jquery.js
 jquery.history.js  // for exec() and ^url_changed
 mustache.js        // for render()
 
+glue.js
 webb.js
 webb.ajax.js
 webb.timeago.js
