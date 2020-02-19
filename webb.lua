@@ -83,7 +83,7 @@ JSON ENCODING/DECODING
 
 FILESYSTEM
 
-	wwwpath([file], [type]) -> path|nil     get www subpath (and check if exists)
+	wwwpath(file, [type]) -> path|nil       get www subpath (and check if exists)
 	wwwfile(file) -> s                      get file contents
 	wwwfile.filename <- s|f(filename)       set virtual file contents
 
@@ -590,7 +590,7 @@ end
 
 function http_error(code, fmt, ...)
 	local msg = type(fmt) == 'string' and string.format(fmt, ...) or fmt
-	local t = {type = 'http', http_code = code, message = tostring(msg)}
+	local t = {type = 'http', http_code = code, message = msg and tostring(msg)}
 	function t:__tostring()
 		return tostring(code)..(msg ~= nil and ' '..tostring(msg) or '')
 	end
@@ -658,13 +658,17 @@ end
 --filesystem API -------------------------------------------------------------
 
 local fs = require'fs'
+local path = require'path'
 
 function wwwpath(file, type)
-	if file and file:find('..', 1, true) then return end --trying to escape
-	local path = config'www_dir'
-	if file then path = path..'/'..file end
-	if type and not fs.is(path, type) then return end
-	return path
+	assert(file)
+	type = type or 'file'
+	if file:find('..', 1, true) then return end --trying to escape
+	local abs_path = assert(path.combine(config'www_dir', file))
+	if fs.is(abs_path, type) then return abs_path end
+	local abs_path = assert(path.combine('webb-www', file))
+	if fs.is(abs_path, type) then return abs_path end
+	return nil, file..' not found'
 end
 
 local function wwwfile_call(files, file)
@@ -674,8 +678,8 @@ local function wwwfile_call(files, file)
 	elseif f then
 		return f
 	else
-		local s = glue.readfile(wwwpath(file))
-		return glue.assert(s, 'file not found: %s', file)
+		local file = wwwpath(file)
+		return file and glue.readfile(file)
 	end
 end
 
@@ -735,7 +739,7 @@ end
 --gather all the templates from the filesystem
 local load_templates = glue.memoize(function()
 	local t = {}
-	for file, d in fs.dir(wwwpath()) do
+	for file, d in fs.dir(wwwpath'.') do
 		assert(file)
 		if file:find'%.html%.mu$' and d:is'file' then
 			t[#t+1] = file
