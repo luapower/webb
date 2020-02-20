@@ -547,3 +547,13 @@ function getback(key) {
 	return value && JSON.parse(value)
 }
 
+// init ----------------------------------------------------------------------
+
+$(function() {
+	analytics_init()
+	load_templates(function() {
+		$(document).setup()
+		if (client_action)
+			url_changed()
+	})
+})

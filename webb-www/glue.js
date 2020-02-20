@@ -1,3 +1,21 @@
+/*
+
+	clamp(x, x0, x1)
+	sign(x)
+
+	s.format(fmt, ...)
+
+	assert(ret, err, ...)
+
+	a.insert(i, e)
+	a.remove(i)
+
+	keys(t, [cmp]) -> t
+	update(t, [t1], ...) -> t
+
+	json(v) -> s
+
+*/
 
 // math ----------------------------------------------------------------------
 
@@ -11,32 +29,28 @@ function sign(x) {
 
 // error handling ------------------------------------------------------------
 
-function assert(t, err) {
-	if (t == null || t === false || t === undefined)
-		throw (err || 'assertion failed')
-	return t
+print = console.log
+
+function assert(ret, err, ...args) {
+	if (ret == null || ret === false || ret === undefined) {
+		console.trace()
+		throw ((err && err.format(...args) || 'assertion failed'))
+	}
+	return ret
 }
 
-// arrays --------------------------------------------------------------------
+// objects -------------------------------------------------------------------
 
-function insert(a, i, e) {
-	a.splice(i, 0, e)
+// extend an object with a method, checking for name clashes.
+function method(cls, meth, func) {
+	assert(!(meth in cls.prototype), '{0}.{1} already exists', cls.name, meth)
+	cls.prototype[meth] = func
 }
 
-function remove(a, i) {
-	var v = a[i]
-	a.splice(i, 1)
-	return v
-}
-
-// hash maps -----------------------------------------------------------------
-
-function update(target) {
-	for (var i = 1; i < arguments.length; i++)
-		if (arguments[i])
-			for (var key in arguments[i])
-				target[key] = arguments[i][key]
-  return target
+// extend an object with a property, checking for name clashes.
+function property(cls, prop, gettersetter) {
+	assert(!(prop in cls.prototype), '{0}.{1} already exists', cls.name, prop)
+	Object.defineProperty(cls.prototype, prop, gettersetter)
 }
 
 // strings -------------------------------------------------------------------
@@ -45,14 +59,49 @@ function update(target) {
 //		'{1} of {0}'.format(total, current)
 //		'{1} of {0}'.format([total, current])
 //		'{current} of {total}'.format({'current': current, 'total': total})
-assert(!String.prototype.format)
-String.prototype.format = function() {
+
+method(String, 'format', function(...args) {
 	var s = this.toString()
-	if (!arguments.length)
+	if (!args.length)
 		return s
-	var type1 = typeof arguments[0]
-	var args = ((type1 == 'string' || type1 == 'number') ? arguments : arguments[0])
+	var type1 = typeof args[0]
+	var args = ((type1 == 'string' || type1 == 'number') ? args : args[0])
 	for (arg in args)
 		s = s.replace(RegExp('\\{' + arg + '\\}', 'gi'), args[arg])
 	return s
+})
+
+// arrays --------------------------------------------------------------------
+
+method(Array, 'insert', function(i, e) {
+	this.splice(i, 0, e)
+})
+
+method(Array, 'remove', function(i) {
+	var v = this[i]
+	this.splice(i, 1)
+	return v
+})
+
+// hash maps -----------------------------------------------------------------
+
+function keys(o, cmp) {
+	var t = Object.getOwnPropertyNames(o)
+	if (typeof sort == 'function')
+		t.sort(cmp)
+	else if (cmp)
+		t.sort()
+	return t
 }
+
+function update(target, ...sources) {
+	for (var o of sources)
+		if (o)
+			for (var k of keys(o))
+				target[k] = o[k]
+  return target
+}
+
+// serialization -------------------------------------------------------------
+
+json = JSON.stringify

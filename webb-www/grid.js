@@ -1,3 +1,10 @@
+/*
+	Grid/TreeList Widget.
+	Written by Cosmin Apreutesei. Public Domain.
+
+	--
+
+*/
 
 grid = (function() {
 
@@ -48,7 +55,7 @@ function grid(g_opt) {
 	}
 	g.value_type = value_type
 
-	g.render_context = function(rows) {
+	g.render_context = function() {
 
 		var t = update({}, g.context)
 		var ri = -1
@@ -84,10 +91,10 @@ function grid(g_opt) {
 			return val
 		}
 
-		val.value = function(v) { return format_value(v.raw, v.field, row); }
-		val.type = function(v) { return value_type(v.raw); }
-		val.readonly = function(v) { return v.field.readonly ? 'readonly' : ''; }
-		val.align = function(v) { return v.field.align; }
+		val.value = function() { return format_value(val.raw, val.field, row); }
+		val.type = function() { return value_type(val.raw); }
+		val.readonly = function() { return val.field.readonly ? 'readonly' : ''; }
+		val.align = function() { return val.field.align; }
 
 		val.tree_field = function() { return val.field.name == g.tree_field; }
 		val.indent = function() { return 16 + row.level * 20; }
@@ -164,6 +171,7 @@ function grid(g_opt) {
 	g.cell = function(ri, ci) {
 		if (typeof ri != 'number')
 			ri = ri.index()
+		ri = clamp(ri, 0, g.rowcount() - 1)
 		ci = clamp(ci, 0, g.colcount() - 1)
 		return cellsel[ri][ci]
 	}
@@ -315,8 +323,8 @@ function grid(g_opt) {
 	g.caret = function(caret) {
 		if (!active_input) return
 		if (caret == null)
-			return active_input.caret()
-		active_input.caret(caret)
+			return active_input.caret_pos
+		active_input.caret_pos = caret
 	}
 	g.focused = function() {
 		if (!active_input) return
@@ -341,7 +349,7 @@ function grid(g_opt) {
 		input.val(val)
 		input.focus()
 		if (caret != null)
-			input.caret(caret)
+			input.caret_pos = caret
 		if (select)
 			input.select()
 		input.focusout(function() {
@@ -602,11 +610,11 @@ function grid(g_opt) {
 		var scells = g.vcells(sci)
 		var dcells = g.vcells(dci > sci && dci < g.colcount()-1 ? dci+1 : dci)
 		if (dci == g.colcount()-1)
-			$.each(dcells, function(i) {
+			dcells.each(function(i) {
 				$(this).after(scells[i])
 			})
 		else
-			$.each(dcells, function(i) {
+			dcells.each(function(i) {
 				$(this).before(scells[i])
 			})
 
@@ -891,7 +899,7 @@ function grid(g_opt) {
 	update(g, g_opt)
 
 	d = g.dataset
-	d.on('ready', function() {
+	d.on('reload', function() {
 		g.render()
 	})
 	g.init()

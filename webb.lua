@@ -662,7 +662,6 @@ local path = require'path'
 
 function wwwpath(file, type)
 	assert(file)
-	type = type or 'file'
 	if file:find('..', 1, true) then return end --trying to escape
 	local abs_path = assert(path.combine(config'www_dir', file))
 	if fs.is(abs_path, type) then return abs_path end

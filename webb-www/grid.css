@@ -1,0 +1,207 @@
+html, body, table, th, td {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+table {
+	border-spacing: 0;
+   border-collapse: separate;
+}
+
+tbody, tr, th, td {
+	border: inherit;
+}
+
+.hidden { display: none; }
+.nowrap { white-space: nowrap; }
+
+.autohide {
+	width: 0;
+	min-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.grid {
+	font-family: sans-serif;
+	font-size: 10pt;
+	margin: 50px;
+}
+
+.grid > table {
+	#border: 1px solid #eee;
+	border: 0px solid #ddd;
+	border-collapse: collapse;
+	#box-shadow: 2px 2px 5px -2px rgba(0,0,0,0.75);
+}
+
+.grid > table > tbody > tr:first-child > td {
+	#box-shadow: inset 0px 3px 5px -3px rgba(0,0,0,0.75);
+}
+
+.grid > table > tbody > tr:last-child > td {
+	border-bottom-width: 1px;
+}
+
+.grid .field {
+	background-color: #999;
+	color: #fff;
+	height: 40px;
+}
+
+.grid .field a:hover { color: #ff0; }
+
+.grid .field_box {
+	font-weight: normal;
+	#font-size: 80%;
+	#text-transform: uppercase;
+	text-transform: capitalize;
+}
+
+.grid .field_box a {
+	margin-left: 0.5em;
+	margin-right: 0.5em;
+}
+
+.grid .sort_icon {
+	position: relative;
+	font-size: 100%;
+	color: #fff;
+}
+
+.grid .fa-sort {
+	color: #999;
+}
+
+.grid .resizer_div {
+	position: relative;
+}
+
+.grid .resizer {
+	position: absolute;
+	right: -0.5em;
+	width: 1em;
+	height: 40px;
+	cursor: ew-resize;
+}
+
+.grid .move_sign_div {
+	position: absolute;
+}
+
+.grid .move_sign {
+	position: relative;
+	left: -1em;
+	top: 10px;
+	height: 40px;
+}
+
+.grid .move_sign .fa-arrow-left, .grid .move_sign .fa-arrow-right {
+	color: #ff0;
+	text-shadow:
+		-1px -1px 0 #000,
+		1px -1px 0 #000,
+		-1px 1px 0 #000,
+		1px 1px 0 #000;
+}
+
+.grid.active .field {
+	background-color: #555;
+}
+
+.grid .field+.field {
+	border-left: 1px solid #ccc;
+}
+
+.grid.active .field+.field {
+	border-left: 1px solid #999;
+}
+
+.grid .row.selected {
+	background-color: #e3e3e3;
+}
+
+.grid .cell {
+	padding-left: 5px;
+	padding-right: 5px;
+	padding-top: 3px;
+	padding-bottom: 2px;
+	white-space: nowrap;
+	overflow: ellipsis;
+}
+
+.grid .cell+.cell {
+	border-left-width: 1px;
+}
+
+.grid .cell.active {
+	background-color: #fff;
+}
+
+.grid.active .cell.active {
+	outline: 1px solid #bbb;
+}
+
+.grid .cell.edit {
+	outline: 0;
+	#outline: 1px solid #339;
+	box-shadow: inset 2px 2px 6px -2px rgba(0,0,0,0.75);
+}
+
+.grid .cell .value.null { color: #bbb; }
+.grid .cell .value.number { color: #339; }
+
+.grid .cell.edit .value {
+	visibility: hidden;
+}
+
+#.grid .cell.new { background-color: #eef; }       /* new cell */
+.grid .cell.changed { background-color: #9f9; }    /* user changed */
+.grid .cell.rejected { background-color: #f99; }   /* server rejected the change */
+.grid .cell.corrected { background-color: #ff9; }  /* server accepted but corrected the change */
+.grid .cell.edit { background-color: #fff; }       /* user changed but editing */
+
+.grid .cell.readonly { background-color: #eef; }
+.grid .row.active .cell.readonly { background-color: #ddf; }
+
+.grid .input_div {
+	position: absolute;
+}
+
+.grid .input {
+	font-size: 100%;
+	padding: 0;
+	position: relative;
+	top: 0px;
+	left: 0px;
+	box-sizing: content-box;
+	border: 0;
+}
+
+/* compensate for the bottom border */
+.grid > table > tbody > tr:last-child > td .input {
+	top: 0px;
+}
+
+.grid .input:focus {
+	outline: 0 !important;
+	background-color: rgba(0,0,0,0);
+}
+
+.grid .dragging_div {
+	position: absolute;
+}
+
+.grid .dragging {
+	position: relative;
+	border-left: 1px solid #fff;
+	border-right: 1px solid #fff;
+	cursor: move;
+	font-size: 100%;
+}
+
+.grid .dropping {
+	#background-color: #f00 !important;
+}

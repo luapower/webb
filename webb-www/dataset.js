@@ -1,8 +1,39 @@
+/*
+	Dataset.
+	Written by Cosmin Apreutesei. Public Domain.
 
-// jQuery dataset.
-// Written by Cosmin Apreutesei. Public Domain.
+READING
 
-$.dataset = (function() {
+	id_field_name
+	row_id(vri) -> id
+
+	fieldcount()
+	rowcount()
+
+	field(vfi) -> field
+	row(vri) -> row
+	val(vri, vfi) -> val
+
+UPDATING
+
+	move_field(svfi, dvfi)
+
+	setval(vri, vfi, val) -> val
+	insert(vri) -> row
+	remove(vri) -> row
+
+	validate(val, field)
+	convert(val, field) -> val
+
+REMOTE UPDATING & RECONCILING
+
+	load()
+	save()
+	reconcile()
+
+*/
+
+dataset = (function() {
 
 // helpers -------------------------------------------------------------------
 
@@ -14,15 +45,6 @@ function range(i0, i1) {
 	return a
 }
 
-function sorted_keys(o, cmp) {
-	var t = []
-	for (var k in o)
-		if (o.hasOwnProperty(k))
-			t.push(k)
-	t.sort(cmp)
-	return t
-}
-
 function make_url(path, opt_args, opt_params) {
 	var args = []
 	for (var i = 0; i < opt_args.length; i++)
@@ -30,7 +52,7 @@ function make_url(path, opt_args, opt_params) {
 	args = args.join('/')
 
 	var params = []
-	var t = sorted_keys(opt_params)
+	var t = keys(opt_params, true)
 	for (var i = 0; i < t.length; i++) {
 		var k = t[i]
 		params.push(encodeURIComponent(k)+'='+encodeURIComponent(opt_params[k]))
@@ -38,10 +60,6 @@ function make_url(path, opt_args, opt_params) {
 	params = params.join('&')
 
 	return path+(args?'/'+args:'')+(params?'?'+params:'')
-}
-
-function json(v) {
-	return typeof v == 'string' ? JSON.parse(v) : JSON.stringify(v)
 }
 
 function ValidationError() {
@@ -210,7 +228,7 @@ function dataset(d_opt) {
 
 	// add/remove rows
 
-	d.new_row = function() {
+	function new_row() {
 		var rec = []
 
 		// add server_default values or null
@@ -237,7 +255,7 @@ function dataset(d_opt) {
 		var parent_row = rows[ri] && rows[ri].parent_row
 
 		// make a new row
-		var row = d.new_row()
+		var row = new_row()
 
 		// insert the new row at ri
 		insert(rows, ri, row)
@@ -294,7 +312,7 @@ function dataset(d_opt) {
 		init_idmap()
 		init_tree()
 		init_rowmap()
-		ev.trigger('ready')
+		ev.trigger('reload')
 	}
 
 	// row index by id aspect -------------------------------------------------
@@ -603,12 +621,13 @@ function dataset(d_opt) {
 		var sort = d.sort_expr()
 		if (sort) params.sort = sort
 		if (d.page) params.page = d.page
-		$.extend(params, d.url_params)
+		update(params, d.url_params)
 		return make_url(d.url_path, d.url_args, params)
 	}
 
 	// make a GET request (or a POST request if data is passed).
 	d.ajax = function(data, success, error) {
+		print('hello')
 		var url = d.url()
 		if (!url) return
 		var opt = {success: success, error: error}
@@ -640,7 +659,7 @@ function dataset(d_opt) {
 
 	// init -------------------------------------------------------------------
 
-	$.extend(d, d_opt)
+	update(d, d_opt)
 	d.init()
 	d.json = json
 	d.make_url = make_url
@@ -649,4 +668,3 @@ function dataset(d_opt) {
 
 return dataset
 })()
-

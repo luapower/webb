@@ -193,17 +193,9 @@ local webbjs_template = [[
 {{{all_js}}}
 {{{all_css}}}
 {{{head}}}
-	<script>
-		$(function() {
-			analytics_init()
-			load_templates(function() {
-				$(document).setup()
-				{{#client_action}}
-					url_changed()
-				{{/client_action}}
-			})
-		})
-	</{{undefined}}script>
+<script>
+	var client_action = {{client_action}}
+</{{undefined}}script>
 </head>
 <body>
 	<div style="display: none;" id="__templates"></div>
@@ -227,7 +219,7 @@ function webbjs(p)
 	t.head = p.head
 	t.title = page_title(p.title, t.body)
 	t.title_suffix = config('page_title_suffix', ' - '..host())
-	t.client_action = p.client_action
+	t.client_action = p.client_action or false
 	t.all_js = jslist('all.js', config('separate_js_refs', false))
 	t.all_css = csslist('all.css', config('separate_css_refs', false))
 	out(render_string(webbjs_template, t))
