@@ -1,0 +1,68 @@
+
+#### DATASET
+- changeset result:
+	- I - rejected, err
+	- I - inserterd, values
+	- U - rejected, err, values
+	- U - updated, values
+	- U - not found
+		- refresh dataset
+		- insert instead
+			- reuse old id or gen. new id?
+		- delete or let the user delete it
+			- don't mark it for deletion again
+	- U - rejected, different values from last time
+	- D - deleted or not found
+	- D - rejected, err, values
+- put rejected deletes back into their original position
+	- make it work with row reordering too
+
+- tree_dataset
+	- children lists
+	- load children
+		- g.load(parentid, depth) -> insert under parent and add to children list
+	- expand/collapse list
+	- create view rowlist based on expand/collapse list and children lists
+	- expose val(), attr()
+
+
+- filters (multiple quicksearch; custom filters, etc.)
+
+#### GRID
+- switch to using datasets
+- per-field hooks:
+	- rendercell(g, val, field, ri, ci) -> html
+	- bindcell(g, cell, val, field, ri, ci)
+	- renderhcell(g, field, ci) -> html
+	- bindhcell(g, hcell, field, ci)
+	- renderfcell(g, field, ci) -> html
+	- bindfcell(g, field, ci)
+	- activate(g, cell, val, field)
+	- deactivate(g, cell, val, field) -> true|false
+	- enter_edit(g, cell, val, field, caret)
+	- exit_edit(g, cell, val, field, caret) -> true|false
+- custom field classes:
+	- field.class = {render: , bind: , ...} | classname
+	- g.fieldclass.name = {...} <- register field classes
+	- g.fieldclassmap.fieldtype = fieldclass
+- field classes:
+	- checkbox; use field.allow_null for tristate
+	- date/time/datetime
+	- dropdown; field.dropdown_values = [[id, name], ...]
+	- note popup
+	- grid popup; field.grid = grid; field.display_field = fieldname; field.value_field = fieldname;
+	- spin-edit; use field.min_value, field.max_value to set range
+	- file upload popup
+	- thumb image (uploadable)
+- paginator footer
+	- 1, 2, 3 ..., next, prev | reload, save, cancel, undo, redo
+
+
+#### TREELIST
+- g.expand_field
+- g.child_count_field (if missing, count children, otherwise count after expand/load-children)
+- g.expand(ri) -> insert children under ri
+- g.load(parent_id, depth) for async loading of children
+- g.collapse(ri) -> remove ri's children
+- child_rows(ri, depth) -> rows
+-

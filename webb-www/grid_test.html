@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<link rel="stylesheet" type="text/css" href="grid.css">
+	<link rel="stylesheet" type="text/css" href="fontawesome.css">
+	<script src="jquery.js"></script>
+	<script src="mustache.js"></script>
+	<script src="jquery.event.drag.js"></script>
+	<script src="jquery.event.drop.js"></script>
+	<script src="jquery.scrollintoview.js"></script>
+	<script src="glue.js"></script>
+	<script src="divs.js"></script>
+	<script src="dataset.js"></script>
+	<script src="grid.js"></script>
+</head>
+<body>
+
+<div id=grid></div>
+
+<script type="text/x-mustache" id=grid_template>
+	<div class=grid>
+		<table width={{{width}}}>
+			<thead>
+				<tr>
+					{{#fields}}
+					<th valign=top
+						class="field {{^fixed_pos}}movable{{/fixed_pos}}"
+						{{#width}}style="width: {{{width}}}px"{{/width}}
+					>
+						{{^fixed_width}}
+						<div class=resizer_div>
+							<div class=resizer></div>
+						</div>
+						{{/fixed_width}}
+						<table width=100% height=100% class=field_box>
+							<tr>
+							{{#align_left}}
+								<td class=nowrap align=left valign=bottom
+									style="{{#min_width}}min-width: {{{min_width}}}px;{{/min_width}}"
+								>
+									<div class=autohide>
+										<a>{{{name}}}</a>
+									</div>
+								</td>
+								<td class=nowrap align=right valign=bottom width=1>
+									<a><i class="sort_icon fa fa-sort{{#sort}}-{{{sort}}}{{/sort}}"></i></a>
+								</td>
+							{{/align_left}}
+							{{#align_right}}
+								<td class=nowrap align=left valign=bottom width=1>
+									<a><i class="sort_icon fa fa-sort{{#sort}}-{{{sort}}}{{/sort}}"></i></a>
+								</td>
+								<td class=nowrap align=right valign=bottom
+									style="{{#min_width}}min-width: {{{min_width}}}px;{{/min_width}}"
+								>
+									<div class=autohide>
+										<a>{{{name}}}</a>
+									</div>
+								</td>
+							{{/align_right}}
+							</tr>
+						</table>
+					</th>
+					{{/fields}}
+				</tr>
+			</thead>
+			<tbody class=rows>
+				{{>grid_rows}}
+			</tbody>
+		</table>
+		<div class="hidden move_sign_div">
+			<div class="move_sign">
+				<i class="fa fa-arrow-right"></i><i class="fa fa-arrow-left"></i>
+			</div>
+		</div>
+	</div>
+</script>
+
+<script type="text/x-mustache" id=grid_rows_template>
+	{{#rows}}
+	<tr class=row>
+		{{#cols}}
+			{{#col}}
+			<td class="cell {{{readonly}}} nowrap" align={{{align}}} valign=top>
+				{{#tree_field}}
+					<table width=100%>
+						<tr>
+							<td width={{{indent}}} class="expander nowrap" align=right>
+								<i class="fa fa-caret-{{{expanded_dir}}}" style="margin-right: 5px;"></i>
+							</td>
+							<td>
+								<div class=input_div></div>
+								<div class="value autohide {{{type}}}">{{{value}}}</div>
+							</td>
+						</tr>
+					</table>
+				{{/tree_field}}
+				{{^tree_field}}
+					<div class=input_div></div>
+					<span class="value {{{type}}}">{{{value}}}</span>
+				{{/tree_field}}
+			</td>
+			{{/col}}
+		{{/cols}}
+	</tr>
+	{{/rows}}
+</script>
+
+<script>
+
+var data = {
+	fields: [
+		{name: 'id', type: 'number', align: 'right', readonly: true, width: 50, min_width: 50},
+		{name: 'name', width: 200, min_width: 100},
+		{name: 'parent_id', type: 'number', width: 50, min_width: 50},
+	],
+	parent_field: 'parent_id',
+	rows: [
+		{values: [0,'a',null]},
+		{values: [1,'b',null]},
+		{values: [2,'c',0]},
+		{values: [3,'d',0]},
+		{values: [4,'e',2]},
+		{values: [5,'f',2]},
+		{values: [6,'g very long long text to try out',5]},
+	],
+}
+
+for (var i = 7; i < 500; i++) {
+	data.rows.push({values: [i,'record '+i, (Math.random() * (i - 7)).toFixed()]})
+}
+
+var d = dataset(data)
+
+var results = {
+
+}
+
+d.ajax = function(changes, success, error) {
+	if (!changes)
+		success(results)
+}
+
+d.expand_all()
+
+$(function() {
+
+var g = grid({
+	dataset: d,
+	container: '#grid',
+	immediate_mode: true,
+	tree_field: 'name',
+	//context: {width: '100%'},
+})
+
+})
+
+</script>
+
+</body>
+</html>

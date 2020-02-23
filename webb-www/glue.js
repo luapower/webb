@@ -44,13 +44,29 @@ function assert(ret, err, ...args) {
 // extend an object with a method, checking for name clashes.
 function method(cls, meth, func) {
 	assert(!(meth in cls.prototype), '{0}.{1} already exists', cls.name, meth)
-	cls.prototype[meth] = func
+	Object.defineProperty(cls.prototype, meth, {
+		value: func,
+		enumerable: false,
+	})
 }
 
 // extend an object with a property, checking for name clashes.
 function property(cls, prop, gettersetter) {
 	assert(!(prop in cls.prototype), '{0}.{1} already exists', cls.name, prop)
 	Object.defineProperty(cls.prototype, prop, gettersetter)
+}
+
+function noop() {}
+
+function override(cls, meth, func) {
+	var inherited = cls.prototype[meth] || noop
+	function wrapper(inherited, ...args) {
+		return meth.apply(this, inherited, args)
+	}
+	Object.defineProperty(cls.prototype, wrapper, {
+		value: func,
+		enumerable: false,
+	})
 }
 
 // strings -------------------------------------------------------------------
@@ -72,6 +88,8 @@ method(String, 'format', function(...args) {
 })
 
 // arrays --------------------------------------------------------------------
+
+var isarray = Array.isArray
 
 method(Array, 'insert', function(i, e) {
 	this.splice(i, 0, e)
