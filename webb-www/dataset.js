@@ -49,6 +49,9 @@ function dataset(...options) {
 		fields = d.fields
 		rows = d.rows
 
+		for (fi in fields)
+			fields[fi].index = fi
+
 		// init events
 		var ev = $(d)
 		d.on = $.proxy(ev.on, ev)

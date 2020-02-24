@@ -39,6 +39,11 @@ method(Element, 'add', function(...children) {
 	return this
 })
 
+method(Element, 'insert', function(i, e) {
+	print(this.childNodes.length, i, this.childNodes[i].parentNode, this)
+	this.insertBefore(e, this.childNodes[i])
+})
+
 method(Element, 'set1', function(ce) {
 	var c1 = this.firstChild
 	if (c1)
@@ -68,6 +73,23 @@ function td       (...a) { return H('td'      , ...a) }
 function th       (...a) { return H('th'      , ...a) }
 function thead    (...a) { return H('thead'   , ...a) }
 function tbody    (...a) { return H('tbody'   , ...a) }
+function anchor   (...a) { return H('tbody'   , ...a) }
+function italic   (...a) { return H('i'       , ...a) }
+function bold     (...a) { return H('b'       , ...a) }
+
+// geometry ------------------------------------------------------------------
+
+property(Element, 'pos', {
+	get: function() {
+		var x = this.offsetLeft
+		var y = this.offsetTop
+		return {x: x, y: y}
+	},
+	set: function(p) {
+		this.style.left = p.x + 'px'
+		this.style.top  = p.y + 'px'
+	}
+})
 
 // text-editables ------------------------------------------------------------
 
