@@ -19,13 +19,25 @@
 
 // math ----------------------------------------------------------------------
 
+floor = Math.floor
+ceil = Math.ceil
+abs = Math.abs
+min = Math.min
+max = Math.max
+
 function clamp(x, x0, x1) {
-	return Math.min(Math.max(x, x0), x1)
+	return min(max(x, x0), x1)
 }
 
 function sign(x) {
-	return x > 0 ? 1 : x < 0 ? -1 : 0
+	return x >= 0 ? 1 : -1
 }
+
+// callbacks -----------------------------------------------------------------
+
+function noop() {}
+
+function return_true() { return true; }
 
 // error handling ------------------------------------------------------------
 
@@ -41,22 +53,20 @@ function assert(ret, err, ...args) {
 
 // objects -------------------------------------------------------------------
 
+// extend an object with a property, checking for name clashes.
+function property(cls, prop, descriptor) {
+	var proto = cls.prototype || cls
+	assert(!(prop in proto), '{0}.{1} already exists', cls.name, prop)
+	Object.defineProperty(proto, prop, descriptor)
+}
+
 // extend an object with a method, checking for name clashes.
 function method(cls, meth, func) {
-	assert(!(meth in cls.prototype), '{0}.{1} already exists', cls.name, meth)
-	Object.defineProperty(cls.prototype, meth, {
+	property(cls, meth, {
 		value: func,
 		enumerable: false,
 	})
 }
-
-// extend an object with a property, checking for name clashes.
-function property(cls, prop, gettersetter) {
-	assert(!(prop in cls.prototype), '{0}.{1} already exists', cls.name, prop)
-	Object.defineProperty(cls.prototype, prop, gettersetter)
-}
-
-function noop() {}
 
 function override(cls, meth, func) {
 	var inherited = cls.prototype[meth] || noop
@@ -67,6 +77,21 @@ function override(cls, meth, func) {
 		value: func,
 		enumerable: false,
 	})
+}
+
+function getRecursivePropertyDescriptor(obj, key) {
+	return Object.prototype.hasOwnProperty.call(obj, key)
+		? Object.getOwnPropertyDescriptor(obj, key)
+		: getRecursivePropertyDescriptor(Object.getPrototypeOf(obj), key)
+}
+method(Object, 'getPropertyDescriptor', function(key) {
+	return key in this && getRecursivePropertyDescriptor(this, key)
+})
+
+function alias(cls, new_name, old_name) {
+	var d = cls.prototype.getPropertyDescriptor(old_name)
+	assert(d, '{0}.{1} does not exist', cls.name, old_name)
+	Object.defineProperty(cls.prototype, new_name, d)
 }
 
 // strings -------------------------------------------------------------------

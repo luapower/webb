@@ -19,7 +19,7 @@
 		deleted        : deleted row, not deleted on server yet.
 		old_values     : original values on an updated but not yet saved row.
 
-	^d.changed(ri, fi, val, field, row)
+	^d.changed(row, field, val)
 	^d.inserted(ri)
 	^d.deleted(ri)
 
@@ -61,10 +61,9 @@ function dataset(...options) {
 
 	// get/set row values
 
-	d.val = function(row, fi) {
-		var field = fields[fi]
+	d.val = function(row, field) {
 		var get_value = field.get_value // computed value?
-		return get_value ? get_value(field, row, fields) : row.values[fi]
+		return get_value ? get_value(field, row, fields) : row.values[field.index]
 	}
 
 	d.validate = function(val, field) {
@@ -78,8 +77,7 @@ function dataset(...options) {
 		return convert ? convert.call(d, val, field) : val
 	}
 
-	d.setval = function(row, fi, val) {
-		var field = fields[fi]
+	d.setval = function(row, field, val) {
 
 		// convert value to internal represenation.
 		val = d.convert(val, field)
@@ -92,10 +90,10 @@ function dataset(...options) {
 			row.old_values = row.values.slice(0)
 
 		// set the value.
-		row.values[fi] = val
+		row.values[field.index] = val
 
 		// trigger changed event.
-		d.trigger('changed', [row, fi, val, field, row])
+		d.trigger('changed', [row, field, val])
 
 		// return converted value
 		return val
@@ -112,8 +110,8 @@ function dataset(...options) {
 		}
 		var row = {values: values, is_new: true}
 		// set default client values.
-		for (var fi in fields)
-			d.setval(row, fi, fields[fi].client_default)
+		for (var field of fields)
+			d.setval(row, field, field.client_default)
 		return row
 	}
 
@@ -137,14 +135,14 @@ function dataset(...options) {
 
 	// changeset
 
-	d.oldval = function(row, fi) {
+	d.oldval = function(row, field) {
 		var values = row.old_values || row.values
-		return values[fi]
+		return values[field.index]
 	}
 
-	d.val_changed = function(row, fi) {
+	d.val_changed = function(row, field) {
 		var old = row.old_values
-		return old && oldv[fi] !== row.values[fi]
+		return old && old[field.index] !== row.values[field.index]
 	}
 
 	init()

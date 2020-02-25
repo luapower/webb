@@ -23,8 +23,24 @@
 }
 
 .grid-cell {
+
+}
+
+.grid-row-focused {
+	background-color: #333;
+}
+
+.grid-cell-focused {
+	border: 1px dashed black;
 }
 
 .grid-move-grid {
 	position: absolute;
+}
+
+.grid-input {
+	border: 0;
+	margin: 0;
+	padding: 0;
+	font: inherit;
 }

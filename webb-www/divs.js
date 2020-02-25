@@ -5,11 +5,24 @@
 
 */
 
-// element tree ops ----------------------------------------------------------
+// dom manipulation ----------------------------------------------------------
 
-function byid(id) {
-	return document.getElementById(id)
-}
+// dom querying
+
+function byid(id) { return document.getElementById(id) }
+
+alias(Element, 'at'     , 'childNodes')
+alias(Element, 'parent' , 'parentNode')
+alias(Element, 'first'  , 'firstElementChild')
+alias(Element, 'next'   , 'nextElementSibling')
+alias(Element, 'prev'   , 'previousElementSibling')
+
+var indexOf = Array.prototype.indexOf
+property(Element, 'index', { get: function() {
+	return indexOf.call(this.parentNode.childNodes, this)
+}})
+
+// element attributes
 
 method(Element, 'attr', function(k, v) {
 	if (v == null)
@@ -25,6 +38,21 @@ method(Element, 'attrs', function(attrs) {
 			this.attr(k, attrs[k])
 	return this
 })
+
+// css styles & classes
+
+method(Element, 'class', function(name, enable) {
+	if (enable !== false)
+		this.classList.add(name)
+	else
+		this.classList.remove(name)
+})
+
+method(Element, 'css', function(prop, val) {
+	return window.getComputedStyle(this, null).getPropertyValue(prop)
+})
+
+// tree ops
 
 method(Element, 'add', function(...children) {
 	for (var ce of children)
@@ -45,13 +73,15 @@ method(Element, 'insert', function(i, e) {
 })
 
 method(Element, 'set1', function(ce) {
-	var c1 = this.firstChild
+	var c1 = this.first
 	if (c1)
 		this.replaceChild(ce, c1)
 	else
 		this.appendChild(ce)
 	return this
 })
+
+// creating elements
 
 function H(tag, attrs, ...children) {
 	var e = document.createElement(tag)
@@ -62,20 +92,29 @@ function H(tag, attrs, ...children) {
 	return e
 }
 
-function div      (...a) { return H('div'     , ...a) }
-function span     (...a) { return H('span'    , ...a) }
-function button   (...a) { return H('button'  , ...a) }
-function input    (...a) { return H('input'   , ...a) }
-function textarea (...a) { return H('textarea', ...a) }
-function table    (...a) { return H('table'   , ...a) }
-function tr       (...a) { return H('tr'      , ...a) }
-function td       (...a) { return H('td'      , ...a) }
-function th       (...a) { return H('th'      , ...a) }
-function thead    (...a) { return H('thead'   , ...a) }
-function tbody    (...a) { return H('tbody'   , ...a) }
-function anchor   (...a) { return H('tbody'   , ...a) }
-function italic   (...a) { return H('i'       , ...a) }
-function bold     (...a) { return H('b'       , ...a) }
+H.div      = function(...a) { return H('div'     , ...a) }
+H.span     = function(...a) { return H('span'    , ...a) }
+H.button   = function(...a) { return H('button'  , ...a) }
+H.input    = function(...a) { return H('input'   , ...a) }
+H.textarea = function(...a) { return H('textarea', ...a) }
+H.table    = function(...a) { return H('table'   , ...a) }
+H.tr       = function(...a) { return H('tr'      , ...a) }
+H.td       = function(...a) { return H('td'      , ...a) }
+H.th       = function(...a) { return H('th'      , ...a) }
+H.thead    = function(...a) { return H('thead'   , ...a) }
+H.tbody    = function(...a) { return H('tbody'   , ...a) }
+H.anchor   = function(...a) { return H('tbody'   , ...a) }
+H.italic   = function(...a) { return H('i'       , ...a) }
+H.bold     = function(...a) { return H('b'       , ...a) }
+
+// events
+
+var on = function(e, f) {
+	this.addEventListener(e, f)
+	return this
+}
+method(Document, 'on', on)
+method(Element, 'on', on)
 
 // geometry ------------------------------------------------------------------
 
@@ -95,31 +134,62 @@ property(Element, 'pos', {
 
 property(Element, 'caret_pos', {
 	get: function() {
-		if (target.contentEditable === 'true') {
-			target.focus()
+		if (this.contentEditable === 'true') {
+			this.focus()
 			var range1 = window.getSelection().getRangeAt(0)
 			var range2 = range1.cloneRange()
-			range2.selectNodeContents(target)
+			range2.selectNodeContents(this)
 			range2.setEnd(range1.endContainer, range1.endOffset)
 			return range2.toString().length
 		} else {
-			return target.selectionStart
+			return this.selectionStart
 		}
 	},
 	set: function(pos) {
-		if (pos == -1) {
-			pos = this[isContentEditable? 'text' : 'val']().length
+		if (pos == -1)
+			pos = this[this.contentEditable ? 'text' : 'val']().length
+		if (this.contentEditable) {
+			this.focus()
+			window.getSelection().collapse(this.firstChild, pos)
+		} else { // textarea
+			this.setSelectionRange(pos, pos)
 		}
-		if (isContentEditable) {
-			target.focus()
-			window.getSelection().collapse(target.firstChild, pos)
-		} else { //textarea
-			target.setSelectionRange(pos, pos)
-		}
-		if (!isContentEditable) {
-			target.focus()
-		}
+		if (!this.isContentEditable)
+			this.focus()
 		return pos
 	}
 })
 
+property(Element, 'selected', {
+	get: function() {
+		var p0 = this.selectionStart
+		var p1 = this.selectionEnd
+		return p0 == 0 && p1 == this.value.length
+	},
+	set: function(v) {
+		var len = this.value.length
+		if (v)
+			this.setSelectionRange(0, len)
+		else
+			this.setSelectionRange(len, len)
+	}
+})
+
+
+// scrolling -----------------------------------------------------------------
+
+property(Element, 'isinview', {
+	get: function() {
+		var r = this.getBoundingClientRect()
+		return (
+			r.top >= 0 &&
+			r.left >= 0 &&
+			r.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+			r.right <= (window.innerWidth || document.documentElement.clientWidth)
+		)
+	}
+})
+
+method(Element, 'scrollintoview', function() {
+	this.scrollIntoView(false)
+})
