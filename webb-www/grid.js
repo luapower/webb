@@ -34,9 +34,8 @@ function grid(...options) {
 			fields = d.fields.slice()
 
 		// bind events
-		d.on('reload', function() {
-			g.render()
-		})
+		d.on('reload', g.render)
+		d.on('changed', g.changed)
 
 		// render
 		g.render()
@@ -47,13 +46,25 @@ function grid(...options) {
 
 	// rendering --------------------------------------------------------------
 
+	var trs = new Map()
+
 	var render_row = function(row) {
 		var tr = H.tr({class: 'grid-row'})
 		tr.row = row
+		trs.set(row, tr)
 		for (var field of fields) {
-			var td = H.td({class: 'grid-cell'}, d.val(row, field))
+			var input = H.input({
+					type: 'text',
+					class: 'grid-input',
+					disabled: true,
+					maxlength: field.maxlength,
+					textAlign: field.align,
+					value: d.val(row, field),
+				})
+			input.w = field.width
+			var td = H.td({class: 'grid-cell'}, input)
 			tr.add(td)
-			td.on('click', function() {
+			td.on('mousedown', function() {
 				g.focus_cell(this.parentNode, this)
 			})
 		}
@@ -65,7 +76,9 @@ function grid(...options) {
 		g.table = H.table({class: 'grid'})
 		var header_tr = H.tr({class: 'grid-header-row'})
 		for (var field of fields) {
-			var th = H.th({class: 'grid-header-col'}, field.name)
+			var th = H.th({class: 'grid-header-cell'}, field.name)
+			th.w = field.w
+			th.field = field
 			header_tr.add(th)
 		}
 		g.table.add(header_tr)
@@ -98,17 +111,28 @@ function grid(...options) {
 		return found_e
 	}
 
-	g.first_focusable_cell = function() {
-		var tr = find_sibling(g.table.first, 'next',
+	g.first_focusable_cell = function(tr, td, rows, cols) {
+		var tr1 = find_sibling(
+			tr || g.table.first,
+			rows >= 0 && 'next' || 'prev',
+			function(tr) { return !tr.first.field },
 			function(tr) {
-				return tr.first.tagName == 'TD'
+				var found = !rows
+				rows -= sign(rows)
+				return found
 			})
-		if (!tr) return
-		var td = find_sibling(tr.first, 'next',
+		var td1 = find_sibling(
+			tr1 && (td && tr1.at[td.index] || tr1.first),
+			cols >= 0 && 'next' || 'prev',
 			function(td) {
 				return true
+			},
+			function(td) {
+				var found = !cols
+				cols -= sign(cols)
+				return found
 			})
-		return [tr, td]
+		return [tr1, td1]
 	}
 
 	g.focus_cell = function(tr, td) {
@@ -125,104 +149,89 @@ function grid(...options) {
 	}
 
 	g.move_focus = function(rows, cols) {
-
-		var tr = find_sibling(
-			g.focused_tr || g.table.first,
-			rows >= 0 && 'next' || 'prev',
-			function(tr) {
-				return tr.first.tagName == 'TD'
-			},
-			function(tr) {
-				var found = !rows
-				rows -= sign(rows)
-				return found
-			})
-
-		var td = find_sibling(
-			tr && (g.focused_td && tr.at[g.focused_td.index] || tr.first),
-			cols >= 0 && 'next' || 'prev',
-			function(td) {
-				return true
-			},
-			function(td) {
-				var found = !cols
-				cols -= sign(cols)
-				return found
-			})
-
-		return g.focus_cell(tr, td)
+		return g.focus_cell(...g.first_focusable_cell(g.focused_tr, g.focused_td, rows, cols))
 	}
 
 	// editing ----------------------------------------------------------------
 
 	g.input = null
 
-	g.enter_edit = function(caret_pos, select) {
+	g.enter_edit = function(where) {
 		if (g.input) return
-
 		var td = g.focused_td
-		if (!td) return
-
-		var field = fields[td.index]
-
-		g.input = H.input({
-			type: 'text', class: 'grid-input',
-			maxlength: field.maxlength,
-			value: d.val(td.parent.row, field),
-		})
-		//g.input.style.width  = td.clientWidth+'px'
-		//g.input.style.height = td.clientHeight+'px'
-		g.input.style.textAlign = field.align
-		td.innerHTML = ''
-		td.set1(g.input)
+		var input = td && td.first
+		if (!input) return
+		g.input = input
+		td.class('grid-cell-editing')
+		g.input.attr('disabled', null)
 		g.input.focus()
-		g.input.caret_pos = caret_pos
+		g.input.on('focusout', g.exit_edit)
+		if (where == 'right')
+			g.input.setSelectionRange(g.input.value.length, g.input.value.length)
+		else if (where == 'left')
+			g.input.setSelectionRange(0, 0)
+		else
+			g.input.setSelectionRange(0, g.input.value.length)
 	}
 
-	g.exit_edit = function() {
-		if (!g.input) return
-		var td = g.input.parent
+	g.exit_edit = function(cancel) {
+		var input = g.input
+		if (!input) return
+		g.input = null
+		var td = input.parent
 		var row = g.focused_tr.row
 		var field = fields[td.index]
-		d.setval(row, field, g.input.value)
-		td.innerHTML = d.val(row, field)
-		g.input = null
+		d.setval(row, field, input.value)
+		input.setSelectionRange(0, 0)
+		input.attr('disabled', true)
+		input.off('focusout', g.exit_edit)
+		td.class('grid-cell-editing', false)
 	}
 
-	// re-arranging -----------------------------------------------------------
+	// updating from dataset changes ------------------------------------------
 
-	g.move_col = function(ci, to_ci) {
-
+	g.value_changed = function(e, row, field, val) {
+		var tr = trs.get(row)
+		var td = tr.at[field.index]
+		var input = td.first
+		input.attr('value', val)
 	}
 
-	g.move_row_after = function(row, after_row) {
-
+	g.row_added = function(e, row) {
+		var tr = render_row(row)
+		g.table.add(tr)
+		// TODO: re-sort (or use bin-search to add the tr)
 	}
 
-	g.start_drag_row = function() {
-
+	g.delete_row = function(tr) {
+		var [next_tr, next_td] =
+			   g.first_focusable_cell(tr, g.focused_td,  1, 0)
+			|| g.first_focusable_cell(tr, g.focused_td, -1, 0)
+		g.focus_cell()
+		trs.delete(tr.row)
+		tr.remove()
+		g.focus_cell(next_tr, next_td)
 	}
 
-	g.drop_row = function() {
-
-	}
-
-	g.cancel_drag_row = function() {
-
+	g.row_removed = function(e, row) {
+		g.delete_row(trs[row])
 	}
 
 	// key binding ------------------------------------------------------------
 
-	var input
-
 	var keydown = function(e) {
 
-		// left and right arrows, tab and shift-tab: move left-right
-		if (!g.input && (e.which == 37 || e.which == 39 || e.which == 9)) {
+		if (!g.input && (e.key == 'ArrowLeft' || e.key == 'ArrowRight' || e.key == 'Tab')) {
 
-			var cols = e.which == 9 ? (e.shiftKey ? -1 : 1) : (e.which == 37 ? -1 : 1)
-
-			if (g.move_focus(0, cols)) {
+			var moved
+			if (e.key == 'Tab') {
+				var cols = e.shiftKey ? -1 : 1
+				moved = g.move_focus(0, cols) || g.move_focus(cols, cols * -1/0)
+			} else {
+				var cols = e.key == 'ArrowLeft' ? -1 : 1
+				moved = g.move_focus(0, cols)
+			}
+			if (moved) {
 				e.preventDefault()
 				return
 			}
@@ -249,8 +258,7 @@ function grid(...options) {
 
 		// (!input || g.immediate_mode || g.quick_edit)
 
-		// up, down, page-up, page-down: move up-down
-		if (e.which == 38 || e.which == 33 || e.which == 40 || e.which == 34) {
+		if (e.key == 'ArrowDown' || e.key == 'ArrowUp' || e.key == 'PageDown' || e.key == 'PageUp') {
 			var rows
 			switch(e.which) {
 				case 38: rows = -1; break
@@ -259,15 +267,15 @@ function grid(...options) {
 				case 34: rows =  g.page_rows; break
 			}
 
-			if (g.move_focus(rows, 0) && input && g.immediate_mode)
-				g.enter_edit(-1, input.selected)
+			if (g.move_focus(rows, 0) && g.input && g.immediate_mode)
+				g.enter_edit()
 			e.preventDefault()
 			return
 		}
 
 		// F2: enter edit mode
-		if (!input && e.which == 113) {
-			g.enter_edit(null, true)
+		if (!g.input && e.which == 113) {
+			g.enter_edit()
 			e.preventDefault()
 			return
 		}
@@ -275,7 +283,7 @@ function grid(...options) {
 		// enter: toggle edit mode, and move down on exit
 		if (e.which == 13) {
 			if (!g.input)
-				g.enter_edit(null, true)
+				g.enter_edit()
 			else {
 				g.exit_edit()
 				g.move_focus(1, 0)
@@ -285,28 +293,34 @@ function grid(...options) {
 		}
 
 		// esc: exit edit mode
-		if (input && e.which == 27) {
+		if (g.input && e.which == 27) {
 			g.exit_edit(true)
 			e.preventDefault()
 			return
 		}
 
 		// insert key: insert row
-		if (!input && e.which == 45) {
+		if (!g.input && e.which == 45) {
 			g.insert_row()
 			e.preventDefault()
 			return
 		}
 
 		// delete key: delete active row
-		if (!input && e.which == 46) {
-			g.delete_row()
+		if (!g.input && e.key == 'Delete') {
+			var tr = g.focused_tr
+			if (!tr) return
+			var next_tr = tr.next || tr.prev
+			var next_td = next_tr && g.focused_td && next_tr.at[g.focused_td.index]
+			g.focus_cell()
+			g.delete_row(tr)
+			g.focus_cell(next_tr, next_td)
 			e.preventDefault()
 			return
 		}
 
 		// space key on the tree field
-		if (!input && e.which == 32) {
+		if (!g.input && e.which == 32) {
 			g.toggle_expand_cell(active_cell)
 			e.preventDefault()
 			return
@@ -323,12 +337,21 @@ function grid(...options) {
 		if (e.charCode == 0) return
 		if (e.ctrlKey  || e.metaKey || e.altKey) return
 		if (g.input()) return
-		g.enter_edit(null, true)
+		g.enter_edit()
 		g.quick_edit = true
 		*/
 	}
 
 	document.on('keypress', keypress)
+
+	g.free = function() {
+		document.off('keydown', keydown)
+		document.off('keypress', keypress)
+		d.off('reload', d.render)
+		d.off('value_changed', d.value_changed)
+		d.off('row_added', d.row_added)
+		d.off('row_removed', d.row_removed)
+	}
 
 	/*
 	// moving -----------------------------------------------------------------

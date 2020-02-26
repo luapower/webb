@@ -116,80 +116,37 @@ var on = function(e, f) {
 method(Document, 'on', on)
 method(Element, 'on', on)
 
+var off = function(e, f) {
+	this.removeEventListener(e, f)
+	return this
+}
+method(Document, 'off', off)
+method(Element, 'off', off)
+
 // geometry ------------------------------------------------------------------
 
-property(Element, 'pos', {
+property(Element, 'w', {
 	get: function() {
-		var x = this.offsetLeft
-		var y = this.offsetTop
-		return {x: x, y: y}
+		return this.style.width
 	},
-	set: function(p) {
-		this.style.left = p.x + 'px'
-		this.style.top  = p.y + 'px'
-	}
+	set: function(w) {
+		this.style.width = typeof w == 'number' ? w + 'px' : w
+	},
 })
 
-// text-editables ------------------------------------------------------------
-
-property(Element, 'caret_pos', {
+property(Element, 'h', {
 	get: function() {
-		if (this.contentEditable === 'true') {
-			this.focus()
-			var range1 = window.getSelection().getRangeAt(0)
-			var range2 = range1.cloneRange()
-			range2.selectNodeContents(this)
-			range2.setEnd(range1.endContainer, range1.endOffset)
-			return range2.toString().length
-		} else {
-			return this.selectionStart
-		}
+		return this.style.height
 	},
-	set: function(pos) {
-		if (pos == -1)
-			pos = this[this.contentEditable ? 'text' : 'val']().length
-		if (this.contentEditable) {
-			this.focus()
-			window.getSelection().collapse(this.firstChild, pos)
-		} else { // textarea
-			this.setSelectionRange(pos, pos)
-		}
-		if (!this.isContentEditable)
-			this.focus()
-		return pos
-	}
-})
-
-property(Element, 'selected', {
-	get: function() {
-		var p0 = this.selectionStart
-		var p1 = this.selectionEnd
-		return p0 == 0 && p1 == this.value.length
+	set: function(w) {
+		this.style.height = typeof h == 'number' ? h + 'px' : h
 	},
-	set: function(v) {
-		var len = this.value.length
-		if (v)
-			this.setSelectionRange(0, len)
-		else
-			this.setSelectionRange(len, len)
-	}
 })
-
 
 // scrolling -----------------------------------------------------------------
 
-property(Element, 'isinview', {
-	get: function() {
-		var r = this.getBoundingClientRect()
-		return (
-			r.top >= 0 &&
-			r.left >= 0 &&
-			r.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
-			r.right <= (window.innerWidth || document.documentElement.clientWidth)
-		)
-	}
-})
-
 method(Element, 'scrollintoview', function() {
-	this.scrollIntoView(false)
+	var r = this.getBoundingClientRect()
+	if (r.top < 0 || r.left < 0 || r.bottom > window.innerHeight || r.right > window.innerWidth)
+		this.scrollIntoView(r.top < 0)
 })

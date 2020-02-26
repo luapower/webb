@@ -20,8 +20,8 @@
 		old_values     : original values on an updated but not yet saved row.
 
 	^d.changed(row, field, val)
-	^d.inserted(ri)
-	^d.deleted(ri)
+	^d.row_added(ri)
+	^d.row_removed(ri)
 
 */
 
@@ -93,7 +93,7 @@ function dataset(...options) {
 		row.values[field.index] = val
 
 		// trigger changed event.
-		d.trigger('changed', [row, field, val])
+		d.trigger('value_changed', [row, field, val])
 
 		// return converted value
 		return val
@@ -118,7 +118,7 @@ function dataset(...options) {
 	d.add = function(row) {
 		row = row || d.row()
 		rows.push(row)
-		d.trigger('added', row)
+		d.trigger('row_added', [row])
 		return row
 	}
 
@@ -129,7 +129,7 @@ function dataset(...options) {
 			// mark row as deleted
 			row.deleted = true
 		}
-		d.trigger('deleted', row)
+		d.trigger('row_removed', [row])
 		return row
 	}
 

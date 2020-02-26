@@ -9,29 +9,33 @@
 	position: absolute;
 }
 
-.grid-col {
-
+.grid-header-cell, .grid-cell {
+	border: 1px solid #ccc;
 }
 
-.grid-header-col, .grid-cell {
-	padding: 20px;
-	border: 1px solid black;
+.grid-header-cell {
+	padding: .5em;
+}
+
+.grid-cell {
+	padding: 0;
 }
 
 .grid-header-col {
 	vertical-align: bottom;
 }
 
-.grid-cell {
-
-}
-
 .grid-row-focused {
-	background-color: #333;
+	background-color: #eee;
 }
 
 .grid-cell-focused {
-	border: 1px dashed black;
+	border: 1px dashed #333;
+}
+
+.grid-cell-editing {
+	border: 1px solid #999;
+	background-color: white;
 }
 
 .grid-move-grid {
@@ -39,8 +43,15 @@
 }
 
 .grid-input {
+	padding: 20px;
 	border: 0;
 	margin: 0;
-	padding: 0;
 	font: inherit;
+	background-color: inherit;
 }
+
+.grid-input:focus {
+	outline: 0;
+	box-shadow: inset 2px 2px 6px -2px rgba(0,0,0,0.75);
+}
+
