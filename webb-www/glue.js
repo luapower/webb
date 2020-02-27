@@ -107,8 +107,8 @@ method(String, 'format', function(...args) {
 		return s
 	var type1 = typeof args[0]
 	var args = ((type1 == 'string' || type1 == 'number') ? args : args[0])
-	for (arg of args)
-		s = s.replace(RegExp('\\{' + arg + '\\}', 'gi'), arg)
+	for (var i = 0; i < args.length; i++)
+		s = s.replace(RegExp('\\{' + i + '\\}', 'gi'), args[i])
 	return s
 })
 

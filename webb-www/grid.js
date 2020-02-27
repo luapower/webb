@@ -9,11 +9,13 @@
 function grid(...options) {
 
 	var g = {
-		// behavior
+		// keyboard behavior
 		page_rows: 20,              // how many rows to move on page-down/page-up
-		immediate_mode: false,      // stay in edit mode while navigating
-		save_on_exit_row: true,     // trigger save on vertical movement
-		save_on_exit_edit: false,   // trigger save when done editing each cell
+		auto_advance: 'next_row',   // advance on enter: 'next_row'|'next_cell'
+		auto_advance_row: true,     // jump row on horiz. navigation limits
+		auto_jump_cells: true,      // jump to next/prev cell on caret limits
+		keep_editing: true,         // re-enter edit mode after navigating
+		save_mode: 'exit_row',        // when to save: 'typing'|'exit_edit'|'exit_row'
 	}
 
 	var d
@@ -35,13 +37,13 @@ function grid(...options) {
 
 		// bind events
 		d.on('reload', g.render)
-		d.on('changed', g.changed)
+		d.on('value_changed', g.value_changed)
 
 		// render
 		g.render()
 
 		// focus the first cell
-		g.move_focus(0, 0)
+		g.focus_near_cell(0, 0)
 	}
 
 	// rendering --------------------------------------------------------------
@@ -65,7 +67,7 @@ function grid(...options) {
 			var td = H.td({class: 'grid-cell'}, input)
 			tr.add(td)
 			td.on('mousedown', function() {
-				g.focus_cell(this.parentNode, this)
+				g.focus_cell(this.parent, this)
 			})
 		}
 		return tr
@@ -88,7 +90,6 @@ function grid(...options) {
 		}
 		g.div = H.div({class: 'grid-div'}, g.table)
 		g.container.set1(g.div)
-
 	}
 
 	// cell focusing ----------------------------------------------------------
@@ -98,47 +99,53 @@ function grid(...options) {
 
 	var next_e = function(e) { return e.next; }
 	var prev_e = function(e) { return e.prev; }
-	var find_sibling = function(e, direction, filter, found) {
+	var find_sibling = function(e, direction, is_valid, stop) {
 		var next = direction == 'prev' && prev_e || next_e
 		var found = found || return_true
-		var found_e
+		var last_e
 		for (; e; e = next(e))
-			if (filter(e)) {
-				found_e = e
-				if (found(e))
+			if (is_valid(e)) {
+				last_e = e
+				if (stop(e))
 					break
 			}
-		return found_e
+		return last_e
 	}
 
 	g.first_focusable_cell = function(tr, td, rows, cols) {
+		var want_change_row = rows
 		var tr1 = find_sibling(
 			tr || g.table.first,
 			rows >= 0 && 'next' || 'prev',
 			function(tr) { return !tr.first.field },
 			function(tr) {
-				var found = !rows
+				var stop = !rows
 				rows -= sign(rows)
-				return found
+				return stop
 			})
 		var td1 = find_sibling(
 			tr1 && (td && tr1.at[td.index] || tr1.first),
 			cols >= 0 && 'next' || 'prev',
+			function(td) { return true },
 			function(td) {
-				return true
-			},
-			function(td) {
-				var found = !cols
+				var stop = !cols
 				cols -= sign(cols)
-				return found
+				return stop
 			})
-		return [tr1, td1]
+		// if wanted to change row but couldn't, then don't change the col either.
+		if (want_change_row && tr1 == tr && td)
+			td1 = td
+		return [tr1, td1, tr1 != tr || td1 != td]
 	}
 
 	g.focus_cell = function(tr, td) {
-		var changed = tr != g.focused_tr || td != g.focused_td
-		if (!changed) return false
-		g.exit_edit()
+		if (tr == g.focused_tr && td == g.focused_td)
+			return false
+		if (g.save_mode == 'exit_row' && tr != g.focused_tr)
+			if(!g.save_row())
+				return false
+		if (!g.exit_edit())
+			return false
 		if (g.focused_tr) g.focused_tr.class('grid-row-focused', false)
 		if (g.focused_td) g.focused_td.class('grid-cell-focused', false)
 		if (tr) { tr.class('grid-row-focused'); tr.scrollintoview() }
@@ -148,45 +155,87 @@ function grid(...options) {
 		return true
 	}
 
-	g.move_focus = function(rows, cols) {
+	g.focus_near_cell = function(rows, cols) {
 		return g.focus_cell(...g.first_focusable_cell(g.focused_tr, g.focused_td, rows, cols))
+	}
+
+	g.focus_next_cell = function(cols, auto_advance_row) {
+		return g.focus_near_cell(0, cols)
+			|| ((auto_advance_row || g.auto_advance_row)
+					&& g.focus_near_cell(cols, cols * -1/0))
 	}
 
 	// editing ----------------------------------------------------------------
 
 	g.input = null
 
+	function input_focusout(e) {
+		return g.exit_edit()
+	}
+
+	function input_input(e) {
+		var row = g.focused_tr.row
+		var field = fields[g.focused_td.index]
+		if (g.save_mode == 'typing')
+			return d.setval(row, field, g.input.value)
+	}
+
 	g.enter_edit = function(where) {
-		if (g.input) return
+		if (g.input)
+			return false
 		var td = g.focused_td
 		var input = td && td.first
-		if (!input) return
+		if (!input)
+			return false
 		g.input = input
 		td.class('grid-cell-editing')
 		g.input.attr('disabled', null)
 		g.input.focus()
-		g.input.on('focusout', g.exit_edit)
+		g.input.on('focusout', input_focusout)
+		g.input.on('input', input_input)
 		if (where == 'right')
-			g.input.setSelectionRange(g.input.value.length, g.input.value.length)
+			g.input.select(g.input.value.length, g.input.value.length)
 		else if (where == 'left')
-			g.input.setSelectionRange(0, 0)
+			g.input.select(0, 0)
 		else
-			g.input.setSelectionRange(0, g.input.value.length)
+			g.input.select(0, g.input.value.length)
+		return true
 	}
 
 	g.exit_edit = function(cancel) {
 		var input = g.input
-		if (!input) return
-		g.input = null
+		if (!input)
+			return true
 		var td = input.parent
 		var row = g.focused_tr.row
 		var field = fields[td.index]
-		d.setval(row, field, input.value)
-		input.setSelectionRange(0, 0)
+		if (cancel)
+			input.value = d.val(row, field)
+		else if (g.save_mode == 'exit_edit')
+			if (!d.setval(row, field, input.value))
+				return false
+		input.off('focusout', input_focusout)
+		input.off('input', input_input)
+		input.select(0, 0)
 		input.attr('disabled', true)
-		input.off('focusout', g.exit_edit)
 		td.class('grid-cell-editing', false)
+		g.input = null
+		return true
 	}
+
+	g.save_row = function() {
+		var tr = g.focused_tr
+		if (!tr)
+			return true
+		var ok = true
+		for (var i = 0; i < fields.length; i++) {
+			print(tr.at[i].first.value)
+			if (!d.setval(tr.row, fields[i], tr.at[i].first.value))
+				ok = false
+		}
+		return ok
+	}
+
 
 	// updating from dataset changes ------------------------------------------
 
@@ -194,7 +243,7 @@ function grid(...options) {
 		var tr = trs.get(row)
 		var td = tr.at[field.index]
 		var input = td.first
-		input.attr('value', val)
+		input.value = val
 	}
 
 	g.row_added = function(e, row) {
@@ -204,9 +253,10 @@ function grid(...options) {
 	}
 
 	g.delete_row = function(tr) {
-		var [next_tr, next_td] =
-			   g.first_focusable_cell(tr, g.focused_td,  1, 0)
-			|| g.first_focusable_cell(tr, g.focused_td, -1, 0)
+		var [next_tr, next_td, changed] = g.first_focusable_cell(tr, g.focused_td,  1, 0)
+		if (!changed)
+			[next_tr, next_td] = g.first_focusable_cell(tr, g.focused_td, -1, 0)
+		g.exit_edit(true)
 		g.focus_cell()
 		trs.delete(tr.row)
 		tr.remove()
@@ -221,44 +271,40 @@ function grid(...options) {
 
 	var keydown = function(e) {
 
-		if (!g.input && (e.key == 'ArrowLeft' || e.key == 'ArrowRight' || e.key == 'Tab')) {
+		if (e.key == 'ArrowLeft' || e.key == 'ArrowRight') {
 
-			var moved
-			if (e.key == 'Tab') {
-				var cols = e.shiftKey ? -1 : 1
-				moved = g.move_focus(0, cols) || g.move_focus(cols, cols * -1/0)
-			} else {
-				var cols = e.key == 'ArrowLeft' ? -1 : 1
-				moved = g.move_focus(0, cols)
-			}
-			if (moved) {
+			var cols = e.key == 'ArrowLeft' ? -1 : 1
+
+			var move = !g.input
+				|| (g.auto_jump_cells && !e.shiftKey
+					&& g.input.caret == (cols < 0 ? 0 : g.input.value.length))
+
+			var reenter_edit = g.input && g.keep_editing && move
+
+			if (move && g.focus_next_cell(cols)) {
+				if (reenter_edit)
+					g.enter_edit(cols > 0 ? 'left' : 'right')
 				e.preventDefault()
 				return
 			}
-
-			/*
-			if (
-				(e.altKey && e.shiftKey && !e.ctrlKey)
-				|| g.quick_edit
-			|| (g.immediate_mode &&
-					g.focused() &&
-					g.caret() == (cols < 0 ? 0 : input.val().length) &&
-						(e.which == 9 || !e.shiftKey)
-			) {
-				if (g.move_focus(0, cols))
-					// if (input && g.immediate_mode)
-					// 	g.enter_edit(cols < 0 ? -1 : 0)
-				e.preventDefault()
-				return
-			}
-			*/
-
-
 		}
 
-		// (!input || g.immediate_mode || g.quick_edit)
+		if (e.key == 'Tab') {
+
+			var cols = e.shiftKey ? -1 : 1
+
+			var reenter_edit = g.input
+
+			if (g.focus_next_cell(cols, true))
+				if (reenter_edit)
+					g.enter_edit(cols > 0 ? 'left' : 'right')
+
+			e.preventDefault()
+			return
+		}
 
 		if (e.key == 'ArrowDown' || e.key == 'ArrowUp' || e.key == 'PageDown' || e.key == 'PageUp') {
+
 			var rows
 			switch(e.which) {
 				case 38: rows = -1; break
@@ -267,10 +313,14 @@ function grid(...options) {
 				case 34: rows =  g.page_rows; break
 			}
 
-			if (g.move_focus(rows, 0) && g.input && g.immediate_mode)
-				g.enter_edit()
-			e.preventDefault()
-			return
+			var reenter_edit = g.input && g.keep_editing
+
+			if (g.focus_near_cell(rows, 0)) {
+				if (reenter_edit)
+					g.enter_edit()
+				e.preventDefault()
+				return
+			}
 		}
 
 		// F2: enter edit mode
@@ -280,27 +330,33 @@ function grid(...options) {
 			return
 		}
 
-		// enter: toggle edit mode, and move down on exit
-		if (e.which == 13) {
+		// enter: toggle edit mode, and navigate on exit
+		if (e.key == 'Enter') {
 			if (!g.input)
 				g.enter_edit()
-			else {
-				g.exit_edit()
-				g.move_focus(1, 0)
+			else if (g.exit_edit()) {
+				if (g.auto_advance == 'next_row')
+					if (g.focus_near_cell(1, 0))
+						if (g.keep_editing)
+							g.enter_edit()
+				else if (g.auto_advance == 'next_cell')
+					if (g.focus_next_cell(1))
+						if (g.keep_editing)
+							g.enter_edit()
 			}
 			e.preventDefault()
 			return
 		}
 
 		// esc: exit edit mode
-		if (g.input && e.which == 27) {
+		if (g.input && e.key == 'Escape') {
 			g.exit_edit(true)
 			e.preventDefault()
 			return
 		}
 
 		// insert key: insert row
-		if (!g.input && e.which == 45) {
+		if (!g.input && e.key == 'Insert') {
 			g.insert_row()
 			e.preventDefault()
 			return
@@ -310,17 +366,13 @@ function grid(...options) {
 		if (!g.input && e.key == 'Delete') {
 			var tr = g.focused_tr
 			if (!tr) return
-			var next_tr = tr.next || tr.prev
-			var next_td = next_tr && g.focused_td && next_tr.at[g.focused_td.index]
-			g.focus_cell()
 			g.delete_row(tr)
-			g.focus_cell(next_tr, next_td)
 			e.preventDefault()
 			return
 		}
 
 		// space key on the tree field
-		if (!g.input && e.which == 32) {
+		if (!g.input && e.key == ' ') {
 			g.toggle_expand_cell(active_cell)
 			e.preventDefault()
 			return

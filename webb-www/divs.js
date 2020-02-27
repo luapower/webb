@@ -1,7 +1,6 @@
 /*
 
-	e.caret_pos -> i
-	e.caret_pos = i
+
 
 */
 
@@ -103,9 +102,9 @@ H.td       = function(...a) { return H('td'      , ...a) }
 H.th       = function(...a) { return H('th'      , ...a) }
 H.thead    = function(...a) { return H('thead'   , ...a) }
 H.tbody    = function(...a) { return H('tbody'   , ...a) }
-H.anchor   = function(...a) { return H('tbody'   , ...a) }
-H.italic   = function(...a) { return H('i'       , ...a) }
-H.bold     = function(...a) { return H('b'       , ...a) }
+H.a        = function(...a) { return H('tbody'   , ...a) }
+H.i        = function(...a) { return H('i'       , ...a) }
+H.b        = function(...a) { return H('b'       , ...a) }
 
 // events
 
@@ -142,6 +141,11 @@ property(Element, 'h', {
 		this.style.height = typeof h == 'number' ? h + 'px' : h
 	},
 })
+
+// text editing --------------------------------------------------------------
+
+alias(HTMLInputElement, 'caret', 'selectionStart')
+alias(HTMLInputElement, 'select', 'setSelectionRange')
 
 // scrolling -----------------------------------------------------------------
 

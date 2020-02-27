@@ -19,7 +19,7 @@
 		deleted        : deleted row, not deleted on server yet.
 		old_values     : original values on an updated but not yet saved row.
 
-	^d.changed(row, field, val)
+	^d.value_changed(row, field, val)
 	^d.row_added(ri)
 	^d.row_removed(ri)
 
