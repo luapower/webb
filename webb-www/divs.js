@@ -48,7 +48,10 @@ method(Element, 'class', function(name, enable) {
 })
 
 method(Element, 'css', function(prop, val) {
-	return window.getComputedStyle(this, null).getPropertyValue(prop)
+	if (val !== undefined)
+		this.style[prop] = val
+	else
+		return window.getComputedStyle(this, null).getPropertyValue(prop)
 })
 
 // tree ops

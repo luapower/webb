@@ -28,9 +28,6 @@
 function dataset(...options) {
 
 	var d = {}
-
-	// local references
-
 	var fields // [fi: {name:, client_default: v, server_default: v, ...}]
 	var rows   // [ri: row]; row = {values: [fi: val], attr: val, ...}
 
@@ -40,8 +37,8 @@ function dataset(...options) {
 		update(d, ...options)
 
 		// add missing state.
-		d.validators = d.validators || {}
-		d.converters = d.converters || {}
+		d.validators = update({}, dataset.validators, d.validators)
+		d.converters = update({}, dataset.converters, d.converters)
 		d.fields = d.fields || []
 		d.rows = d.rows || []
 
@@ -66,13 +63,16 @@ function dataset(...options) {
 		return get_value ? get_value(field, row, fields) : row.values[field.index]
 	}
 
-	d.validate = function(val, field) {
+	d.validate_val = function(val, field) {
 		var validate = field.validate || d.validators[field.type]
-		if (!validate) return
-		validate.call(d, val, field)
+		if (!validate)
+			return true
+		return validate.call(d, val, field)
 	}
 
-	d.convert = function(val, field) {
+	d.validate_row = return_true // stub
+
+	d.convert_val = function(val, field) {
 		var convert = field.convert || d.converters[field.type]
 		return convert ? convert.call(d, val, field) : val
 	}
@@ -80,10 +80,17 @@ function dataset(...options) {
 	d.setval = function(row, field, val) {
 
 		// convert value to internal represenation.
-		val = d.convert(val, field)
+		val = d.convert_val(val, field)
 
 		// validate converted value.
-		d.validate(val, field)
+		var ret = d.validate_val(val, field)
+		if (ret !== true)
+			return ret
+
+		// validate row
+		var ret = d.validate_row()
+		if (ret !== true)
+			return ret
 
 		// save old values if not already saved and the row is not new.
 		if (!row.old_values)
@@ -95,8 +102,7 @@ function dataset(...options) {
 		// trigger changed event.
 		d.trigger('value_changed', [row, field, val])
 
-		// return converted value
-		return val
+		return true
 	}
 
 	// add/remove rows
@@ -145,6 +151,10 @@ function dataset(...options) {
 		return old && old[field.index] !== row.values[field.index]
 	}
 
+	// saving
+
+
+
 	init()
 
 	return d
@@ -152,21 +162,10 @@ function dataset(...options) {
 
 // validators ----------------------------------------------------------------
 
-function ValidationError() {
-	var e = Error.apply(this, arguments)
-	e.name = this.name = 'ValidationError'
-	this.stack = e.stack
-	this.message = e.message
-	return this
-}
-var IntermediateInheritor = function() {}
-IntermediateInheritor.prototype = Error.prototype
-ValidationError.prototype = new IntermediateInheritor()
-
 dataset.validators = {
 	number: function(val, field) {
-		if (parseFloat(val) === undefined)
-			throw new ValidationError('invalid number')
+		val = parseFloat(val)
+		return isNaN(val) && 'invalid number' || true
 	},
 }
 

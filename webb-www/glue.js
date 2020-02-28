@@ -36,7 +36,6 @@ function sign(x) {
 // callbacks -----------------------------------------------------------------
 
 function noop() {}
-
 function return_true() { return true; }
 
 // error handling ------------------------------------------------------------
