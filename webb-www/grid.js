@@ -40,8 +40,7 @@ function grid(...options) {
 			fields = d.fields.slice()
 
 		onoff_events(true)
-		g.render()
-		g.focus_near_cell(0, 0)
+		g.reload()
 	}
 
 	function onoff_events(on) {
@@ -50,7 +49,7 @@ function grid(...options) {
 		document.onoff('mousedown', mousedown, on)
 		document.onoff('mouseup'  , mouseup  , on)
 		document.onoff('mousemove', mousemove, on)
-		d.onoff('reload'       , g.render       , on)
+		d.onoff('reload'       , g.reload       , on)
 		d.onoff('value_changed', g.value_changed, on)
 		d.onoff('row_added'    , d.row_added    , on)
 		d.onoff('row_removed'  , d.row_removed  , on)
@@ -114,15 +113,13 @@ function grid(...options) {
 				|| dir == 'desc' && 'fa-angle-down'
 			   || 'fa-sort')
 
-			sort_icon.on('contextmenu', function(e) { e.preventDefault() })
-
-			sort_icon.on('mousedown', function(e) {
+			function toggle_order(e) {
 				if (e.which == 3)  // right-click
 					d.clear_order()
 				else
 					d.toggle_order(field, e.shiftKey)
 				e.preventDefault()
-			})
+			}
 
 			let th = H.th({
 				class: 'grid-header-cell',
@@ -133,6 +130,8 @@ function grid(...options) {
 			th.style.maxWidth = field.max_width && field.max_width + 'px'
 			th.style.minWidth = field.min_width && field.min_width + 'px'
 			th.field = field
+			th.on('mousedown', toggle_order)
+			th.on('contextmenu', function(e) { e.preventDefault() })
 
 			header_tr.add(th)
 		}
@@ -144,6 +143,31 @@ function grid(...options) {
 		}
 
 		g.container.set1(g.table)
+	}
+
+	g.row_tr = function(row) {
+		for (let tr of g.table.childNodes)
+			if (tr.row == row)
+				return tr
+	}
+
+	g.field_td = function(tr, field) {
+		let fi = fields.indexOf(field)
+		if (fi != -1) return tr.at[i]
+	}
+
+	g.reload = function() {
+		let row   = g.focused_tr && g.focused_tr.row
+		let field = g.focused_td && fields[g.focused_td.index]
+		g.render()
+		// find focused row & field again and re-focus them.
+		let tr = row && g.row_tr(row)
+		if (tr) {
+			let td = field && g.field_td(tr, field)
+			g.focus_cell(tr, td, false)
+			return
+		}
+		g.focus_near_cell(0, 0, false)
 	}
 
 	// focusing ---------------------------------------------------------------
@@ -192,7 +216,7 @@ function grid(...options) {
 		return [tr1, td1, tr1 != tr || td1 != td]
 	}
 
-	g.focus_cell = function(tr, td) {
+	g.focus_cell = function(tr, td, scrollintoview) {
 		if (tr == g.focused_tr && td == g.focused_td)
 			return false
 		if (g.commit_edits == 'exit_row' && g.focused_tr && tr != g.focused_tr)
@@ -202,15 +226,16 @@ function grid(...options) {
 			return false
 		if (g.focused_tr) g.focused_tr.class('focused', false)
 		if (g.focused_td) g.focused_td.class('focused', false)
-		if (tr) { tr.class('focused'); tr.scrollintoview() }
-		if (td) { td.class('focused'); td.scrollintoview() }
+		if (tr) { tr.class('focused'); if (scrollintoview !== false) tr.scrollintoview() }
+		if (td) { td.class('focused'); if (scrollintoview !== false) td.scrollintoview() }
 		g.focused_tr = tr
 		g.focused_td = td
 		return true
 	}
 
-	g.focus_near_cell = function(rows, cols) {
-		return g.focus_cell(...g.first_focusable_cell(g.focused_tr, g.focused_td, rows, cols))
+	g.focus_near_cell = function(rows, cols, scrollintoview) {
+		let [tr, td] = g.first_focusable_cell(g.focused_tr, g.focused_td, rows, cols)
+		return g.focus_cell(tr, td, scrollintoview)
 	}
 
 	g.focus_next_cell = function(cols, auto_advance_row) {

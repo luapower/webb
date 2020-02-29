@@ -13,6 +13,11 @@
 	border-bottom: 1px solid #666;
 	padding: 8px;
 	position: relative;
+	cursor: pointer;
+}
+
+.grid-header-cell:hover {
+	text-decoration: underline;
 }
 
 .grid-cell {
@@ -48,7 +53,6 @@
 	position: absolute;
 }
 
-.grid-sort-icon {
-	cursor: pointer;
-	color: inherit;
+.grid-sort-icon.fa-sort {
+	color: #ccc;
 }
