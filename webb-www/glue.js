@@ -54,7 +54,7 @@ function assert(ret, err, ...args) {
 
 // extend an object with a property, checking for name clashes.
 function property(cls, prop, descriptor) {
-	var proto = cls.prototype || cls
+	let proto = cls.prototype || cls
 	assert(!(prop in proto), '{0}.{1} already exists', cls.name, prop)
 	Object.defineProperty(proto, prop, descriptor)
 }
@@ -68,7 +68,7 @@ function method(cls, meth, func) {
 }
 
 function override(cls, meth, func) {
-	var inherited = cls.prototype[meth] || noop
+	let inherited = cls.prototype[meth] || noop
 	function wrapper(inherited, ...args) {
 		return meth.apply(this, inherited, args)
 	}
@@ -88,7 +88,7 @@ method(Object, 'getPropertyDescriptor', function(key) {
 })
 
 function alias(cls, new_name, old_name) {
-	var d = cls.prototype.getPropertyDescriptor(old_name)
+	let d = cls.prototype.getPropertyDescriptor(old_name)
 	assert(d, '{0}.{1} does not exist', cls.name, old_name)
 	Object.defineProperty(cls.prototype, new_name, d)
 }
@@ -101,26 +101,33 @@ function alias(cls, new_name, old_name) {
 //		'{current} of {total}'.format({'current': current, 'total': total})
 
 method(String, 'format', function(...args) {
-	var s = this.toString()
+	let s = this.toString()
 	if (!args.length)
 		return s
-	var type1 = typeof args[0]
-	var args = ((type1 == 'string' || type1 == 'number') ? args : args[0])
-	for (var i = 0; i < args.length; i++)
+	let type1 = typeof args[0]
+	args = ((type1 == 'string' || type1 == 'number') ? args : args[0])
+	for (let i = 0; i < args.length; i++)
 		s = s.replace(RegExp('\\{' + i + '\\}', 'gi'), args[i])
 	return s
 })
 
 // arrays --------------------------------------------------------------------
 
-var isarray = Array.isArray
+isarray = Array.isArray
 
 method(Array, 'insert', function(i, e) {
 	this.splice(i, 0, e)
 })
 
 method(Array, 'remove', function(i) {
-	var v = this[i]
+	let v = this[i]
+	this.splice(i, 1)
+	return v
+})
+
+method(Array, 'remove_value', function(v) {
+	let i = this.indexoOf(v)
+	if (i == -1) return
 	this.splice(i, 1)
 	return v
 })
@@ -128,7 +135,7 @@ method(Array, 'remove', function(i) {
 // hash maps -----------------------------------------------------------------
 
 function keys(o, cmp) {
-	var t = Object.getOwnPropertyNames(o)
+	let t = Object.getOwnPropertyNames(o)
 	if (typeof sort == 'function')
 		t.sort(cmp)
 	else if (cmp)
@@ -137,11 +144,37 @@ function keys(o, cmp) {
 }
 
 function update(target, ...sources) {
-	for (var o of sources)
+	for (let o of sources)
 		if (o)
-			for (var k of keys(o))
+			for (let k of keys(o))
 				target[k] = o[k]
   return target
+}
+
+// events --------------------------------------------------------------------
+
+function install_events(o) {
+	let obs = new Map()
+	o.on = function(topic, handler) {
+		obs[topic] = obs[topic] || []
+		obs[topic].push(handler)
+	}
+	o.off = function(topic, handler) {
+		obs[topic].remove_value(handler)
+	}
+	o.onoff = function(topic, handler, enable) {
+		if (enable)
+			o.on(topic, handler)
+		else
+			o.off(topic, handler)
+	}
+	o.trigger = function(topic, ...args) {
+		var a = obs[topic]
+		if (!a) return
+		for (f of a)
+			f.call(o, ...args)
+	}
+	return o
 }
 
 // serialization -------------------------------------------------------------

@@ -1,35 +1,24 @@
 
-.grid-div {
-	position: relative;
+.grid-table {
 	font-family: sans-serif;
 	font-size: 14px;
-}
-
-.grid-table {
 	border-spacing: 0px;
 	border-collapse: collapse;
-	border: 0;
-	position: absolute;
+	overflow: hidden;
+	table-layout: fixed;
 }
 
 .grid-header-cell {
+	box-sizing: border-box;
 	border-bottom: 1px solid #666;
+	padding: 8px;
+	position: relative;
 }
 
 .grid-cell {
+	box-sizing: border-box;
 	border-bottom: 1px solid #ccc;
-}
-
-.grid-header-cell {
-	padding: .5em;
-}
-
-.grid-cell {
 	padding: 0;
-}
-
-.grid-header-col {
-	vertical-align: bottom;
 }
 
 .grid-row.focused   { background-color: #ddd; }
@@ -40,10 +29,6 @@
 .grid-cell.focused.modified { background-color: #aaffaa; }
 .grid-cell.editing  { filter: brightness(110%); }
 
-.grid-move-grid {
-	position: absolute;
-}
-
 .grid-input {
 	box-sizing: border-box;
 	padding: 8px;
@@ -51,6 +36,7 @@
 	margin: 0;
 	font: inherit;
 	background-color: inherit;
+	cursor: inherit;
 }
 
 .grid-input:focus {
@@ -62,3 +48,7 @@
 	position: absolute;
 }
 
+.grid-sort-icon {
+	cursor: pointer;
+	color: inherit;
+}

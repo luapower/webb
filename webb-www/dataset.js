@@ -25,13 +25,13 @@
 
 */
 
-function dataset(...options) {
+let dataset = function(...options) {
 
-	var d = {}
-	var fields // [fi: {name:, client_default: v, server_default: v, ...}]
-	var rows   // [ri: row]; row = {values: [fi: val], attr: val, ...}
+	let d = install_events({})
+	let fields // [fi: {name:, client_default: v, server_default: v, ...}]
+	let rows   // [ri: row]; row = {values: [fi: val], attr: val, ...}
 
-	function init() {
+	let init = function() {
 
 		// set options/override.
 		update(d, ...options)
@@ -50,7 +50,7 @@ function dataset(...options) {
 			fields[fi].index = fi
 
 		// init events
-		var ev = $(d)
+		let ev = $(d)
 		d.on = $.proxy(ev.on, ev)
 		d.trigger = $.proxy(ev.trigger, ev)
 
@@ -59,12 +59,12 @@ function dataset(...options) {
 	// get/set row values
 
 	d.val = function(row, field) {
-		var get_value = field.get_value // computed value?
+		let get_value = field.get_value // computed value?
 		return get_value ? get_value(field, row, fields) : row.values[field.index]
 	}
 
 	d.validate_val = function(val, field) {
-		var validate = field.validate || d.validators[field.type]
+		let validate = field.validate || d.validators[field.type]
 		if (!validate)
 			return true
 		return validate.call(d, val, field)
@@ -73,7 +73,7 @@ function dataset(...options) {
 	d.validate_row = return_true // stub
 
 	d.convert_val = function(val, field) {
-		var convert = field.convert || d.converters[field.type]
+		let convert = field.convert || d.converters[field.type]
 		return convert ? convert.call(d, val, field) : val
 	}
 
@@ -82,13 +82,11 @@ function dataset(...options) {
 		// convert value to internal represenation.
 		val = d.convert_val(val, field)
 
-		// validate converted value.
-		var ret = d.validate_val(val, field)
+		// validate converted value and the entire row with the new value in it.
+		let ret = d.validate_val(val, field)
 		if (ret !== true)
 			return ret
-
-		// validate row
-		var ret = d.validate_row()
+		ret = d.validate_row()
 		if (ret !== true)
 			return ret
 
@@ -108,15 +106,15 @@ function dataset(...options) {
 	// add/remove rows
 
 	d.row = function() {
-		var values = []
+		let values = []
 		// add server_default values or null
-		for (var field of fields) {
-			var val = field.server_default
+		for (let field of fields) {
+			let val = field.server_default
 			values.push(val != null ? val : null)
 		}
-		var row = {values: values, is_new: true}
+		let row = {values: values, is_new: true}
 		// set default client values.
-		for (var field of fields)
+		for (let field of fields)
 			d.setval(row, field, field.client_default)
 		return row
 	}
@@ -142,12 +140,12 @@ function dataset(...options) {
 	// changeset
 
 	d.oldval = function(row, field) {
-		var values = row.old_values || row.values
+		let values = row.old_values || row.values
 		return values[field.index]
 	}
 
 	d.val_changed = function(row, field) {
-		var old = row.old_values
+		let old = row.old_values
 		return old && old[field.index] !== row.values[field.index]
 	}
 
