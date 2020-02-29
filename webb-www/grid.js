@@ -104,15 +104,24 @@ function grid(...options) {
 		let header_tr = H.tr({class: 'grid-header-row'})
 		for (let field of fields) {
 
-			let sort_icon  = H.div({class: 'fa fa-sort grid-sort-icon'})
+			let sort_icon  = H.div({class: 'fa grid-sort-icon'})
 			let sort_left  = field.align == 'right' ? H.span({style: 'float: left' }, sort_icon) : null
 			let sort_right = field.align != 'right' ? H.span({style: 'float: right'}, sort_icon) : null
 
-			let d.order
+			let dir = d.order_by_dir(field)
+			sort_icon.class(
+				   dir == 'asc'  && 'fa-angle-up'
+				|| dir == 'desc' && 'fa-angle-down'
+			   || 'fa-sort')
 
-			sort_icon.on('click', function() {
-				if (
-				g.toggle_sort(field)
+			sort_icon.on('contextmenu', function(e) { e.preventDefault() })
+
+			sort_icon.on('mousedown', function(e) {
+				if (e.which == 3)  // right-click
+					d.clear_order()
+				else
+					d.toggle_order(field, e.shiftKey)
+				e.preventDefault()
 			})
 
 			let th = H.th({
@@ -501,6 +510,8 @@ function grid(...options) {
 		}
 		g.table.style.cursor = hit_th ? 'col-resize' : null
 	}
+
+	// sorting ----------------------------------------------------------------
 
 	init()
 
