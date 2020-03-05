@@ -14,6 +14,7 @@
 	padding: 8px;
 	position: relative;
 	cursor: pointer;
+	white-space: nowrap;
 }
 
 .grid-header-cell:hover {
@@ -26,14 +27,6 @@
 	padding: 0;
 }
 
-.grid-row.focused   { background-color: #ddd; }
-.grid-cell.focused  { background-color: #eee; }
-.grid-cell.modified { background-color: #ccffcc; }
-.grid-cell.invalid  { background-color: #ffcccc; }
-.grid-cell.focused.invalid  { background-color: #ffaaaa; }
-.grid-cell.focused.modified { background-color: #aaffaa; }
-.grid-cell.editing  { filter: brightness(110%); }
-
 .grid-input {
 	box-sizing: border-box;
 	padding: 8px;
@@ -42,11 +35,29 @@
 	font: inherit;
 	background-color: inherit;
 	cursor: inherit;
+	color: inherit;
 }
 
-.grid-input:focus {
+.grid-cell.read_only { color: #999; }
+.grid-row.new        { background-color: #eef; }
+.grid-row.focused    { background-color: #eee; }
+.grid-cell.modified  { background-color: #ccffcc; }
+.grid-cell.invalid   { background-color: #ffcccc; }
+.grid-cell.focused.invalid  { background-color: #ffaaaa; }
+.grid-cell.focused.modified { background-color: #aaffaa; }
+
+.grid-cell.focused > .grid-input {
+	margin: -1px;
+	border: 1px dashed green;
+	background: white;
+}
+
+.grid-cell.editing > .grid-input {
 	outline: 0;
 	box-shadow: inset 2px 2px 6px -2px rgba(0,0,0,0.75);
+	margin: 0;
+	border: 0;
+	background: white;
 }
 
 .grid-error {

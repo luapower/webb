@@ -4,7 +4,6 @@
 
 	Field attributes:
 		commit_edits:
-		save_mode:
 
 */
 
@@ -13,12 +12,12 @@ function grid(...options) {
 	let g = {
 		// keyboard behavior
 		page_rows: 20,              // how many rows to move on page-down/page-up
-		auto_advance: 'next_cell',  // advance on enter: 'next_row'|'next_cell'
+		auto_advance: false,        // advance on enter: false|'next_row'|'next_cell'
 		auto_advance_row: true,     // jump row on horiz. navigation limits
 		auto_jump_cells: true,      // jump to next/prev cell on caret limits
 		keep_editing: true,         // re-enter edit mode after navigating
 		commit_edits: 'exit_edit',  // when to update the dataset: 'input'|'exit_edit'|'exit_row'
-		save_row: 'exit_row',       // when to save the row: 'input'|'exit_edit'|'exit_row'|'manual'
+		auto_save: 'exit_row',      // when to save changes: 'input'|'exit_edit'|'exit_row'|'manual'
 		allow_invalid_values: true, // allow exiting edit mode on invalid value.
 	}
 
@@ -40,7 +39,12 @@ function grid(...options) {
 			fields = d.fields.slice()
 
 		onoff_events(true)
+
+		init_order_by()
+
 		g.reload()
+
+		g.sort()
 	}
 
 	function onoff_events(on) {
@@ -60,6 +64,11 @@ function grid(...options) {
 	}
 
 	// rendering --------------------------------------------------------------
+
+	property(g, 'last_tr', { get: function() {
+		let tr = g.table.lastElementChild
+		return tr && tr.hasclass('grid-row') && tr || undefined
+	}})
 
 	let trs = new Map()
 
@@ -82,6 +91,8 @@ function grid(...options) {
 
 			let td = H.td({class: 'grid-cell', width: 1}, input)
 
+			td.class('read_only', !d.can_change_cell(row, field))
+
 			td.on('mousedown', function() {
 				let td = this
 				let tr = this.parent
@@ -96,8 +107,25 @@ function grid(...options) {
 		return tr
 	}
 
+	function update_sort_icons() {
+		let ths = g.table.at[0].children
+		for (let i = 0; i < fields.length; i++) {
+			let field = fields[i]
+			let dir = g.order_by_dir(field)
+			let sort_icon = ths[i].sort_icon
+			sort_icon.class('fa-sort', false)
+			sort_icon.class('fa-angle-up', false)
+			sort_icon.class('fa-angle-down', false)
+			sort_icon.class(
+				   dir == 'asc'  && 'fa-angle-up'
+				|| dir == 'desc' && 'fa-angle-down'
+			   || 'fa-sort', true)
+		}
+	}
+
 	g.render = function() {
-		g.focus_cell()
+		if (g.table)
+			g.focus_cell()
 		g.table = H.table({class: 'grid-table'})
 
 		let header_tr = H.tr({class: 'grid-header-row'})
@@ -107,17 +135,11 @@ function grid(...options) {
 			let sort_left  = field.align == 'right' ? H.span({style: 'float: left' }, sort_icon) : null
 			let sort_right = field.align != 'right' ? H.span({style: 'float: right'}, sort_icon) : null
 
-			let dir = d.order_by_dir(field)
-			sort_icon.class(
-				   dir == 'asc'  && 'fa-angle-up'
-				|| dir == 'desc' && 'fa-angle-down'
-			   || 'fa-sort')
-
 			function toggle_order(e) {
 				if (e.which == 3)  // right-click
-					d.clear_order()
+					g.clear_order()
 				else
-					d.toggle_order(field, e.shiftKey)
+					g.toggle_order(field, e.shiftKey)
 				e.preventDefault()
 			}
 
@@ -125,6 +147,8 @@ function grid(...options) {
 				class: 'grid-header-cell',
 				align: field.align || 'left',
 			}, sort_left, field.name, sort_right)
+
+			th.sort_icon = sort_icon
 
 			th.style.width    = field.width && field.width + 'px'
 			th.style.maxWidth = field.max_width && field.max_width + 'px'
@@ -136,6 +160,7 @@ function grid(...options) {
 			header_tr.add(th)
 		}
 		g.table.add(header_tr)
+		update_sort_icons()
 
 		for (let row of d.rows) {
 			let tr = render_row(row)
@@ -146,7 +171,7 @@ function grid(...options) {
 	}
 
 	g.row_tr = function(row) {
-		for (let tr of g.table.childNodes)
+		for (let tr of g.table.children)
 			if (tr.row == row)
 				return tr
 	}
@@ -204,7 +229,9 @@ function grid(...options) {
 		let td1 = find_sibling(
 			tr1 && (td && tr1.at[td.index] || tr1.first),
 			cols >= 0 && 'next' || 'prev',
-			function(td) { return true },
+			function(td) {
+				return d.can_change_cell(tr1.row, fields[td.index])
+			},
 			function(td) {
 				let stop = !cols
 				cols -= sign(cols)
@@ -216,7 +243,7 @@ function grid(...options) {
 		return [tr1, td1, tr1 != tr || td1 != td]
 	}
 
-	g.focus_cell = function(tr, td, scrollintoview) {
+	function focus_cell(tr, td, scrollintoview) {
 		if (tr == g.focused_tr && td == g.focused_td)
 			return false
 		if (g.commit_edits == 'exit_row' && g.focused_tr && tr != g.focused_tr)
@@ -226,16 +253,21 @@ function grid(...options) {
 			return false
 		if (g.focused_tr) g.focused_tr.class('focused', false)
 		if (g.focused_td) g.focused_td.class('focused', false)
-		if (tr) { tr.class('focused'); if (scrollintoview !== false) tr.scrollintoview() }
-		if (td) { td.class('focused'); if (scrollintoview !== false) td.scrollintoview() }
+		if (tr) { tr.class('focused', true); if (scrollintoview !== false) tr.scrollintoview() }
+		if (td) { td.class('focused', true); if (scrollintoview !== false) td.scrollintoview() }
 		g.focused_tr = tr
 		g.focused_td = td
 		return true
 	}
 
+	g.focus_cell = function(tr, td, scrollintoview) {
+		var [tr, td] = g.first_focusable_cell(tr, td, 0, 0)
+		return focus_cell(tr, td, scrollintoview)
+	}
+
 	g.focus_near_cell = function(rows, cols, scrollintoview) {
 		let [tr, td] = g.first_focusable_cell(g.focused_tr, g.focused_td, rows, cols)
-		return g.focus_cell(tr, td, scrollintoview)
+		return focus_cell(tr, td, scrollintoview)
 	}
 
 	g.focus_next_cell = function(cols, auto_advance_row) {
@@ -252,15 +284,39 @@ function grid(...options) {
 		let div = H.div({class: 'grid-error'}, msg)
 	}
 
-	function set_invalid(td, invalid, err) {
-		td.class('invalid', invalid)
-		if (invalid && err)
-			g.error(err, td)
+	function no_cell_has_class(tr, classname) {
+		for (let td of tr.children)
+			if (td.hasclass(classname))
+				return false
+		return true
 	}
 
-	function set_modified(td, v) {
-		set_invalid(td, false)
-		td.class('modified', v)
+	function set_invalid_cell(td, invalid, err) {
+		td.class('invalid', invalid)
+		if (invalid) {
+			set_invalid_row(td.parent, true)
+			if (err)
+				g.error(err, td)
+		} else if (no_cell_has_class(td.parent, 'invalid'))
+			set_invalid_row(td.parent, false)
+	}
+
+	function set_invalid_row(tr, invalid) {
+		tr.class('invalid', invalid)
+	}
+
+	function set_modified_cell(td, modified) {
+		set_invalid_cell(td, false)
+		td.class('modified', modified)
+		if (modified)
+			set_modified_row(td.parent, true)
+		else if (no_cell_has_class(td.parent, 'modified'))
+			set_modified_row(td.parent, false)
+	}
+
+	function set_modified_row(tr, modified) {
+		set_invalid_row(tr, false)
+		tr.class('modified', modified)
 	}
 
 	function input_focusout(e) {
@@ -274,7 +330,7 @@ function grid(...options) {
 
 	function input_input(e) {
 		let td = g.input.parent
-		set_modified(td, true)
+		set_modified_cell(td, true)
 		if (should_commit(td, 'input'))
 			g.commit_cell(g.focused_td)
 	}
@@ -287,7 +343,7 @@ function grid(...options) {
 		if (!input)
 			return false
 		g.input = input
-		td.class('editing')
+		td.class('editing', true)
 		g.input.attr('disabled', null)
 		g.input.focus()
 		g.input.on('focusout', input_focusout)
@@ -296,7 +352,7 @@ function grid(...options) {
 			g.input.select(g.input.value.length, g.input.value.length)
 		else if (where == 'left')
 			g.input.select(0, 0)
-		else
+		else if (where)
 			g.input.select(0, g.input.value.length)
 		return true
 	}
@@ -328,10 +384,10 @@ function grid(...options) {
 		let ret = (cancel && true) || d.setval(row, field, input.value)
 		if (ret === true) {
 			input.value = d.val(row, field)
-			set_modified(td, false)
+			set_modified_cell(td, false)
 			return true
 		} else {
-			set_invalid(td, true, ret)
+			set_invalid_cell(td, true, ret)
 			return false
 		}
 	}
@@ -342,6 +398,48 @@ function grid(...options) {
 			if (!g.commit_cell(td, cancel))
 				ok = false
 		return ok
+	}
+
+	// adding & removing rows -------------------------------------------------
+
+	g.insert_row = function(add) {
+		if (!d.can_add_rows)
+			return
+		let field_index = g.focused_td && g.focused_td.index
+		let reenter_edit = g.input && g.keep_editing
+		let row = d.add_row()
+		let tr = render_row(row)
+		if (add || !g.focused_tr)
+			g.table.add(tr)
+		else
+			g.table.insertBefore(tr, g.focused_tr)
+		tr.class('new', true)
+		let td = field_index && tr.at[field_index]
+		g.focus_cell(tr, td)
+		if (reenter_edit)
+			g.enter_edit(true)
+	}
+
+	g.add_row = function() {
+		g.insert_row(true)
+	}
+
+	g.remove_row = function(tr) {
+		if (!d.can_remove_row(tr.row))
+			return // TODO: show error message
+		let reenter_edit = g.input && g.keep_editing
+		let [next_tr, next_td, changed] = g.first_focusable_cell(tr, g.focused_td, 1, 0)
+		if (!changed)
+			[next_tr, next_td, changed] = g.first_focusable_cell(tr, g.focused_td, -1, 0)
+		if (!changed)
+			[next_tr, next_td] = [null, null]
+	 	g.exit_edit(true)
+		g.focus_cell()
+		trs.delete(tr.row)
+		tr.remove()
+		g.focus_cell(next_tr, next_td)
+		if (reenter_edit)
+			g.enter_edit(true)
 	}
 
 	// updating from dataset changes ------------------------------------------
@@ -359,19 +457,8 @@ function grid(...options) {
 		// TODO: re-sort (or use bin-search to add the tr)
 	}
 
-	g.delete_row = function(tr) {
-		let [next_tr, next_td, changed] = g.first_focusable_cell(tr, g.focused_td,  1, 0)
-		if (!changed)
-			[next_tr, next_td] = g.first_focusable_cell(tr, g.focused_td, -1, 0)
-		g.exit_edit(true)
-		g.focus_cell()
-		trs.delete(tr.row)
-		tr.remove()
-		g.focus_cell(next_tr, next_td)
-	}
-
 	g.row_removed = function(e, row) {
-		g.delete_row(trs[row])
+		g.remove_row(trs[row])
 	}
 
 	// key bindings -----------------------------------------------------------
@@ -383,11 +470,11 @@ function grid(...options) {
 
 			let cols = e.key == 'ArrowLeft' ? -1 : 1
 
+			let reenter_edit = g.input && g.keep_editing
+
 			let move = !g.input
 				|| (g.auto_jump_cells && !e.shiftKey
 					&& g.input.caret == (cols < 0 ? 0 : g.input.value.length))
-
-			let reenter_edit = g.input && g.keep_editing && move
 
 			if (move && g.focus_next_cell(cols)) {
 				if (reenter_edit)
@@ -402,12 +489,30 @@ function grid(...options) {
 
 			let cols = e.shiftKey ? -1 : 1
 
-			let reenter_edit = g.input
+			let reenter_edit = g.input && g.keep_editing
 
 			if (g.focus_next_cell(cols, true))
 				if (reenter_edit)
 					g.enter_edit(cols > 0 ? 'left' : 'right')
 
+			e.preventDefault()
+			return
+		}
+
+		// insert with the arrow down key on the last row.
+		if (e.key == 'ArrowDown' && g.focused_tr == g.last_tr) {
+			g.add_row()
+			e.preventDefault()
+			return
+		}
+
+		// remove last row with the arrow up key if not edited.
+		if (e.key == 'ArrowUp'
+			&& g.focused_tr == g.table.lastElementChild
+			&& g.focused_tr.hasclass('new')
+			&& !g.focused_tr.hasclass('modified')
+		) {
+			g.remove_row(g.focused_tr)
 			e.preventDefault()
 			return
 		}
@@ -428,7 +533,7 @@ function grid(...options) {
 
 			if (g.focus_near_cell(rows, 0)) {
 				if (reenter_edit)
-					g.enter_edit()
+					g.enter_edit(true)
 				e.preventDefault()
 				return
 			}
@@ -436,7 +541,7 @@ function grid(...options) {
 
 		// F2: enter edit mode
 		if (!g.input && e.key == 'F2') {
-			g.enter_edit()
+			g.enter_edit(true)
 			e.preventDefault()
 			return
 		}
@@ -444,16 +549,16 @@ function grid(...options) {
 		// Enter: toggle edit mode, and navigate on exit
 		if (e.key == 'Enter') {
 			if (!g.input) {
-				g.enter_edit()
+				g.enter_edit(true)
 			} else if (g.exit_edit()) {
 				if (g.auto_advance == 'next_row') {
 					if (g.focus_near_cell(1, 0))
 						if (g.keep_editing)
-							g.enter_edit()
+							g.enter_edit(true)
 				} else if (g.auto_advance == 'next_cell')
 					if (g.focus_next_cell(1))
 						if (g.keep_editing)
-							g.enter_edit()
+							g.enter_edit(true)
 			}
 			e.preventDefault()
 			return
@@ -467,24 +572,16 @@ function grid(...options) {
 		}
 
 		// insert key: insert row
-		if (!g.input && e.key == 'Insert') {
+		if (e.key == 'Insert') {
 			g.insert_row()
 			e.preventDefault()
-			return
 		}
 
 		// delete key: delete active row
-		if (!g.input && e.key == 'Delete') {
+		if (e.key == 'Delete') {
 			let tr = g.focused_tr
 			if (!tr) return
-			g.delete_row(tr)
-			e.preventDefault()
-			return
-		}
-
-		// space key on the tree field
-		if (!g.input && e.key == ' ') {
-			g.toggle_expand_cell(active_cell)
+			g.remove_row(tr)
 			e.preventDefault()
 			return
 		}
@@ -526,7 +623,7 @@ function grid(...options) {
 			return
 		}
 		hit_th = null
-		for (th of g.table.first.childNodes) {
+		for (th of g.table.first.children) {
 			hit_x = th.offsetWidth - (e.clientX - th.offsetLeft)
 			if (hit_x >= -10 && hit_x <= 10) {
 				hit_th = th
@@ -537,6 +634,90 @@ function grid(...options) {
 	}
 
 	// sorting ----------------------------------------------------------------
+
+	let order_by_dir
+
+	function init_order_by() {
+		let order_by = g.order_by || ''
+		delete g.order_by
+		property(g, 'order_by', {
+			get: function() {
+				let a = []
+				for (let [field, dir] of order_by_dir) {
+					a.push(field.name + (dir == 'asc' ? '' : ':desc'))
+				}
+				return a.join(' ')
+			},
+			set: function(s) {
+				order_by_dir = new Map()
+				let ea = s.split(/[\s,]+/)
+				for (let e of ea) {
+					let m = e.match('^([^\:]*):?(\.*)$')
+					let name = m[1]
+					let field = d.field(name)
+					if (field) {
+						let dir = m[2] || 'asc'
+						if (dir == 'asc' || dir == 'desc')
+							order_by_dir.set(field, dir)
+					}
+				}
+			}
+		})
+		g.order_by = order_by || ''
+	}
+
+	g.order_by_dir = function(field) {
+		return order_by_dir.get(field)
+	}
+
+	g.toggle_order = function(field, keep_others) {
+		let dir = order_by_dir.get(field)
+		dir = dir == 'asc' ? 'desc' : 'asc' // (dir == 'desc' ? null : 'asc')
+		if (!keep_others)
+			order_by_dir.clear()
+		if (!dir)
+			order_by_dir.delete(field)
+		else
+			order_by_dir.set(field, dir)
+		g.sort()
+	}
+
+	g.clear_order = function() {
+		order_by_dir.clear()
+		g.sort()
+	}
+
+	g.sort = function() {
+
+		let s = []
+		let cmps = []
+		for (let [field, dir] of order_by_dir) {
+			let i = field.index
+			cmps[i] = d.comparator(field)
+			let r = dir == 'asc' ? 1 : -1
+			// header row comes first
+			s.push('if (!tr1.row) return -1')
+			s.push('if (!tr2.row) return  1')
+			// invalid values come first
+			s.push('var v1 = !tr1.at['+i+'].hasclass("invalid")')
+			s.push('var v2 = !tr2.at['+i+'].hasclass("invalid")')
+			s.push('if (v1 < v2) return -1')
+			s.push('if (v1 > v2) return  1')
+			// compare values using the dataset comparator
+			s.push('var v1 = tr1.row.values['+i+']')
+			s.push('var v2 = tr2.row.values['+i+']')
+			s.push('var cmp = cmps['+i+']')
+			s.push('var r = cmp(v1, v2)')
+			s.push('if (r) return r * '+r)
+		}
+		s.push('return 0')
+		s = 'let f = function(tr1, tr2) {\n\t' + s.join('\n\t') + '\n}; f'
+		let cmp = eval(s)
+
+		g.table.add(Array.from(g.table.children).sort(cmp))
+
+		update_sort_icons()
+	}
 
 	init()
 

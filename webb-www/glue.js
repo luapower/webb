@@ -24,6 +24,7 @@ ceil = Math.ceil
 abs = Math.abs
 min = Math.min
 max = Math.max
+random = Math.random
 
 function clamp(x, x0, x1) {
 	return min(max(x, x0), x1)
@@ -104,10 +105,14 @@ method(String, 'format', function(...args) {
 	let s = this.toString()
 	if (!args.length)
 		return s
-	let type1 = typeof args[0]
-	args = ((type1 == 'string' || type1 == 'number') ? args : args[0])
-	for (let i = 0; i < args.length; i++)
-		s = s.replace(RegExp('\\{' + i + '\\}', 'gi'), args[i])
+	if (isarray(args[0]))
+		args = args[0]
+	if (typeof(args[0]) == 'object')
+		for (let k in args)
+			s = s.replace(RegExp('\\{' + k + '\\}', 'gi'), args[k])
+	else
+		for (let i = 0; i < args.length; i++)
+			s = s.replace(RegExp('\\{' + i + '\\}', 'gi'), args[i])
 	return s
 })
 
@@ -156,8 +161,9 @@ function update(target, ...sources) {
 function install_events(o) {
 	let obs = new Map()
 	o.on = function(topic, handler) {
-		obs[topic] = obs[topic] || []
-		obs[topic].push(handler)
+		if (!obs.has(topic))
+			obs.set(topic, [])
+		obs.get(topic).push(handler)
 	}
 	o.off = function(topic, handler) {
 		obs[topic].remove_value(handler)

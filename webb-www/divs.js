@@ -47,6 +47,10 @@ method(Element, 'class', function(name, enable) {
 		this.classList.remove(name)
 })
 
+method(Element, 'hasclass', function(name) {
+	return this.classList.contains(name)
+})
+
 // tree ops
 
 method(Element, 'add', function(...children) {

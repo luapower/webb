@@ -11,14 +11,17 @@
 		type           : for type-based validators and converters.
 		client_default : default value that new rows are initialized with.
 		server_default : default value that the server sets.
-		validate       : f(v, field) -> true|err
-		convert        : f(s, field) -> v
-		compare        : f(a, b) -> -1|0|1
+		allow_null     : allow null.
+		read_only      : cannot edit.
+		validate_val   : f(field, v) -> true|err
+		validate_row   : f(row) -> true|err
+		convert_val    : f(field, s) -> v
+		comparator     : f(field) -> f(v1, v2) -> -1|0|1
 
 	d.rows: [{attr->val}, ...]
 		values         : [v1,...]
 		is_new         : new row, not added on server yet.
-		deleted        : deleted row, not deleted on server yet.
+		removed        : removed row, not removed on server yet.
 		old_values     : original values on an updated but not yet saved row.
 
 	d.order_by: 'field_name1[:desc] ...'
@@ -27,14 +30,24 @@
 	^d.row_added(ri)
 	^d.row_removed(ri)
 
+	d.add_row()
+	d.remove_row()
+
 */
 
 let dataset = function(...options) {
 
-	let d = install_events({})
+	let d = {
+		can_add_rows: true,
+		can_remove_rows: true,
+		can_change_rows: true,
+	}
+
 	let fields // [fi: {name:, client_default: v, server_default: v, ...}]
 	let rows   // [ri: row]; row = {values: [fi: val], attr: val, ...}
 	let field_map = new Map()
+
+	install_events(d)
 
 	let init = function() {
 
@@ -59,13 +72,6 @@ let dataset = function(...options) {
 			field_map.set(field.name, field)
 		}
 
-		// init events
-		// let ev = $(d)
-		// d.on = $.proxy(ev.on, ev)
-		// d.trigger = $.proxy(ev.trigger, ev)
-
-		init_order_by()
-
 	}
 
 	d.field = function(name) {
@@ -79,7 +85,9 @@ let dataset = function(...options) {
 		return get_value ? get_value(field, row, fields) : row.values[field.index]
 	}
 
-	d.validate_val = function(val, field) {
+	d.validate_val = function(field, val) {
+		if (val == '' || val == null)
+			return field.allow_null || 'NULL not allowed'
 		let validate = field.validate || d.validators[field.type]
 		if (!validate)
 			return true
@@ -88,21 +96,40 @@ let dataset = function(...options) {
 
 	d.validate_row = return_true // stub
 
-	d.convert_val = function(val, field) {
+	d.convert_val = function(field, val) {
 		let convert = field.convert || d.converters[field.type]
 		return convert ? convert.call(d, val, field) : val
 	}
 
+	// NOTE: must be able to compare invalid values as well.
+	function default_cmp(v1, v2) {
+		if ((typeof v1) < (typeof v2)) return -1
+		if ((typeof v1) > (typeof v2)) return  1
+		if (v1 !== v1) return v2 !== v2 ? 0 : -1 // NaNs come first
+		if (v2 !== v2) return 1 // NaNs come first
+		return v1 < v2 ? -1 : (v1 > v2 ? 1 : 0)
+	}
+	d.comparator = function(field) {
+		return field.compare || d.comparators[field.type] || default_cmp
+	}
+
+	d.can_change_cell = function(row, field) {
+		return d.can_change_rows && !row.read_only && !field.read_only
+	}
+
 	d.setval = function(row, field, val) {
 
+		if (!d.can_change_cell(row, field))
+			return 'read only'
+
 		// convert value to internal represenation.
-		val = d.convert_val(val, field)
+		val = d.convert_val(field, val)
 
 		// validate converted value and the entire row with the new value in it.
-		let ret = d.validate_val(val, field)
+		let ret = d.validate_val(field, val)
 		if (ret !== true)
 			return ret
-		ret = d.validate_row()
+		ret = d.validate_row(row)
 		if (ret !== true)
 			return ret
 
@@ -121,7 +148,7 @@ let dataset = function(...options) {
 
 	// add/remove rows --------------------------------------------------------
 
-	d.row = function() {
+	function create_row() {
 		let values = []
 		// add server_default values or null
 		for (let field of fields) {
@@ -135,19 +162,31 @@ let dataset = function(...options) {
 		return row
 	}
 
-	d.add = function(row) {
-		row = row || d.row()
+	d.add_row = function() {
+		if (!d.can_add_rows)
+			return
+		let row = create_row()
 		rows.push(row)
 		d.trigger('row_added', [row])
 		return row
 	}
 
-	d.remove = function(row) {
+	d.can_remove_row = function(row) {
+		if (!d.can_remove_rows)
+			return false
+		if (row.can_remove === false)
+			return false
+		return true
+	}
+
+	d.remove_row = function(row) {
+		if (!d.can_remove_row(row))
+			return
 		if (row.is_new) {
 			rows.remove(rows.indexOf(row))
 		} else {
-			// mark row as deleted
-			row.deleted = true
+			// mark row as removed
+			row.removed = true
 		}
 		d.trigger('row_removed', [row])
 		return row
@@ -167,92 +206,6 @@ let dataset = function(...options) {
 
 	// saving
 
-
-	// sorting ----------------------------------------------------------------
-
-	let order_by_dir
-
-	function init_order_by() {
-		let order_by = d.order_by || ''
-		delete d.order_by
-		property(d, 'order_by', {
-			get: function() {
-				let a = []
-				for (let [field, dir] of dir_map) {
-					a.push(field.name + (dir == 'asc' ? '' : ':desc'))
-				}
-				return a.join(' ')
-			},
-			set: function(s) {
-				order_by_dir = new Map()
-				let ea = s.split(/[\s,]+/)
-				for (let e of ea) {
-					let m = e.match('^([^\:]*):?(\.*)$')
-					let name = m[1]
-					let field = d.field(name)
-					if (field) {
-						let dir = m[2] || 'asc'
-						if (dir == 'asc' || dir == 'desc')
-							order_by_dir.set(field, dir)
-					}
-				}
-			}
-		})
-		d.order_by = order_by || ''
-		d.sort()
-	}
-
-	d.order_by_dir = function(field) {
-		return order_by_dir.get(field)
-	}
-
-	d.toggle_order = function(field, keep_others) {
-		let dir = order_by_dir.get(field)
-		dir = dir == 'asc' ? 'desc' : 'asc' // (dir == 'desc' ? null : 'asc')
-		if (!keep_others)
-			order_by_dir.clear()
-		if (!dir)
-			order_by_dir.delete(field)
-		else
-			order_by_dir.set(field, dir)
-		d.sort()
-	}
-
-	d.clear_order = function() {
-		order_by_dir.clear()
-		d.sort()
-	}
-
-	d.sort = function() {
-
-		if (!order_by_dir.size) {
-
-			rows = d.rows_unordered
-			d.rows = rows
-
-		} else {
-
-			if (!d.rows_unordered)
-				d.rows_unordered = rows.slice()
-
-			let cmp = []
-			for (let [field, dir] of order_by_dir) {
-				let i = field.index
-				let r = dir == 'asc' ? -1 : 1
-				cmp.push('if (r1.values['+i+'] < r2.values['+i+']) return  '+r)
-				cmp.push('if (r1.values['+i+'] > r2.values['+i+']) return ' +(-r))
-			}
-			cmp.push('return 0')
-			cmp = 'let f = function(r1, r2) {\n\t' + cmp.join('\n\t') + '\n}; f'
-			cmp = eval(cmp)
-
-			rows.sort(cmp)
-		}
-
-		d.trigger('reload')
-
-	}
-
 	init()
 
 	return d
@@ -263,7 +216,7 @@ let dataset = function(...options) {
 dataset.validators = {
 	number: function(val, field) {
 		val = parseFloat(val)
-		return isNaN(val) && 'invalid number' || true
+		return typeof(val) == 'number' && val === val || 'invalid number'
 	},
 }
 
