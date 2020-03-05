@@ -12,12 +12,11 @@ function grid(...options) {
 	let g = {
 		// keyboard behavior
 		page_rows: 20,              // how many rows to move on page-down/page-up
-		auto_advance: false,        // advance on enter: false|'next_row'|'next_cell'
+		auto_advance: 'next_row',   // advance on enter: false|'next_row'|'next_cell'
 		auto_advance_row: true,     // jump row on horiz. navigation limits
 		auto_jump_cells: true,      // jump to next/prev cell on caret limits
 		keep_editing: true,         // re-enter edit mode after navigating
-		commit_edits: 'exit_edit',  // when to update the dataset: 'input'|'exit_edit'|'exit_row'
-		auto_save: 'exit_row',      // when to save changes: 'input'|'exit_edit'|'exit_row'|'manual'
+		commit_edits: 'exit_row',   // when to update the dataset: 'input'|'exit_edit'|'exit_row'|false
 		allow_invalid_values: true, // allow exiting edit mode on invalid value.
 	}
 
@@ -94,6 +93,9 @@ function grid(...options) {
 			td.class('read_only', !d.can_change_cell(row, field))
 
 			td.on('mousedown', function() {
+				if (g.table.hasclass('col-resize'))
+					return
+
 				let td = this
 				let tr = this.parent
 				if (g.focused_tr == tr && g.focused_td == td)
@@ -123,6 +125,16 @@ function grid(...options) {
 		}
 	}
 
+	function lr_table(e1, e2, reverse) {
+		if (reverse)
+			[e1, e2] = [e2, e1]
+		return (
+			H.table({width: '100%'},
+				H.tr(0,
+					H.td({align: 'left' }, e1),
+					H.td({align: 'right'}, e2))))
+	}
+
 	g.render = function() {
 		if (g.table)
 			g.focus_cell()
@@ -132,10 +144,12 @@ function grid(...options) {
 		for (let field of fields) {
 
 			let sort_icon  = H.div({class: 'fa grid-sort-icon'})
-			let sort_left  = field.align == 'right' ? H.span({style: 'float: left' }, sort_icon) : null
-			let sort_right = field.align != 'right' ? H.span({style: 'float: right'}, sort_icon) : null
+			let title_table = lr_table(field.name, sort_icon, field.align == 'right')
 
 			function toggle_order(e) {
+				if (g.table.hasclass('col-resize'))
+					return
+
 				if (e.which == 3)  // right-click
 					g.clear_order()
 				else
@@ -143,10 +157,7 @@ function grid(...options) {
 				e.preventDefault()
 			}
 
-			let th = H.th({
-				class: 'grid-header-cell',
-				align: field.align || 'left',
-			}, sort_left, field.name, sort_right)
+			let th = H.th({class: 'grid-header-cell'}, title_table)
 
 			th.sort_icon = sort_icon
 
@@ -248,7 +259,8 @@ function grid(...options) {
 			return false
 		if (g.commit_edits == 'exit_row' && g.focused_tr && tr != g.focused_tr)
 			if(!g.commit_row(g.focused_tr))
-				return false
+				if (!g.allow_invalid_values)
+					return false
 		if (!g.exit_edit())
 			return false
 		if (g.focused_tr) g.focused_tr.class('focused', false)
@@ -394,9 +406,10 @@ function grid(...options) {
 
 	g.commit_row = function(tr, cancel) {
 		let ok = true
-		for (td of tr)
-			if (!g.commit_cell(td, cancel))
-				ok = false
+		for (td of tr.children)
+			if (td.hasclass('modified'))
+				if (!g.commit_cell(td, cancel))
+					ok = false
 		return ok
 	}
 
@@ -578,7 +591,7 @@ function grid(...options) {
 		}
 
 		// delete key: delete active row
-		if (e.key == 'Delete') {
+		if (!g.input && e.key == 'Delete') {
 			let tr = g.focused_tr
 			if (!tr) return
 			g.remove_row(tr)
@@ -590,47 +603,44 @@ function grid(...options) {
 
 	// printable characters: enter quick edit mode
 	function keypress(e) {
-		/*
-		if (!g.active()) return
-		if (e.charCode == 0) return
-		if (e.ctrlKey  || e.metaKey || e.altKey) return
-		if (g.input()) return
-		g.enter_edit()
-		g.quick_edit = true
-		*/
+		if (!g.input)
+			g.enter_edit(true)
 	}
 
 	// make columns resizeable ------------------------------------------------
 
-	let hit_th, hit_x, col_resizing
+	let hit_td, hit_x, col_resizing
 
 	function mousedown(e) {
-		if (col_resizing || !hit_th)
+		if (col_resizing || !hit_td)
 			return
 		col_resizing = true
+		g.table.class('col-resizing', true)
 		e.preventDefault()
 	}
 
 	function mouseup(e) {
 		col_resizing = false
+		g.table.class('col-resizing', false)
+		g.table.class('col-resize', false)
 	}
 
 	function mousemove(e) {
 		if (col_resizing) {
-			let w = e.clientX - hit_th.offsetLeft + hit_x
-			hit_th.style.width = w + 'px'
+			let w = e.clientX - (g.table.offsetLeft + hit_td.offsetLeft + hit_x)
+			hit_td.style.width = w + 'px'
 			e.preventDefault()
-			return
-		}
-		hit_th = null
-		for (th of g.table.first.children) {
-			hit_x = th.offsetWidth - (e.clientX - th.offsetLeft)
-			if (hit_x >= -10 && hit_x <= 10) {
-				hit_th = th
-				break
+		} else {
+			hit_td = null
+			for (td of g.table.first.children) {
+				hit_x = e.clientX - (g.table.offsetLeft + td.offsetLeft + td.offsetWidth)
+				if (hit_x >= -5 && hit_x <= 5) {
+					hit_td = td
+					break
+				}
 			}
+			g.table.class('col-resize', !!hit_td)
 		}
-		g.table.style.cursor = hit_th ? 'col-resize' : null
 	}
 
 	// sorting ----------------------------------------------------------------
