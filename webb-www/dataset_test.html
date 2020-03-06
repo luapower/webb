@@ -26,7 +26,6 @@ var data = {
 		{values: [5,'f',2]},
 		{values: [6,'g very long long text to try out',5]},
 	],
-	order_by: 'parent_id name:desc',
 }
 
 for (var i = 7; i < 10; i++) {
@@ -36,7 +35,8 @@ for (var i = 7; i < 10; i++) {
 var d = dataset(data)
 var g = grid({
 	dataset: d,
-	container: byid('main')
+	container: byid('main'),
+	order_by: 'parent_id, name desc',
 })
 
 </script>

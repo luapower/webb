@@ -13,6 +13,7 @@ function byid(id) { return document.getElementById(id) }
 alias(Element, 'at'     , 'childNodes')
 alias(Element, 'parent' , 'parentNode')
 alias(Element, 'first'  , 'firstElementChild')
+alias(Element, 'last'   , 'lastElementChild')
 alias(Element, 'next'   , 'nextElementSibling')
 alias(Element, 'prev'   , 'previousElementSibling')
 

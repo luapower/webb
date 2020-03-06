@@ -3,7 +3,6 @@
 	Written by Cosmin Apreutesei. Public Domain.
 
 	Field attributes:
-		commit_edits:
 
 */
 
@@ -11,13 +10,15 @@ function grid(...options) {
 
 	let g = {
 		// keyboard behavior
-		page_rows: 20,              // how many rows to move on page-down/page-up
-		auto_advance: 'next_row',   // advance on enter: false|'next_row'|'next_cell'
-		auto_advance_row: true,     // jump row on horiz. navigation limits
-		auto_jump_cells: true,      // jump to next/prev cell on caret limits
-		keep_editing: true,         // re-enter edit mode after navigating
-		commit_edits: 'exit_row',   // when to update the dataset: 'input'|'exit_edit'|'exit_row'|false
-		allow_invalid_values: true, // allow exiting edit mode on invalid value.
+		page_rows: 20,                 // how many rows to move on page-down/page-up
+		auto_advance: 'next_row',      // advance on enter: false|'next_row'|'next_cell'
+		auto_advance_row: true,        // jump row on horiz. navigation limits
+		auto_jump_cells: true,         // jump to next/prev cell on caret limits
+		keep_editing: true,            // re-enter edit mode after navigating
+		save_cell_on: 'input',         // save cell on 'input'|'exit_edit'
+		save_row_on: 'exit_edit',      // save row on 'input'|'exit_edit'|'exit_row'|false
+		prevent_exit_edit: false,      // prevent exiting edit mode on validation errors
+		prevent_exit_row: false,       // prevent changing row on validation errors
 	}
 
 	let d
@@ -42,8 +43,6 @@ function grid(...options) {
 		init_order_by()
 
 		g.reload()
-
-		g.sort()
 	}
 
 	function onoff_events(on) {
@@ -65,7 +64,7 @@ function grid(...options) {
 	// rendering --------------------------------------------------------------
 
 	property(g, 'last_tr', { get: function() {
-		let tr = g.table.lastElementChild
+		let tr = g.table.last
 		return tr && tr.hasclass('grid-row') && tr || undefined
 	}})
 
@@ -83,14 +82,13 @@ function grid(...options) {
 					class: 'grid-input',
 					disabled: true,
 					maxlength: field.maxlength,
-					value: d.val(row, field),
+					value: d.value(row, field),
 				})
-			input.style.width = '100%'
 			input.style.textAlign = field.align
 
 			let td = H.td({class: 'grid-cell', width: 1}, input)
 
-			td.class('read_only', !d.can_change_cell(row, field))
+			td.class('read_only', !d.can_change_value(row, field))
 
 			td.on('mousedown', function() {
 				if (g.table.hasclass('col-resize'))
@@ -171,7 +169,6 @@ function grid(...options) {
 			header_tr.add(th)
 		}
 		g.table.add(header_tr)
-		update_sort_icons()
 
 		for (let row of d.rows) {
 			let tr = render_row(row)
@@ -179,12 +176,12 @@ function grid(...options) {
 		}
 
 		g.container.set1(g.table)
+
+		g.sort()
 	}
 
 	g.row_tr = function(row) {
-		for (let tr of g.table.children)
-			if (tr.row == row)
-				return tr
+		return trs.get(row)
 	}
 
 	g.field_td = function(tr, field) {
@@ -201,9 +198,8 @@ function grid(...options) {
 		if (tr) {
 			let td = field && g.field_td(tr, field)
 			g.focus_cell(tr, td, false)
-			return
-		}
-		g.focus_near_cell(0, 0, false)
+		} else
+			g.focus_near_cell(0, 0, false)
 	}
 
 	// focusing ---------------------------------------------------------------
@@ -240,9 +236,7 @@ function grid(...options) {
 		let td1 = find_sibling(
 			tr1 && (td && tr1.at[td.index] || tr1.first),
 			cols >= 0 && 'next' || 'prev',
-			function(td) {
-				return d.can_change_cell(tr1.row, fields[td.index])
-			},
+			function(td) { return !td.hasclass('read_only') },
 			function(td) {
 				let stop = !cols
 				cols -= sign(cols)
@@ -257,12 +251,11 @@ function grid(...options) {
 	function focus_cell(tr, td, scrollintoview) {
 		if (tr == g.focused_tr && td == g.focused_td)
 			return false
-		if (g.commit_edits == 'exit_row' && g.focused_tr && tr != g.focused_tr)
-			if(!g.commit_row(g.focused_tr))
-				if (!g.allow_invalid_values)
-					return false
 		if (!g.exit_edit())
 			return false
+		if (tr != g.focused_tr)
+			if (!g.exit_row())
+				return false
 		if (g.focused_tr) g.focused_tr.class('focused', false)
 		if (g.focused_td) g.focused_td.class('focused', false)
 		if (tr) { tr.class('focused', true); if (scrollintoview !== false) tr.scrollintoview() }
@@ -292,6 +285,7 @@ function grid(...options) {
 
 	g.input = null
 
+	/*
 	g.error = function(msg, td) {
 		let div = H.div({class: 'grid-error'}, msg)
 	}
@@ -330,53 +324,61 @@ function grid(...options) {
 		set_invalid_row(tr, false)
 		tr.class('modified', modified)
 	}
+	*/
 
 	function input_focusout(e) {
 		g.exit_edit()
 		return
 	}
 
-	function should_commit(td, s) {
-		return g.commit_edits == s || fields[td.index].commit_edits == s
+	// NOTE: input even is not cancellable.
+	function input_input(e) {
+		if (g.save_cell_on == 'input')
+			if (!g.save_cell(g.focused_td))
+				return
+		if (g.save_row_on == 'input')
+			if (!g.save_row(g.focused_tr))
+				return
 	}
 
-	function input_input(e) {
-		let td = g.input.parent
-		set_modified_cell(td, true)
-		if (should_commit(td, 'input'))
-			g.commit_cell(g.focused_td)
+	function td_input(td) {
+		return td.first
 	}
 
 	g.enter_edit = function(where) {
 		if (g.input)
 			return false
 		let td = g.focused_td
-		let input = td && td.first
+		let input = td && td_input(td)
 		if (!input)
 			return false
 		g.input = input
 		td.class('editing', true)
-		g.input.attr('disabled', null)
-		g.input.focus()
-		g.input.on('focusout', input_focusout)
-		g.input.on('input', input_input)
+		input.attr('disabled', null)
+		input.focus()
+		input.on('focusout', input_focusout)
+		input.on('input', input_input)
 		if (where == 'right')
-			g.input.select(g.input.value.length, g.input.value.length)
+			input.select(g.input.value.length, input.value.length)
 		else if (where == 'left')
-			g.input.select(0, 0)
+			input.select(0, 0)
 		else if (where)
-			g.input.select(0, g.input.value.length)
+			input.select(0, input.value.length)
 		return true
 	}
 
-	g.exit_edit = function(cancel) {
+	g.exit_edit = function() {
 		let input = g.input
 		if (!input)
 			return true
-		let td = input.parent
-		if (should_commit(td, 'exit_edit'))
-			if (!g.commit_cell(td, cancel))
-				if (!g.allow_invalid_values)
+		let td = g.focused_td
+		if (g.save_cell_on == 'exit_edit')
+			if (!g.save_cell(g.focused_td))
+				if (g.prevent_exit_edit)
+					return false
+		if (g.save_row_on == 'exit_edit')
+			if (!g.save_row(g.focused_tr))
+				if (g.prevent_exit_edit)
 					return false
 		input.off('focusout', input_focusout)
 		input.off('input', input_input)
@@ -387,31 +389,32 @@ function grid(...options) {
 		return true
 	}
 
+	g.exit_row = function() {
+		if (g.focused_tr)
+			if (g.save_row_on == 'exit_row')
+				if (!g.save_row(g.focused_tr))
+					if (g.prevent_exit_row)
+						return false
+		return true
+	}
+
 	// saving -----------------------------------------------------------------
 
-	g.commit_cell = function(td, cancel) {
+	g.save_cell = function(td) {
 		let row = td.parent.row
 		let field = fields[td.index]
-		let input = td.first
-		let ret = (cancel && true) || d.setval(row, field, input.value)
-		if (ret === true) {
-			input.value = d.val(row, field)
-			set_modified_cell(td, false)
-			return true
-		} else {
-			set_invalid_cell(td, true, ret)
-			return false
-		}
-	}
-
-	g.commit_row = function(tr, cancel) {
-		let ok = true
-		for (td of tr.children)
-			if (td.hasclass('modified'))
-				if (!g.commit_cell(td, cancel))
-					ok = false
+		let input = td_input(td)
+		let ret = d.set_value(row, field, input.value)
+		let ok = ret === true
+		set_invalid_cell(td, !ok, ret)
 		return ok
 	}
+
+	g.save_row = function(tr) {
+		return d.save_row(tr.row)
+	}
+
+	g.revert_cell
 
 	// adding & removing rows -------------------------------------------------
 
@@ -458,9 +461,9 @@ function grid(...options) {
 	// updating from dataset changes ------------------------------------------
 
 	function value_changed(e, row, field, val) {
-		let tr = trs.get(row)
-		let td = tr.at[field.index]
-		let input = td.first
+		let tr = row_tr(row)
+		let td = field_td(field)
+		let input = td_input(td)
 		input.value = val
 	}
 
@@ -521,7 +524,7 @@ function grid(...options) {
 
 		// remove last row with the arrow up key if not edited.
 		if (e.key == 'ArrowUp'
-			&& g.focused_tr == g.table.lastElementChild
+			&& g.focused_tr == g.table.last
 			&& g.focused_tr.hasclass('new')
 			&& !g.focused_tr.hasclass('modified')
 		) {
@@ -577,9 +580,15 @@ function grid(...options) {
 			return
 		}
 
-		// esc: exit edit mode
-		if (g.input && e.key == 'Escape') {
-			g.exit_edit(true)
+		// Esc: revert cell edits or row edits.
+		if (e.key == 'Escape') {
+			if (g.input)
+				if (modified) // TODO
+					g.revert_edit()
+				else
+					g.exit_edit()
+			else
+				g.revert_row()
 			e.preventDefault()
 			return
 		}
@@ -660,9 +669,9 @@ function grid(...options) {
 			},
 			set: function(s) {
 				order_by_dir = new Map()
-				let ea = s.split(/[\s,]+/)
+				let ea = s.split(/\s*,\s*/)
 				for (let e of ea) {
-					let m = e.match('^([^\:]*):?(\.*)$')
+					let m = e.match(/^([^\s]*)\s*(.*)$/)
 					let name = m[1]
 					let field = d.field(name)
 					if (field) {

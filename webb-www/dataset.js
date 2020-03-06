@@ -13,18 +13,16 @@
 		server_default : default value that the server sets.
 		allow_null     : allow null.
 		read_only      : cannot edit.
-		validate_val   : f(field, v) -> true|err
+		validate_value : f(field, v) -> true|err
 		validate_row   : f(row) -> true|err
-		convert_val    : f(field, s) -> v
+		convert_value  : f(field, s) -> v
 		comparator     : f(field) -> f(v1, v2) -> -1|0|1
 
 	d.rows: [{attr->val}, ...]
 		values         : [v1,...]
 		is_new         : new row, not added on server yet.
 		removed        : removed row, not removed on server yet.
-		old_values     : original values on an updated but not yet saved row.
-
-	d.order_by: 'field_name1[:desc] ...'
+		original_values: original values on an updated but not yet saved row.
 
 	^d.value_changed(row, field, val)
 	^d.row_added(ri)
@@ -80,12 +78,12 @@ let dataset = function(...options) {
 
 	// get/set row values -----------------------------------------------------
 
-	d.val = function(row, field) {
+	d.value = function(row, field) {
 		let get_value = field.get_value // computed value?
 		return get_value ? get_value(field, row, fields) : row.values[field.index]
 	}
 
-	d.validate_val = function(field, val) {
+	d.validate_value = function(field, val) {
 		if (val == '' || val == null)
 			return field.allow_null || 'NULL not allowed'
 		let validate = field.validate || d.validators[field.type]
@@ -96,54 +94,70 @@ let dataset = function(...options) {
 
 	d.validate_row = return_true // stub
 
-	d.convert_val = function(field, val) {
+	d.convert_value = function(field, val) {
 		let convert = field.convert || d.converters[field.type]
 		return convert ? convert.call(d, val, field) : val
 	}
 
-	// NOTE: must be able to compare invalid values as well.
-	function default_cmp(v1, v2) {
-		if ((typeof v1) < (typeof v2)) return -1
-		if ((typeof v1) > (typeof v2)) return  1
-		if (v1 !== v1) return v2 !== v2 ? 0 : -1 // NaNs come first
-		if (v2 !== v2) return 1 // NaNs come first
-		return v1 < v2 ? -1 : (v1 > v2 ? 1 : 0)
+	function default_cmp(row1, row2, field_index) {
+
+		// invalid rows come first.
+		if (row1.invalid != row2.invalid)
+			return row1.invalid ? -1 : 1
+
+		let i1 = row1.invalid[field_index]
+		let i2 = row2.invalid[field_index]
+
+		let v1 = row1.values[field_index]
+		let v2 = row2.values[field_index]
+
+		// group by data type.
+		if (typeof(v1) != typeof(v2))
+			return typeof(v1) < typeof(v2) ? -1 : 1
+
+		// NaNs come first.
+		if ((v1 !== v1) != (v2 !== v2))
+			return v1 !== v1 ? -1 : 1
+
+		return v1 !== v2 ? (v1 < v2 ? -1 : 1) : 0
 	}
 	d.comparator = function(field) {
 		return field.compare || d.comparators[field.type] || default_cmp
 	}
 
-	d.can_change_cell = function(row, field) {
-		return d.can_change_rows && !row.read_only && !field.read_only
+	d.can_change_value = function(row, field) {
+		return d.can_change_rows && !row.read_only && !field.read_only && !field.get_value
 	}
 
-	d.setval = function(row, field, val) {
+	d.set_value = function(row, field, val) {
 
-		if (!d.can_change_cell(row, field))
-			return 'read only'
+		if (!d.can_change_value(row, field))
+			return [false, 'read only']
 
 		// convert value to internal represenation.
-		val = d.convert_val(field, val)
+		val = d.convert_value(field, val)
 
-		// validate converted value and the entire row with the new value in it.
-		let ret = d.validate_val(field, val)
+		// validate converted value.
+		let ret = d.validate_value(field, val)
 		if (ret !== true)
-			return ret
-		ret = d.validate_row(row)
-		if (ret !== true)
-			return ret
+			return [false, ret]
 
-		// save old values if not already saved and the row is not new.
-		if (!row.old_values)
-			row.old_values = row.values.slice(0)
+		// save original values if not already saved and the row is not new.
+		if (!row.original_values)
+			row.original_values = row.values.slice(0)
 
 		// set the value.
 		row.values[field.index] = val
 
+		row.modified = true
+
 		// trigger changed event.
 		d.trigger('value_changed', [row, field, val])
 
-		return true
+		//let ret = d.validate_row(row)
+		//row.invalid = ret !== true && ret
+
+		return [true, val]
 	}
 
 	// add/remove rows --------------------------------------------------------
@@ -158,7 +172,7 @@ let dataset = function(...options) {
 		let row = {values: values, is_new: true}
 		// set default client values.
 		for (let field of fields)
-			d.setval(row, field, field.client_default)
+			d.set_value(row, field, field.client_default)
 		return row
 	}
 
@@ -194,14 +208,14 @@ let dataset = function(...options) {
 
 	// changeset --------------------------------------------------------------
 
-	d.oldval = function(row, field) {
-		let values = row.old_values || row.values
+	d.original_value = function(row, field) {
+		let values = row.original_values || row.values
 		return values[field.index]
 	}
 
-	d.val_changed = function(row, field) {
-		let old = row.old_values
-		return old && old[field.index] !== row.values[field.index]
+	d.value_changed = function(row, field) {
+		let t = row.original_values
+		return t && t[field.index] !== row.values[field.index]
 	}
 
 	// saving
