@@ -286,26 +286,6 @@ function grid(...options) {
 	g.input = null
 
 	/*
-	g.error = function(msg, td) {
-		let div = H.div({class: 'grid-error'}, msg)
-	}
-
-	function no_cell_has_class(tr, classname) {
-		for (let td of tr.children)
-			if (td.hasclass(classname))
-				return false
-		return true
-	}
-
-	function set_invalid_cell(td, invalid, err) {
-		td.class('invalid', invalid)
-		if (invalid) {
-			set_invalid_row(td.parent, true)
-			if (err)
-				g.error(err, td)
-		} else if (no_cell_has_class(td.parent, 'invalid'))
-			set_invalid_row(td.parent, false)
-	}
 
 	function set_invalid_row(tr, invalid) {
 		tr.class('invalid', invalid)
@@ -400,21 +380,53 @@ function grid(...options) {
 
 	// saving -----------------------------------------------------------------
 
+	function no_child_has_class(e, classname) {
+		for (let c of e.children)
+			if (c.hasclass(classname))
+				return false
+		return true
+	}
+
+	g.tooltip = function(e, msg) {
+		// let div = H.div({class: 'grid-error'}, msg)
+		e.title = msg || ''
+	}
+
 	g.save_cell = function(td) {
 		let row = td.parent.row
 		let field = fields[td.index]
 		let input = td_input(td)
 		let ret = d.set_value(row, field, input.value)
 		let ok = ret === true
-		set_invalid_cell(td, !ok, ret)
+		if (ok) {
+			td.class('modified', true)
+			td.class('invalid', false)
+			if (no_child_has_class(td.parent, 'invalid'))
+				td.parent.class('invalid_values', false)
+		} else {
+			td.class('invalid', true)
+			td.parent.class('invalid_values', true)
+		}
+		g.tooltip(td, !ok && ret)
 		return ok
 	}
 
 	g.save_row = function(tr) {
-		return d.save_row(tr.row)
+		if (tr.hasclass('invalid_values'))
+			return false
+		let ret = d.save_row(tr.row)
+		let ok = ret === true
+		tr.class('invalid', !ok)
+		g.tooltip(tr, !ok && ret)
+		return ok
 	}
 
-	g.revert_cell
+	g.revert_cell = function(td) {
+		let row = td.parent.row
+		let field = fields[td.index]
+		let input = td_input(td)
+		input.value = d.value(row, field)
+	}
 
 	// adding & removing rows -------------------------------------------------
 
@@ -663,9 +675,9 @@ function grid(...options) {
 			get: function() {
 				let a = []
 				for (let [field, dir] of order_by_dir) {
-					a.push(field.name + (dir == 'asc' ? '' : ':desc'))
+					a.push(field.name + (dir == 'asc' ? '' : ' desc'))
 				}
-				return a.join(' ')
+				return a.join(', ')
 			},
 			set: function(s) {
 				order_by_dir = new Map()
@@ -691,13 +703,10 @@ function grid(...options) {
 
 	g.toggle_order = function(field, keep_others) {
 		let dir = order_by_dir.get(field)
-		dir = dir == 'asc' ? 'desc' : 'asc' // (dir == 'desc' ? null : 'asc')
+		dir = dir == 'asc' ? 'desc' : 'asc'
 		if (!keep_others)
 			order_by_dir.clear()
-		if (!dir)
-			order_by_dir.delete(field)
-		else
-			order_by_dir.set(field, dir)
+		order_by_dir.set(field, dir)
 		g.sort()
 	}
 
@@ -722,11 +731,14 @@ function grid(...options) {
 			s.push('var v2 = !tr2.at['+i+'].hasclass("invalid")')
 			s.push('if (v1 < v2) return -1')
 			s.push('if (v1 > v2) return  1')
+			// modified values come second
+			s.push('var v1 = !tr1.at['+i+'].hasclass("modified")')
+			s.push('var v2 = !tr2.at['+i+'].hasclass("modified")')
+			s.push('if (v1 < v2) return -1')
+			s.push('if (v1 > v2) return  1')
 			// compare values using the dataset comparator
-			s.push('var v1 = tr1.row.values['+i+']')
-			s.push('var v2 = tr2.row.values['+i+']')
 			s.push('var cmp = cmps['+i+']')
-			s.push('var r = cmp(v1, v2)')
+			s.push('var r = cmp(tr1.row, tr2.row, '+i+')')
 			s.push('if (r) return r * '+r)
 		}
 		s.push('return 0')

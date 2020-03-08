@@ -18,17 +18,17 @@ var data = {
 		{name: 'comment', width: 200, allow_null: true},
 	],
 	rows: [
-		{values: [0,'z',null]},
-		{values: [1,'y',null]},
+		//{values: [0,'z',null]},
+		//{values: [1,'y',null]},
 		{values: [2,'x',0]},
 		{values: [3,'d',0]},
 		{values: [4,'e',2]},
 		{values: [5,'f',2]},
-		{values: [6,'g very long long text to try out',5]},
+		// {values: [6,'g very long long text to try out',5]},
 	],
 }
 
-for (var i = 7; i < 10; i++) {
+for (var i = 7; i < 0; i++) {
 	data.rows.push({values: [i,'record '+i, floor((random() * (i - 7)))]})
 }
 

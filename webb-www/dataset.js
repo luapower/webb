@@ -16,7 +16,7 @@
 		validate_value : f(field, v) -> true|err
 		validate_row   : f(row) -> true|err
 		convert_value  : f(field, s) -> v
-		comparator     : f(field) -> f(v1, v2) -> -1|0|1
+		comparator     : f(field) -> f(row1, row2, field_index) -> -1|0|1
 
 	d.rows: [{attr->val}, ...]
 		values         : [v1,...]
@@ -99,30 +99,46 @@ let dataset = function(...options) {
 		return convert ? convert.call(d, val, field) : val
 	}
 
-	function default_cmp(row1, row2, field_index) {
-
+	d.compare_rows = function(row1, row2) {
 		// invalid rows come first.
 		if (row1.invalid != row2.invalid)
 			return row1.invalid ? -1 : 1
+		return 0
+	}
 
-		let i1 = row1.invalid[field_index]
-		let i2 = row2.invalid[field_index]
-
-		let v1 = row1.values[field_index]
-		let v2 = row2.values[field_index]
-
-		// group by data type.
-		if (typeof(v1) != typeof(v2))
-			return typeof(v1) < typeof(v2) ? -1 : 1
-
-		// NaNs come first.
+	d.compare_types = function(v1, v2) {
+		// nulls come first.
+		if ((v1 === null) != (v2 === null))
+			return v1 === null ? -1 : 1
+		// NaNs come second.
 		if ((v1 !== v1) != (v2 !== v2))
 			return v1 !== v1 ? -1 : 1
+		return 0
+	}
 
+	d.compare_values = function(v1, v2) {
 		return v1 !== v2 ? (v1 < v2 ? -1 : 1) : 0
 	}
+
 	d.comparator = function(field) {
-		return field.compare || d.comparators[field.type] || default_cmp
+
+		var compare_rows = d.compare_rows
+		var compare_types = d.compare_types
+		var compare_values = field.compare || d.comparators[field.type] || d.compare_values
+		var field_index = field.index
+
+		return function (row1, row2) {
+			var r = compare_rows(row1, row2)
+			if (r) return r
+
+			let v1 = row1.values[field_index]
+			let v2 = row2.values[field_index]
+
+			var r = compare_types(v1, v2)
+			if (r) return r
+
+			return compare_values(v1, v2)
+		}
 	}
 
 	d.can_change_value = function(row, field) {
@@ -132,7 +148,7 @@ let dataset = function(...options) {
 	d.set_value = function(row, field, val) {
 
 		if (!d.can_change_value(row, field))
-			return [false, 'read only']
+			return 'read only'
 
 		// convert value to internal represenation.
 		val = d.convert_value(field, val)
@@ -140,7 +156,7 @@ let dataset = function(...options) {
 		// validate converted value.
 		let ret = d.validate_value(field, val)
 		if (ret !== true)
-			return [false, ret]
+			return ret
 
 		// save original values if not already saved and the row is not new.
 		if (!row.original_values)
@@ -154,10 +170,7 @@ let dataset = function(...options) {
 		// trigger changed event.
 		d.trigger('value_changed', [row, field, val])
 
-		//let ret = d.validate_row(row)
-		//row.invalid = ret !== true && ret
-
-		return [true, val]
+		return true
 	}
 
 	// add/remove rows --------------------------------------------------------
@@ -219,6 +232,13 @@ let dataset = function(...options) {
 	}
 
 	// saving
+
+	d.save_row = function(row) {
+		let ret = d.validate_row(row)
+		let ok = ret === true
+		row.invalid = !ok
+		return ok
+	}
 
 	init()
 
