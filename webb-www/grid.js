@@ -18,7 +18,7 @@ function grid(...options) {
 		save_cell_on: 'input',         // save cell on 'input'|'exit_edit'
 		save_row_on: 'exit_edit',      // save row on 'input'|'exit_edit'|'exit_row'|false
 		prevent_exit_edit: false,      // prevent exiting edit mode on validation errors
-		prevent_exit_row: false,       // prevent changing row on validation errors
+		prevent_exit_row: true,        // prevent changing row on validation errors
 	}
 
 	let d
@@ -251,11 +251,11 @@ function grid(...options) {
 	function focus_cell(tr, td, scrollintoview) {
 		if (tr == g.focused_tr && td == g.focused_td)
 			return false
-		if (!g.exit_edit())
-			return false
-		if (tr != g.focused_tr)
+		if (tr != g.focused_tr) {
 			if (!g.exit_row())
 				return false
+		} else if (!g.exit_edit())
+			return false
 		if (g.focused_tr) g.focused_tr.class('focused', false)
 		if (g.focused_td) g.focused_td.class('focused', false)
 		if (tr) { tr.class('focused', true); if (scrollintoview !== false) tr.scrollintoview() }
@@ -313,6 +313,16 @@ function grid(...options) {
 
 	// NOTE: input even is not cancellable.
 	function input_input(e) {
+		let td = g.focused_td
+		let tr = g.focused_tr
+		td.class('unsaved', true)
+		td.class('modified', true)
+		tr.class('modified', true)
+		td.class('invalid', false)
+		tr.class('invalid', false)
+		tr.class('invalid_values', false)
+		g.tooltip(td, false)
+		g.tooltip(tr, false)
 		if (g.save_cell_on == 'input')
 			if (!g.save_cell(g.focused_td))
 				return
@@ -353,13 +363,12 @@ function grid(...options) {
 			return true
 		let td = g.focused_td
 		if (g.save_cell_on == 'exit_edit')
-			if (!g.save_cell(g.focused_td))
-				if (g.prevent_exit_edit)
-					return false
+			g.save_cell(g.focused_td)
 		if (g.save_row_on == 'exit_edit')
-			if (!g.save_row(g.focused_tr))
-				if (g.prevent_exit_edit)
-					return false
+			g.save_row(g.focused_tr)
+		if (g.prevent_exit_edit)
+			if (g.focused_td.hasclass('invalid'))
+				return false
 		input.off('focusout', input_focusout)
 		input.off('input', input_input)
 		input.select(0, 0)
@@ -370,11 +379,17 @@ function grid(...options) {
 	}
 
 	g.exit_row = function() {
-		if (g.focused_tr)
-			if (g.save_row_on == 'exit_row')
-				if (!g.save_row(g.focused_tr))
-					if (g.prevent_exit_row)
-						return false
+		let tr = g.focused_tr
+		if (!tr)
+			return true
+		let td = g.focused_td
+		if (g.save_row_on == 'exit_row')
+			g.save_row(tr)
+		if (g.prevent_exit_row)
+			if (tr.hasclass('invalid_values') || tr.hasclass('invalid'))
+				return false
+		if (!g.exit_edit())
+			return false
 		return true
 	}
 
@@ -393,29 +408,33 @@ function grid(...options) {
 	}
 
 	g.save_cell = function(td) {
-		let row = td.parent.row
+		if (!td.hasclass('unsaved'))
+			return !td.hasclass('invalid')
+		let tr = td.parent
+		let row = tr.row
 		let field = fields[td.index]
 		let input = td_input(td)
 		let ret = d.set_value(row, field, input.value)
 		let ok = ret === true
-		if (ok) {
-			td.class('modified', true)
-			td.class('invalid', false)
-			if (no_child_has_class(td.parent, 'invalid'))
-				td.parent.class('invalid_values', false)
-		} else {
-			td.class('invalid', true)
-			td.parent.class('invalid_values', true)
-		}
+		td.class('unsaved', false)
+		td.class('invalid', !ok)
+		tr.class('invalid_values', !no_child_has_class(tr, 'invalid'))
+		if (ok)
+			tr.class('unsaved', true)
 		g.tooltip(td, !ok && ret)
 		return ok
 	}
 
 	g.save_row = function(tr) {
-		if (tr.hasclass('invalid_values'))
-			return false
+		if (!tr.hasclass('unsaved'))
+			return !tr.hasclass('invalid')
+		for (td of tr.children)
+			if (!g.save_cell(td))
+				return false
 		let ret = d.save_row(tr.row)
 		let ok = ret === true
+		tr.class('unsaved', false)
+		tr.class('saving', ok)
 		tr.class('invalid', !ok)
 		g.tooltip(tr, !ok && ret)
 		return ok
@@ -432,6 +451,8 @@ function grid(...options) {
 
 	g.insert_row = function(add) {
 		if (!d.can_add_rows)
+			return
+		if (!g.focus_cell())
 			return
 		let field_index = g.focused_td && g.focused_td.index
 		let reenter_edit = g.input && g.keep_editing
@@ -594,13 +615,7 @@ function grid(...options) {
 
 		// Esc: revert cell edits or row edits.
 		if (e.key == 'Escape') {
-			if (g.input)
-				if (modified) // TODO
-					g.revert_edit()
-				else
-					g.exit_edit()
-			else
-				g.revert_row()
+			g.exit_edit()
 			e.preventDefault()
 			return
 		}
