@@ -64,7 +64,7 @@ function grid(...options) {
 	// rendering --------------------------------------------------------------
 
 	property(g, 'last_tr', { get: function() {
-		let tr = g.table.last
+		let tr = g.tbody.last
 		return tr && tr.hasclass('grid-row') && tr || undefined
 	}})
 
@@ -91,7 +91,7 @@ function grid(...options) {
 			td.class('read_only', !d.can_change_value(row, field))
 
 			td.on('mousedown', function() {
-				if (g.table.hasclass('col-resize'))
+				if (g.col_resize)
 					return
 
 				let td = this
@@ -108,7 +108,7 @@ function grid(...options) {
 	}
 
 	function update_sort_icons() {
-		let ths = g.table.at[0].children
+		let ths = g.thead.at[0].children
 		for (let i = 0; i < fields.length; i++) {
 			let field = fields[i]
 			let dir = g.order_by_dir(field)
@@ -136,7 +136,9 @@ function grid(...options) {
 	g.render = function() {
 		if (g.table)
 			g.focus_cell()
-		g.table = H.table({class: 'grid-table'})
+		g.thead = H.thead()
+		g.tbody = H.tbody()
+		g.table = H.table({class: 'grid-table'}, g.thead, g.tbody)
 
 		let header_tr = H.tr({class: 'grid-header-row'})
 		for (let field of fields) {
@@ -145,7 +147,7 @@ function grid(...options) {
 			let title_table = lr_table(field.name, sort_icon, field.align == 'right')
 
 			function toggle_order(e) {
-				if (g.table.hasclass('col-resize'))
+				if (g.col_resize)
 					return
 
 				if (e.which == 3)  // right-click
@@ -168,14 +170,15 @@ function grid(...options) {
 
 			header_tr.add(th)
 		}
-		g.table.add(header_tr)
+		g.thead.add(header_tr)
 
 		for (let row of d.rows) {
 			let tr = render_row(row)
-			g.table.add(tr)
+			g.tbody.add(tr)
 		}
 
 		g.container.set1(g.table)
+		size_rows()
 
 		g.sort()
 	}
@@ -225,9 +228,9 @@ function grid(...options) {
 	g.first_focusable_cell = function(tr, td, rows, cols) {
 		let want_change_row = rows
 		let tr1 = find_sibling(
-			tr || g.table.first,
+			tr || g.tbody.first,
 			rows >= 0 && 'next' || 'prev',
-			function(tr) { return !tr.first.field },
+			function(tr) { return true },
 			function(tr) {
 				let stop = !rows
 				rows -= sign(rows)
@@ -258,8 +261,10 @@ function grid(...options) {
 			return false
 		if (g.focused_tr) g.focused_tr.class('focused', false)
 		if (g.focused_td) g.focused_td.class('focused', false)
-		if (tr) { tr.class('focused', true); if (scrollintoview !== false) tr.scrollintoview() }
-		if (td) { td.class('focused', true); if (scrollintoview !== false) td.scrollintoview() }
+		if (tr) tr.class('focused', true)
+		if (td) td.class('focused', true)
+		if (scrollintoview !== false && (td || tr))
+			(td || tr).scrollintoview()
 		g.focused_tr = tr
 		g.focused_td = td
 		return true
@@ -459,9 +464,10 @@ function grid(...options) {
 		let row = d.add_row()
 		let tr = render_row(row)
 		if (add || !g.focused_tr)
-			g.table.add(tr)
+			g.tbody.add(tr)
 		else
-			g.table.insertBefore(tr, g.focused_tr)
+			g.tbody.insertBefore(tr, g.focused_tr)
+		size_row(tr)
 		tr.class('new', true)
 		let td = field_index && tr.at[field_index]
 		g.focus_cell(tr, td)
@@ -502,7 +508,7 @@ function grid(...options) {
 
 	g.row_added = function(e, row) {
 		let tr = render_row(row)
-		g.table.add(tr)
+		g.tbody.add(tr)
 		// TODO: re-sort (or use bin-search to add the tr)
 	}
 
@@ -557,7 +563,7 @@ function grid(...options) {
 
 		// remove last row with the arrow up key if not edited.
 		if (e.key == 'ArrowUp'
-			&& g.focused_tr == g.table.last
+			&& g.focused_tr == g.tbody.last
 			&& g.focused_tr.hasclass('new')
 			&& !g.focused_tr.hasclass('modified')
 		) {
@@ -658,24 +664,52 @@ function grid(...options) {
 	function mouseup(e) {
 		col_resizing = false
 		g.table.class('col-resizing', false)
-		g.table.class('col-resize', false)
+		g.col_resize = false
+	}
+
+	function size_rows() {
+		return
+		for (let td of g.thead.at[0].children)
+			size_rows_for(td.index, td.clientWidth + 'px')
+	}
+
+	function size_row(tr) {
+		return
+		let ths = g.thead.at[0].children
+		for (let i = 0; i < ths.length; i++) {
+			let th = ths[i]
+			let td = tr.at[i]
+			td.style.width = th.clientWidth + 'px'
+		}
+	}
+
+	function size_rows_for(td_index, w) {
+		return
+		for (let tr of g.tbody.children) {
+			let td = tr.at[td_index]
+			td.style.width = w
+		}
 	}
 
 	function mousemove(e) {
 		if (col_resizing) {
 			let w = e.clientX - (g.table.offsetLeft + hit_td.offsetLeft + hit_x)
 			hit_td.style.width = w + 'px'
+			size_rows_for(hit_td.index, hit_td.clientWidth + 'px')
 			e.preventDefault()
 		} else {
 			hit_td = null
-			for (td of g.table.first.children) {
+			for (td of g.thead.first.children) {
 				hit_x = e.clientX - (g.table.offsetLeft + td.offsetLeft + td.offsetWidth)
 				if (hit_x >= -5 && hit_x <= 5) {
 					hit_td = td
 					break
 				}
 			}
-			g.table.class('col-resize', !!hit_td)
+			let old_col_resize = g.col_resize
+			g.col_resize = !!hit_td
+			//if (g.col_resize != old_col_resize)
+				//g.table.style.cursor = g.col_resize ? 'ew-resize' : 'default'
 		}
 	}
 
@@ -760,7 +794,7 @@ function grid(...options) {
 		s = 'let f = function(tr1, tr2) {\n\t' + s.join('\n\t') + '\n}; f'
 		let cmp = eval(s)
 
-		g.table.add(Array.from(g.table.children).sort(cmp))
+		g.tbody.add(Array.from(g.tbody.children).sort(cmp))
 
 		update_sort_icons()
 	}
