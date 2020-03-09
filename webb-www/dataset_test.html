@@ -7,7 +7,7 @@
 <script src="glue.js"></script>
 <script src="divs.js"></script>
 <script src="dataset.js"></script>
-<script src="grid.js"></script>
+<script src="grid2.js"></script>
 <div id=main></div>
 <script>
 var data = {
@@ -35,7 +35,7 @@ for (var i = 0; i < 2000; i++) {
 var d = dataset(data)
 var g = grid({
 	dataset: d,
-	container: byid('main'),
+	parent: main,
 	order_by: 'parent_id, name desc',
 })
 
