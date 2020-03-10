@@ -2,23 +2,26 @@
 	Grid/TreeList Widget.
 	Written by Cosmin Apreutesei. Public Domain.
 
-	Field attributes:
-
 */
 
 function grid(...options) {
 
 	let g = {
+		// geometry
+		w: 500,
+		h: 400,
+		row_h: 24,
+		row_border_h: 1,
 		// keyboard behavior
-		page_rows: 20,                 // how many rows to move on page-down/page-up
-		auto_advance: 'next_row',      // advance on enter: false|'next_row'|'next_cell'
-		auto_advance_row: true,        // jump row on horiz. navigation limits
-		auto_jump_cells: true,         // jump to next/prev cell on caret limits
-		keep_editing: true,            // re-enter edit mode after navigating
-		save_cell_on: 'input',         // save cell on 'input'|'exit_edit'
-		save_row_on: 'exit_edit',      // save row on 'input'|'exit_edit'|'exit_row'|false
-		prevent_exit_edit: false,      // prevent exiting edit mode on validation errors
-		prevent_exit_row: true,        // prevent changing row on validation errors
+		page_rows: 20,            // how many rows to move on page-down/page-up
+		auto_advance: 'next_row', // advance on enter: false|'next_row'|'next_cell'
+		auto_advance_row: true,   // jump row on horiz. navigation limits
+		auto_jump_cells: true,    // jump to next/prev cell on caret limits
+		keep_editing: true,       // re-enter edit mode after navigating
+		save_cell_on: 'input',    // save cell on 'input'|'exit_edit'
+		save_row_on: 'exit_edit', // save row on 'input'|'exit_edit'|'exit_row'|false
+		prevent_exit_edit: false, // prevent exiting edit mode on validation errors
+		prevent_exit_row: true,   // prevent changing row on validation errors
 	}
 
 	let d
@@ -34,9 +37,13 @@ function grid(...options) {
 		fields = []
 		if (g.cols) {
 			for (let fi of g.cols)
-				fields.push(d.fields[fi])
-		} else
-			fields = d.fields.slice()
+				if (!d.fields[fi].hidden)
+					fields.push(d.fields[fi])
+		} else {
+			for (let field of d.fields)
+				if (!field.hidden)
+					fields.push(field)
+		}
 
 		onoff_events(true)
 
@@ -61,22 +68,32 @@ function grid(...options) {
 		onoff_events(false)
 	}
 
+	// virtual grid geometry --------------------------------------------------
+
+	function visible_row_count() {
+		return floor(g.rows_view_h / g.row_h) + 2
+	}
+
+	function scroll_y(sy) {
+		return clamp(sy, 0, g.rows_h - g.rows_view_h)
+	}
+
+	function first_visible_row(sy) {
+		return floor(sy / g.row_h)
+	}
+
+	function rows_y_offset(sy) {
+		return floor(sy - sy % g.row_h)
+	}
+
+	function init_geometry() {
+		g.rows_h = g.row_h * d.rows.length - floor(g.row_border_h / 2)
+		g.rows_view_h = g.h - g.grid_div.clientHeight
+	}
+
 	// rendering --------------------------------------------------------------
 
-	property(g, 'last_tr', { get: function() {
-		let tr = g.tbody.last
-		return tr && tr.hasclass('grid-row') && tr || undefined
-	}})
-
-	let trs = new Map()
-
-	let render_row = function(row) {
-		let tr = H.tr({class: 'grid-row'})
-		tr.row = row
-		trs.set(row, tr)
-		for (let i = 0; i < fields.length; i++) {
-			let field = fields[i]
-
+	/*
 			let input = H.input({
 					type: 'text',
 					class: 'grid-input',
@@ -85,34 +102,12 @@ function grid(...options) {
 					value: d.value(row, field),
 				})
 			input.style.textAlign = field.align
-
-			let td = H.td({class: 'grid-cell', width: 1}, input)
-
-			td.class('read_only', !d.can_change_value(row, field))
-
-			td.on('mousedown', function() {
-				if (g.col_resize)
-					return
-
-				let td = this
-				let tr = this.parent
-				if (g.focused_tr == tr && g.focused_td == td)
-					g.enter_edit()
-				else
-					g.focus_cell(tr, td)
-			})
-
-			tr.add(td)
-		}
-		return tr
-	}
+	*/
 
 	function update_sort_icons() {
-		let ths = g.thead.at[0].children
-		for (let i = 0; i < fields.length; i++) {
-			let field = fields[i]
-			let dir = g.order_by_dir(field)
-			let sort_icon = ths[i].sort_icon
+		for (let th of g.header_tr.children) {
+			let dir = g.order_by_dir(th.field)
+			let sort_icon = th.sort_icon
 			sort_icon.class('fa-sort', false)
 			sort_icon.class('fa-angle-up', false)
 			sort_icon.class('fa-angle-down', false)
@@ -123,33 +118,59 @@ function grid(...options) {
 		}
 	}
 
-	function lr_table(e1, e2, reverse) {
-		if (reverse)
-			[e1, e2] = [e2, e1]
-		return (
-			H.table({width: '100%'},
-				H.tr(0,
-					H.td({align: 'left' }, e1),
-					H.td({align: 'right'}, e2))))
+	function render_row(tr, row) {
+		for (let i = 0; i < fields.length; i++) {
+			let field = fields[i]
+			let td = tr.at[i]
+			td.innerHTML = d.value(row.row, field)
+			td.class('read_only', !d.can_change_value(row, field))
+		}
+	}
+
+	function render_rows() {
+		sy = scroll_y(g.rows_view_div.scrollTop)
+		let i0 = first_visible_row(sy)
+		g.rows_table.y = rows_y_offset(sy)
+		let n = visible_row_count()
+		n = min(n, d.rows.length - i0)
+		for (let i = 0; i < n; i++) {
+			let tr = g.rows_table.at[i]
+			let row = g.rows[i0 + i]
+			render_row(tr, row)
+		}
 	}
 
 	g.render = function() {
-		if (g.table)
+		if (g.grid_div)
 			g.focus_cell()
-		g.thead = H.thead()
-		g.tbody = H.tbody()
-		g.table = H.table({class: 'grid-table'}, g.thead, g.tbody)
 
-		let header_tr = H.tr({class: 'grid-header-row'})
+		g.rows = []
+		for (let i = 0; i < d.rows.length; i++)
+			g.rows[i] = {row: d.rows[i]}
+
+		g.header_tr = H.tr()
+		g.header_table = H.table({class: 'grid-header-table'}, g.header_tr)
+		g.rows_table = H.table({class: 'grid-rows-table'})
+		g.rows_height_div = H.div({class: 'grid-rows-height-div'}, g.rows_table)
+		g.rows_view_div = H.div({class: 'grid-rows-div'}, g.rows_height_div)
+		g.grid_div = H.div({class: 'grid-div'}, g.header_table, g.rows_view_div)
+
 		for (let field of fields) {
 
 			let sort_icon  = H.div({class: 'fa grid-sort-icon'})
-			let title_table = lr_table(field.name, sort_icon, field.align == 'right')
+			let e1 = H.td({class: 'grid-header-title-td'}, field.name)
+			let e2 = H.td({class: 'grid-header-sort-icon-td'}, sort_icon)
+			if (field.align == 'right')
+				[e1, e2] = [e2, e1]
+			e1.attr('align', 'left')
+			e2.attr('align', 'right')
+			let title_table =
+				H.table({class: 'grid-header-th-table'},
+					H.tr(0, e1, e2))
 
 			function toggle_order(e) {
-				if (g.col_resize)
+				if (g.grid_div.hasclass('col-resize'))
 					return
-
 				if (e.which == 3)  // right-click
 					g.clear_order()
 				else
@@ -157,86 +178,160 @@ function grid(...options) {
 				e.preventDefault()
 			}
 
-			let th = H.th({class: 'grid-header-cell'}, title_table)
+			let th = H.th({class: 'grid-header-th'}, title_table)
 
+			th.field = field
 			th.sort_icon = sort_icon
 
-			th.style.width    = field.width && field.width + 'px'
-			th.style.maxWidth = field.max_width && field.max_width + 'px'
-			th.style.minWidth = field.min_width && field.min_width + 'px'
+			if (field.w) th.w = field.w
+			if (field.max_w) th.max_w = field.max_w
+			if (field.min_w) th.min_w = max(10, field.min_w)
 			th.field = field
 			th.on('mousedown', toggle_order)
 			th.on('contextmenu', function(e) { e.preventDefault() })
 
-			header_tr.add(th)
+			g.header_tr.add(th)
 		}
-		g.thead.add(header_tr)
+		g.header_table.add(g.header_tr)
 
-		for (let row of d.rows) {
-			let tr = render_row(row)
-			g.tbody.add(tr)
+		g.parent.set1(g.grid_div)
+
+		init_geometry()
+
+		g.rows_height_div.h = g.rows_h
+		g.rows_view_div.h = g.rows_view_h
+		g.grid_div.w = g.w
+
+		for (let i = 0; i < visible_row_count(); i++) {
+
+			let tr = H.tr({class: 'grid-tr'})
+
+			for (let i = 0; i < fields.length; i++) {
+				let th = g.header_tr.at[i]
+				let field = fields[i]
+
+				let td = H.td({class: 'grid-td'})
+
+				td.w = th.clientWidth
+				td.h = g.row_h
+				td.style['border-bottom-width'] = g.row_border_h + 'px'
+
+				td.on('mousedown', function() {
+					if (g.grid_div.hasclass('col-resize'))
+						return
+					let td = this
+					let tr = this.parent
+					if (g.focused_tr == tr && g.focused_td == td)
+						g.enter_edit()
+					else
+						g.focus_cell(tr, td)
+				})
+
+				tr.add(td)
+			}
+
+			g.rows_table.add(tr)
 		}
 
-		g.container.set1(g.table)
+		g.rows_view_div.on('scroll', function(e) {
+			render_rows()
+			g.header_table.x = -e.target.scrollLeft
+		})
+
 		size_rows()
 
 		g.sort()
 	}
 
-	g.row_tr = function(row) {
-		return trs.get(row)
-	}
-
-	g.field_td = function(tr, field) {
-		let fi = fields.indexOf(field)
-		if (fi != -1) return tr.at[i]
-	}
-
 	g.reload = function() {
-		let row   = g.focused_tr && g.focused_tr.row
-		let field = g.focused_td && fields[g.focused_td.index]
+		let ri = g.focused_ri
+		let fi = g.focused_fi
 		g.render()
-		// find focused row & field again and re-focus them.
-		let tr = row && g.row_tr(row)
+		/*
 		if (tr) {
 			let td = field && g.field_td(tr, field)
 			g.focus_cell(tr, td, false)
 		} else
 			g.focus_near_cell(0, 0, false)
+		*/
+	}
+
+	// make columns resizeable ------------------------------------------------
+
+	let hit_th, hit_x
+
+	function mousedown(e) {
+		if (g.grid_div.hasclass('col-resizing') || !hit_th)
+			return
+		g.grid_div.class('col-resizing', true)
+		e.preventDefault()
+	}
+
+	function mouseup(e) {
+		g.grid_div.class('col-resizing', false)
+	}
+
+	function size_rows() {
+		return
+		for (let td of g.header_tr.children)
+			size_rows_for(td.index, td.clientWidth)
+	}
+
+	function size_row(tr) {
+		return
+		let ths = g.header_tr.children
+		for (let i = 0; i < ths.length; i++) {
+			let th = ths[i]
+			let td = tr.at[i]
+			td.w = th.clientWidth
+		}
+	}
+
+	function size_rows_for(td_index, w) {
+		for (let tr of g.rows_table.children) {
+			let td = tr.at[td_index]
+			td.w = w
+		}
+	}
+
+	function mousemove(e) {
+		if (g.grid_div.hasclass('col-resizing')) {
+			let field = fields[hit_th.index]
+			let w = e.clientX - (g.header_table.offsetLeft + hit_th.offsetLeft + hit_x)
+			let min_w = max(20, field.min_w || 0)
+			let max_w = max(min_w, field.max_w || 1000)
+			hit_th.w = clamp(w, min_w, max_w)
+			size_rows_for(hit_th.index, hit_th.clientWidth)
+			e.preventDefault()
+		} else {
+			hit_th = null
+			for (th of g.header_tr.children) {
+				hit_x = e.clientX - (g.header_table.offsetLeft + th.offsetLeft + th.offsetWidth)
+				if (hit_x >= -5 && hit_x <= 5) {
+					hit_th = th
+					break
+				}
+			}
+			g.grid_div.class('col-resize', !!hit_th)
+		}
 	}
 
 	// focusing ---------------------------------------------------------------
 
-	g.focused_tr = null
-	g.focused_td = null
+	g.focused_ri = null // ri=row_index
+	g.focused_fi = null // fi=field_index
 
-	let next_e = function(e) { return e.next; }
-	let prev_e = function(e) { return e.prev; }
-	let find_sibling = function(e, direction, is_valid, stop) {
-		let next = direction == 'prev' && prev_e || next_e
-		is_valid = is_valid || return_true
-		let last_e
-		for (; e; e = next(e))
-			if (is_valid(e)) {
-				last_e = e
-				if (stop(e))
-					break
-			}
-		return last_e
-	}
+	g.first_focusable_cell = function(ri, fi, rows, cols) {
+		let want_change_row = rows != 0
+		while (rows) {
+			//
+			rows += sign(rows)
+		}
 
-	g.first_focusable_cell = function(tr, td, rows, cols) {
-		let want_change_row = rows
-		let tr1 = find_sibling(
-			tr || g.tbody.first,
-			rows >= 0 && 'next' || 'prev',
-			function(tr) { return true },
-			function(tr) {
-				let stop = !rows
-				rows -= sign(rows)
-				return stop
-			})
-		let td1 = find_sibling(
+		let row
+		if (rows > 0)
+			for (let ri = ri; ri < g.rows.length; ri++)
+		let td1 = find_sibling(g.rows. row1 && fi
 			tr1 && (td && tr1.at[td.index] || tr1.first),
 			cols >= 0 && 'next' || 'prev',
 			function(td) { return !td.hasclass('read_only') },
@@ -649,70 +744,6 @@ function grid(...options) {
 			g.enter_edit(true)
 	}
 
-	// make columns resizeable ------------------------------------------------
-
-	let hit_td, hit_x, col_resizing
-
-	function mousedown(e) {
-		if (col_resizing || !hit_td)
-			return
-		col_resizing = true
-		g.table.class('col-resizing', true)
-		e.preventDefault()
-	}
-
-	function mouseup(e) {
-		col_resizing = false
-		g.table.class('col-resizing', false)
-		g.col_resize = false
-	}
-
-	function size_rows() {
-		return
-		for (let td of g.thead.at[0].children)
-			size_rows_for(td.index, td.clientWidth + 'px')
-	}
-
-	function size_row(tr) {
-		return
-		let ths = g.thead.at[0].children
-		for (let i = 0; i < ths.length; i++) {
-			let th = ths[i]
-			let td = tr.at[i]
-			td.style.width = th.clientWidth + 'px'
-		}
-	}
-
-	function size_rows_for(td_index, w) {
-		return
-		for (let tr of g.tbody.children) {
-			let td = tr.at[td_index]
-			td.style.width = w
-		}
-	}
-
-	function mousemove(e) {
-		if (col_resizing) {
-			let w = e.clientX - (g.table.offsetLeft + hit_td.offsetLeft + hit_x)
-			hit_td.style.width = w + 'px'
-			size_rows_for(hit_td.index, hit_td.clientWidth + 'px')
-			e.preventDefault()
-		} else {
-			hit_td = null
-			for (td of g.thead.first.children) {
-				hit_x = e.clientX - (g.table.offsetLeft + td.offsetLeft + td.offsetWidth)
-				if (hit_x >= -5 && hit_x <= 5) {
-					hit_td = td
-					break
-				}
-			}
-			let old_col_resize = g.col_resize
-			g.col_resize = !!hit_td
-			//if (g.col_resize != old_col_resize)
-				//g.table.style.cursor = g.col_resize ? 'ew-resize' : 'default'
-		}
-	}
-
 	// sorting ----------------------------------------------------------------
 
 	let order_by_dir
@@ -773,30 +804,31 @@ function grid(...options) {
 			cmps[i] = d.comparator(field)
 			let r = dir == 'asc' ? 1 : -1
 			// header row comes first
-			s.push('if (!tr1.row) return -1')
-			s.push('if (!tr2.row) return  1')
+			s.push('if (!r1.row) return -1')
+			s.push('if (!r2.row) return  1')
 			// invalid values come first
-			s.push('var v1 = !tr1.at['+i+'].hasclass("invalid")')
-			s.push('var v2 = !tr2.at['+i+'].hasclass("invalid")')
+			s.push('var v1 = !(r1.fields && r1.fields['+i+'].invalid)')
+			s.push('var v2 = !(r2.fields && r2.fields['+i+'].invalid)')
 			s.push('if (v1 < v2) return -1')
 			s.push('if (v1 > v2) return  1')
 			// modified values come second
-			s.push('var v1 = !tr1.at['+i+'].hasclass("modified")')
-			s.push('var v2 = !tr2.at['+i+'].hasclass("modified")')
+			s.push('var v1 = !(r1.fields && r1.fields['+i+'].modified)')
+			s.push('var v2 = !(r2.fields && r2.fields['+i+'].modified)')
 			s.push('if (v1 < v2) return -1')
 			s.push('if (v1 > v2) return  1')
 			// compare values using the dataset comparator
 			s.push('var cmp = cmps['+i+']')
-			s.push('var r = cmp(tr1.row, tr2.row, '+i+')')
+			s.push('var r = cmp(r1.row, r2.row, '+i+')')
 			s.push('if (r) return r * '+r)
 		}
 		s.push('return 0')
-		s = 'let f = function(tr1, tr2) {\n\t' + s.join('\n\t') + '\n}; f'
+		s = 'let f = function(r1, r2) {\n\t' + s.join('\n\t') + '\n}; f'
 		let cmp = eval(s)
+		g.rows.sort(cmp)
 
-		g.tbody.add(Array.from(g.tbody.children).sort(cmp))
-
+		render_rows()
 		update_sort_icons()
+
 	}
 
 	init()
