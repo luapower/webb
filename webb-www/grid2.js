@@ -124,6 +124,28 @@ function grid(...options) {
 					H.td({align: 'right'}, e2))))
 	}
 
+	function render_row(tr, row) {
+		for (let i = 0; i < fields.length; i++) {
+			let field = fields[i]
+			let td = tr.at[i]
+			td.innerHTML = d.value(row.row, field)
+			td.class('read_only', !d.can_change_value(row, field))
+		}
+	}
+
+	function render_rows() {
+		sy = scroll_y(g.rows_view_div.scrollTop)
+		let i0 = first_visible_row(sy)
+		g.rows_table.y = rows_y_offset(sy)
+		let n = visible_row_count()
+		n = min(n, d.rows.length - i0)
+		for (let i = 0; i < n; i++) {
+			let tr = g.rows_table.at[i]
+			let row = g.rows[i0 + i]
+			render_row(tr, row)
+		}
+	}
+
 	g.render = function() {
 		if (g.grid_div)
 			g.focus_cell()
@@ -211,39 +233,14 @@ function grid(...options) {
 			g.rows_table.add(tr)
 		}
 
-		function render_row(tr, row) {
-			for (let i = 0; i < fields.length; i++) {
-				let field = fields[i]
-				let td = tr.at[i]
-				td.innerHTML = d.value(row.row, field)
-				td.class('read_only', !d.can_change_value(row, field))
-			}
-		}
-
-		function render_rows(sy) {
-			sy = scroll_y(sy)
-			let i0 = first_visible_row(sy)
-			g.rows_table.y = rows_y_offset(sy)
-			let n = visible_row_count()
-			n = min(n, d.rows.length - i0)
-			for (let i = 0; i < n; i++) {
-				let tr = g.rows_table.at[i]
-				let row = g.rows[i0 + i]
-				render_row(tr, row)
-			}
-		}
-
 		g.rows_view_div.on('scroll', function(e) {
-			render_rows(e.target.scrollTop)
+			render_rows()
 			g.header_table.x = -e.target.scrollLeft
 		})
 
 		size_rows()
 
 		g.sort()
-
-		render_rows(g.rows_view_div.scrollTop)
-
 	}
 
 	g.row_tr = function(row) {
@@ -855,7 +852,9 @@ function grid(...options) {
 		let cmp = eval(s)
 		g.rows.sort(cmp)
 
+		render_rows()
 		update_sort_icons()
+
 	}
 
 	init()
