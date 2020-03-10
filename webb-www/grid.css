@@ -80,7 +80,7 @@
 	position: absolute;
 }
 
-.grid-td.focused .grid-input {
+.grid-td.focused {
 	background-color: #ccc;
 }
 

@@ -70,12 +70,20 @@ function grid(...options) {
 
 	// virtual grid geometry --------------------------------------------------
 
-	function visible_row_count() {
-		return floor(g.rows_view_h / g.row_h) + 2
+	function visible_row_count(i0) {
+		let n = floor(g.rows_view_h / g.row_h) + 2
+		if (i0 != null) n = min(n, d.rows.length - i0)
+		return n
 	}
 
-	function scroll_y(sy) {
-		return clamp(sy, 0, g.rows_h - g.rows_view_h)
+	function scroll_vertically(sy) {
+		g.scroll_y = clamp(sy, 0, g.rows_h - g.rows_view_h)
+	}
+
+	function scroll_into_view(cell) {
+		let [ri, fi] = cell
+		// let sy =
+		g.scroll_y = sy
 	}
 
 	function first_visible_row(sy) {
@@ -91,6 +99,19 @@ function grid(...options) {
 		g.rows_view_h = g.h - g.grid_div.clientHeight
 	}
 
+	function tr_at(ri) {
+		let sy = g.scroll_y
+		let i0 = first_visible_row(sy)
+		let i1 = i0 + visible_row_count(i0)
+		return ri >= i0 && ri < i1 ? g.rows_table.at[ri - i0] : null
+	}
+
+	function cell_at(cell) {
+		let [ri, fi] = cell
+		let tr = ri != null && tr_at(ri)
+		return [tr, tr && fi != null ? tr.at[fi] : null]
+	}
+
 	// rendering --------------------------------------------------------------
 
 	/*
@@ -104,40 +125,54 @@ function grid(...options) {
 			input.style.textAlign = field.align
 	*/
 
-	function update_sort_icons() {
-		for (let th of g.header_tr.children) {
-			let dir = g.order_by_dir(th.field)
-			let sort_icon = th.sort_icon
-			sort_icon.class('fa-sort', false)
-			sort_icon.class('fa-angle-up', false)
-			sort_icon.class('fa-angle-down', false)
-			sort_icon.class(
-				   dir == 'asc'  && 'fa-angle-up'
-				|| dir == 'desc' && 'fa-angle-down'
-			   || 'fa-sort', true)
-		}
-	}
-
-	function render_row(tr, row) {
-		for (let i = 0; i < fields.length; i++) {
-			let field = fields[i]
-			let td = tr.at[i]
+	function update_row(tr, ri) {
+		let row = g.rows[ri]
+		tr.row = row
+		tr.row_index = ri
+		for (let fi = 0; fi < fields.length; fi++) {
+			let field = fields[fi]
+			let td = tr.at[fi]
+			td.field = field
+			td.field_index = fi
 			td.innerHTML = d.value(row.row, field)
 			td.class('read_only', !d.can_change_value(row, field))
 		}
 	}
 
-	function render_rows() {
-		sy = scroll_y(g.rows_view_div.scrollTop)
+	function update_rows() {
+		let sy = g.scroll_y
 		let i0 = first_visible_row(sy)
 		g.rows_table.y = rows_y_offset(sy)
-		let n = visible_row_count()
-		n = min(n, d.rows.length - i0)
+		let n = visible_row_count(i0)
 		for (let i = 0; i < n; i++) {
 			let tr = g.rows_table.at[i]
-			let row = g.rows[i0 + i]
-			render_row(tr, row)
+			update_row(tr, i0 + i)
 		}
+	}
+
+	function update_header_xpos(sx) {
+		g.header_table.x = -sx
+	}
+
+	function scroll(sy, sx) {
+		set_focus(g.focused_cell, false)
+		scroll_vertically(sy)
+		update_rows()
+		set_focus(g.focused_cell, true)
+		if (sx == null)
+			sx = g.rows_view_div.scrollLeft
+		update_header_xpos(sx)
+	}
+
+	function cell_mousedown() {
+		if (g.grid_div.hasclass('col-resize'))
+			return
+		let td = this
+		let tr = this.parent
+		if (g.focused_tr == tr && g.focused_td == td)
+			g.enter_edit()
+		else
+			g.focus_cell(tr, td)
 	}
 
 	g.render = function() {
@@ -216,16 +251,7 @@ function grid(...options) {
 				td.h = g.row_h
 				td.style['border-bottom-width'] = g.row_border_h + 'px'
 
-				td.on('mousedown', function() {
-					if (g.grid_div.hasclass('col-resize'))
-						return
-					let td = this
-					let tr = this.parent
-					if (g.focused_tr == tr && g.focused_td == td)
-						g.enter_edit()
-					else
-						g.focus_cell(tr, td)
-				})
+				td.on('mousedown', cell_mousedown)
 
 				tr.add(td)
 			}
@@ -234,8 +260,9 @@ function grid(...options) {
 		}
 
 		g.rows_view_div.on('scroll', function(e) {
-			render_rows()
-			g.header_table.x = -e.target.scrollLeft
+			scroll(
+				g.rows_view_div.scrollTop,
+				g.rows_view_div.scrollLeft)
 		})
 
 		size_rows()
@@ -243,9 +270,27 @@ function grid(...options) {
 		g.sort()
 	}
 
+	function update_sort_icons() {
+		for (let th of g.header_tr.children) {
+			let dir = g.order_by_dir(th.field)
+			let sort_icon = th.sort_icon
+			sort_icon.class('fa-sort', false)
+			sort_icon.class('fa-angle-up', false)
+			sort_icon.class('fa-angle-down', false)
+			sort_icon.class(
+				   dir == 'asc'  && 'fa-angle-up'
+				|| dir == 'desc' && 'fa-angle-down'
+			   || 'fa-sort', true)
+		}
+	}
+
+	function set_focus(cell, set) {
+		let [tr, td] = cell_at(cell)
+		if (tr) tr.class('focused', set)
+		if (td) td.class('focused', set)
+	}
+
 	g.reload = function() {
-		let ri = g.focused_ri
-		let fi = g.focused_fi
 		g.render()
 		/*
 		if (tr) {
@@ -318,56 +363,54 @@ function grid(...options) {
 
 	// focusing ---------------------------------------------------------------
 
-	g.focused_ri = null // ri=row_index
-	g.focused_fi = null // fi=field_index
+	g.focused_cell = [null, null]
 
-	g.first_focusable_cell = function(ri, fi, rows, cols) {
-		let want_change_row = rows != 0
-		while (rows) {
-			//
-			rows += sign(rows)
+	g.first_focusable_cell = function(cell, rows, cols) {
+		let [ri, fi] = cell
+		let wanted_to_change_row = rows != 0
+		let start_ri = ri
+
+		let last_valid_ri
+		while (ri >= 0 && ri < g.rows.length) {
+			if (!g.rows[ri].row.read_only) {
+				last_valid_ri = ri
+				if (!rows) break
+				rows += sign(rows)
+			}
+			ri += sign(rows)
 		}
 
-		let row
-		if (rows > 0)
-			for (let ri = ri; ri < g.rows.length; ri++)
-		let td1 = find_sibling(g.rows. row1 && fi
-			tr1 && (td && tr1.at[td.index] || tr1.first),
-			cols >= 0 && 'next' || 'prev',
-			function(td) { return !td.hasclass('read_only') },
-			function(td) {
-				let stop = !cols
-				cols -= sign(cols)
-				return stop
-			})
-		// if wanted to change row but couldn't, then don't change the col either.
-		if (want_change_row && tr1 == tr && td)
-			td1 = td
-		return [tr1, td1, tr1 != tr || td1 != td]
+		if (!last_valid_ri || (wanted_to_change_row && last_valid_ri == start_ri))
+			return [last_valid_ri, null]
+
+		let last_valid_fi
+		while (fi >= 0 && fi < fields.length) {
+			if (!fields[fi].read_only) {
+				last_valid_fi = fi
+				if (!cols) break
+				cols += sign(cols)
+			}
+			fi += sign(cols)
+		}
+
+		return [last_valid_ri, last_valid_fi]
 	}
 
-	function focus_cell(tr, td, scrollintoview) {
-		if (tr == g.focused_tr && td == g.focused_td)
+	g.focus_cell = function(tr, td, scrollintoview) {
+		let c0 = g.focused_cell
+		let c1 = g.first_focusable_cell([tr.row_index, td.field_index], 0, 0)
+		if (c1[0] == c0[0] && c1[1] == c0[1])
 			return false
-		if (tr != g.focused_tr) {
+		if (c1[0] != c0[0])  {
 			if (!g.exit_row())
 				return false
 		} else if (!g.exit_edit())
 			return false
-		if (g.focused_tr) g.focused_tr.class('focused', false)
-		if (g.focused_td) g.focused_td.class('focused', false)
-		if (tr) tr.class('focused', true)
-		if (td) td.class('focused', true)
-		if (scrollintoview !== false && (td || tr))
-			(td || tr).scrollintoview()
-		g.focused_tr = tr
-		g.focused_td = td
-		return true
-	}
-
-	g.focus_cell = function(tr, td, scrollintoview) {
-		var [tr, td] = g.first_focusable_cell(tr, td, 0, 0)
-		return focus_cell(tr, td, scrollintoview)
+		set_focus(c0, false)
+		if (scrollintoview)
+			scroll_into_view(c1)
+		set_focus(c1, true)
+		g.focused_cell = c1
 	}
 
 	g.focus_near_cell = function(rows, cols, scrollintoview) {
@@ -826,7 +869,7 @@ function grid(...options) {
 		let cmp = eval(s)
 		g.rows.sort(cmp)
 
-		render_rows()
+		scroll(0, null)
 		update_sort_icons()
 
 	}
