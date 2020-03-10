@@ -8,8 +8,6 @@
 
 // dom querying
 
-function byid(id) { return document.getElementById(id) }
-
 alias(Element, 'at'     , 'childNodes')
 alias(Element, 'parent' , 'parentNode')
 alias(Element, 'first'  , 'firstElementChild')
@@ -51,6 +49,14 @@ method(Element, 'class', function(name, enable) {
 method(Element, 'hasclass', function(name) {
 	return this.classList.contains(name)
 })
+
+function css(classname, prop) {
+	let div = H.div({class: classname, style: 'position: absolute; visibility: hidden'})
+	document.children[0].appendChild(div)
+	let v = getComputedStyle(div)[prop]
+	document.children[0].removeChild(div)
+	return v
+}
 
 // tree ops
 
@@ -134,6 +140,17 @@ H.b        = function(...a) { return H('b'       , ...a) }
 	method(Document, 'onoff', onoff)
 	method(Element, 'onoff', onoff)
 }
+
+// geometry
+
+property(Element, 'x'    , { set: function(x) { this.style.left      = x + 'px'; } })
+property(Element, 'y'    , { set: function(y) { this.style.top       = y + 'px'; } })
+property(Element, 'w'    , { set: function(w) { this.style.width     = w + 'px'; } })
+property(Element, 'h'    , { set: function(h) { this.style.height    = h + 'px'; } })
+property(Element, 'min_w', { set: function(w) { this.style.minWidth  = w + 'px'; } })
+property(Element, 'min_h', { set: function(h) { this.style.minHeight = h + 'px'; } })
+property(Element, 'max_w', { set: function(w) { this.style.maxWidth  = w + 'px'; } })
+property(Element, 'max_h', { set: function(h) { this.style.maxHeight = h + 'px'; } })
 
 // text editing --------------------------------------------------------------
 

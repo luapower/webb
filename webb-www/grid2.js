@@ -8,18 +8,20 @@ function grid(...options) {
 
 	let g = {
 		// geometry
-		height: 400,
-		row_height: 20,
+		w: 500,
+		h: 400,
+		row_h: 24,
+		row_border_h: 1,
 		// keyboard behavior
-		page_rows: 20,                 // how many rows to move on page-down/page-up
-		auto_advance: 'next_row',      // advance on enter: false|'next_row'|'next_cell'
-		auto_advance_row: true,        // jump row on horiz. navigation limits
-		auto_jump_cells: true,         // jump to next/prev cell on caret limits
-		keep_editing: true,            // re-enter edit mode after navigating
-		save_cell_on: 'input',         // save cell on 'input'|'exit_edit'
-		save_row_on: 'exit_edit',      // save row on 'input'|'exit_edit'|'exit_row'|false
-		prevent_exit_edit: false,      // prevent exiting edit mode on validation errors
-		prevent_exit_row: true,        // prevent changing row on validation errors
+		page_rows: 20,            // how many rows to move on page-down/page-up
+		auto_advance: 'next_row', // advance on enter: false|'next_row'|'next_cell'
+		auto_advance_row: true,   // jump row on horiz. navigation limits
+		auto_jump_cells: true,    // jump to next/prev cell on caret limits
+		keep_editing: true,       // re-enter edit mode after navigating
+		save_cell_on: 'input',    // save cell on 'input'|'exit_edit'
+		save_row_on: 'exit_edit', // save row on 'input'|'exit_edit'|'exit_row'|false
+		prevent_exit_edit: false, // prevent exiting edit mode on validation errors
+		prevent_exit_row: true,   // prevent changing row on validation errors
 	}
 
 	let d
@@ -62,12 +64,30 @@ function grid(...options) {
 		onoff_events(false)
 	}
 
-	// rendering --------------------------------------------------------------
+	// virtual grid geometry --------------------------------------------------
 
-	property(g, 'last_tr', { get: function() {
-		let tr = g.tbody.last
-		return tr && tr.hasclass('grid-row') && tr || undefined
-	}})
+	function visible_row_count() {
+		return floor(g.rows_view_h / g.row_h) + 2
+	}
+
+	function scroll_y(sy) {
+		return clamp(sy, 0, g.rows_h - g.rows_view_h)
+	}
+
+	function first_visible_row(sy) {
+		return floor(sy / g.row_h)
+	}
+
+	function rows_y_offset(sy) {
+		return floor(sy - sy % g.row_h)
+	}
+
+	function init_geometry() {
+		g.rows_h = g.row_h * d.rows.length - floor(g.row_border_h / 2)
+		g.rows_view_h = g.h - g.grid_div.clientHeight
+	}
+
+	// rendering --------------------------------------------------------------
 
 	/*
 			let input = H.input({
@@ -98,21 +118,10 @@ function grid(...options) {
 		if (reverse)
 			[e1, e2] = [e2, e1]
 		return (
-			H.table({width: '100%'},
+			H.table({class: 'grid-header-th-table', width: '100%'},
 				H.tr(0,
 					H.td({align: 'left' }, e1),
 					H.td({align: 'right'}, e2))))
-	}
-
-	function visible_row_count() {
-		return floor((g.height - g.header_table.clientHeight) / g.row_height) + 2
-	}
-
-	function tr_row(tr) {
-		let sy = g.grid.scrollTop
-		sy = clamp(sy, 0, g.row_height * d.rows.length - g.height)
-		let i0 = floor(sy / g.row_height)
-		g.tbody.style.top = (sy - sy % g.row_height) + 'px'
 	}
 
 	g.render = function() {
@@ -124,10 +133,11 @@ function grid(...options) {
 			g.rows[i] = {row: d.rows[i]}
 
 		g.header_tr = H.tr()
-		g.header_table = H.table({class: 'grid-header'}, g.header_tr)
-		g.rows_table = H.table()
-		g.rows_div = H.div()
-		g.grid_div = H.div({class: 'grid-container'}, g.header_table, g.rows_div)
+		g.header_table = H.table({class: 'grid-header-table'}, g.header_tr)
+		g.rows_table = H.table({class: 'grid-rows-table'})
+		g.rows_height_div = H.div({class: 'grid-rows-height-div'}, g.rows_table)
+		g.rows_view_div = H.div({class: 'grid-rows-div'}, g.rows_height_div)
+		g.grid_div = H.div({class: 'grid-div'}, g.header_table, g.rows_view_div)
 
 		for (let field of fields) {
 
@@ -145,14 +155,14 @@ function grid(...options) {
 				e.preventDefault()
 			}
 
-			let th = H.th({class: 'grid-header-cell'}, title_table)
+			let th = H.th({class: 'grid-header-th'}, title_table)
 
 			th.field = field
 			th.sort_icon = sort_icon
 
-			th.style.width    = field.width && field.width + 'px'
-			th.style.maxWidth = field.max_width && field.max_width + 'px'
-			th.style.minWidth = field.min_width && field.min_width + 'px'
+			if (field.w) th.w = field.w
+			if (field.max_w) th.max_w = field.max_w
+			if (field.min_w) th.min_w = field.min_w
 			th.field = field
 			th.on('mousedown', toggle_order)
 			th.on('contextmenu', function(e) { e.preventDefault() })
@@ -163,22 +173,25 @@ function grid(...options) {
 
 		g.parent.set1(g.grid_div)
 
-		g.rows_div.style.height = (g.height - g.grid_div.clientHeight) + 'px'
+		init_geometry()
+
+		g.rows_height_div.h = g.rows_h
+		g.rows_view_div.h = g.rows_view_h
+		g.grid_div.w = g.w
 
 		for (let i = 0; i < visible_row_count(); i++) {
 
-			let tr = H.tr({class: 'grid-row'})
+			let tr = H.tr({class: 'grid-tr'})
 
 			for (let i = 0; i < fields.length; i++) {
 				let th = g.header_tr.at[i]
 				let field = fields[i]
 
-				let td = H.td({class: 'grid-cell'})
+				let td = H.td({class: 'grid-td'})
 
-				td.style.width = th.clientWidth + 'px'
-				td.style.height = g.row_height + 'px'
-
-				// td.class('read_only', !d.can_change_value(row, field))
+				td.w = th.clientWidth
+				td.h = g.row_h
+				td.style['border-bottom-width'] = g.row_border_h + 'px'
 
 				td.on('mousedown', function() {
 					if (g.col_resize)
@@ -198,11 +211,39 @@ function grid(...options) {
 			g.rows_table.add(tr)
 		}
 
+		function render_row(tr, row) {
+			for (let i = 0; i < fields.length; i++) {
+				let field = fields[i]
+				let td = tr.at[i]
+				td.innerHTML = d.value(row.row, field)
+				td.class('read_only', !d.can_change_value(row, field))
+			}
+		}
+
+		function render_rows(sy) {
+			sy = scroll_y(sy)
+			let i0 = first_visible_row(sy)
+			g.rows_table.y = rows_y_offset(sy)
+			let n = visible_row_count()
+			n = min(n, d.rows.length - i0)
+			for (let i = 0; i < n; i++) {
+				let tr = g.rows_table.at[i]
+				let row = g.rows[i0 + i]
+				render_row(tr, row)
+			}
+		}
+
+		g.rows_view_div.on('scroll', function(e) {
+			render_rows(e.target.scrollTop)
+			g.header_table.x = -e.target.scrollLeft
+		})
+
 		size_rows()
 
-		g.rows_div.add(g.rows_table)
-
 		g.sort()
+
+		render_rows(g.rows_view_div.scrollTop)
+
 	}
 
 	g.row_tr = function(row) {
@@ -225,6 +266,67 @@ function grid(...options) {
 			g.focus_cell(tr, td, false)
 		} else
 			g.focus_near_cell(0, 0, false)
+	}
+
+	// make columns resizeable ------------------------------------------------
+
+	let hit_td, hit_x
+
+	function mousedown(e) {
+		if (g.col_resizing || !hit_td)
+			return
+		g.col_resizing = true
+		g.grid_div.class('col-resizing', true)
+		e.preventDefault()
+	}
+
+	function mouseup(e) {
+		g.col_resizing = false
+		g.grid_div.class('col-resizing', false)
+		g.col_resize = false
+	}
+
+	function size_rows() {
+		return
+		for (let td of g.header_tr.children)
+			size_rows_for(td.index, td.clientWidth)
+	}
+
+	function size_row(tr) {
+		return
+		let ths = g.header_tr.children
+		for (let i = 0; i < ths.length; i++) {
+			let th = ths[i]
+			let td = tr.at[i]
+			td.w = th.clientWidth
+		}
+	}
+
+	function size_rows_for(td_index, w) {
+		for (let tr of g.rows_table.children) {
+			let td = tr.at[td_index]
+			td.w = w
+		}
+	}
+
+	function mousemove(e) {
+		if (g.col_resizing) {
+			hit_td.w = e.clientX - (g.rows_table.offsetLeft + hit_td.offsetLeft + hit_x)
+			size_rows_for(hit_td.index, hit_td.clientWidth)
+			e.preventDefault()
+		} else {
+			hit_td = null
+			for (td of g.header_tr.children) {
+				hit_x = e.clientX - (g.rows_table.offsetLeft + td.offsetLeft + td.offsetWidth)
+				if (hit_x >= -5 && hit_x <= 5) {
+					hit_td = td
+					break
+				}
+			}
+			let old_col_resize = g.col_resize
+			g.col_resize = !!hit_td
+			g.grid_div.class('col-resize', g.col_resize)
+		}
 	}
 
 	// focusing ---------------------------------------------------------------
@@ -669,70 +771,6 @@ function grid(...options) {
 	function keypress(e) {
 		if (!g.input)
 			g.enter_edit(true)
-	}
-
-	// make columns resizeable ------------------------------------------------
-
-	let hit_td, hit_x, col_resizing
-
-	function mousedown(e) {
-		if (col_resizing || !hit_td)
-			return
-		col_resizing = true
-		g.table.class('col-resizing', true)
-		e.preventDefault()
-	}
-
-	function mouseup(e) {
-		col_resizing = false
-		g.table.class('col-resizing', false)
-		g.col_resize = false
-	}
-
-	function size_rows() {
-		return
-		for (let td of g.header_tr.children)
-			size_rows_for(td.index, td.clientWidth + 'px')
-	}
-
-	function size_row(tr) {
-		return
-		let ths = g.header_tr.children
-		for (let i = 0; i < ths.length; i++) {
-			let th = ths[i]
-			let td = tr.at[i]
-			td.style.width = th.clientWidth + 'px'
-		}
-	}
-
-	function size_rows_for(td_index, w) {
-		return
-		for (let tr of g.tbody.children) {
-			let td = tr.at[td_index]
-			td.style.width = w
-		}
-	}
-
-	function mousemove(e) {
-		if (col_resizing) {
-			let w = e.clientX - (g.rows_table.offsetLeft + hit_td.offsetLeft + hit_x)
-			hit_td.style.width = w + 'px'
-			size_rows_for(hit_td.index, hit_td.clientWidth + 'px')
-			e.preventDefault()
-		} else {
-			hit_td = null
-			for (td of g.header_tr.children) {
-				hit_x = e.clientX - (g.rows_table.offsetLeft + td.offsetLeft + td.offsetWidth)
-				if (hit_x >= -5 && hit_x <= 5) {
-					hit_td = td
-					break
-				}
-			}
-			let old_col_resize = g.col_resize
-			g.col_resize = !!hit_td
-			//if (g.col_resize != old_col_resize)
-				//g.table.style.cursor = g.col_resize ? 'ew-resize' : 'default'
-		}
 	}
 
 	// sorting ----------------------------------------------------------------

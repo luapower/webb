@@ -1,56 +1,76 @@
 
-.grid-table, .grid-table tbody, .grid-table thead, .grid-table tr, .grid-table td, .grid-table input {
-	overflow: hidden;
+.grid-div {
+	display: inline-block;     /* required: don't expand to fit parent width */
+	font: 14px sans-serif;     /* default: font */
+	border: 1px solid #ccc;    /* default: border around widget */
+	overflow: hidden;          /* required: hide header trail */
 }
 
-.grid-table {
-	box-sizing: border-box;
-	border-spacing: 0px;
-	font-family: sans-serif;
-	font-size: 14px;
-	border-collapse: collapse;
-	table-layout: fixed;
+.grid-div, .grid-div * {
+	box-sizing: border-box;    /* required: borders don't affect width */
+	padding: 0px;              /* required */
+	margin: 0px;               /* required */
 }
 
-.grid-table tbody {
-	//display: block;
-	//height: 100px;
-	//overflow: auto;
-	//width: 100%;
+.grid-div table {
+	border-collapse: collapse; /* required */
+	table-layout: fixed;       /* required */
 }
 
-.grid-table tr {
-	//display: block;
+.grid-header-table {
+	position: relative;        /* required: make movable */
+	width: 100%;               /* required: expand to sum of cell widths */
 }
 
-.grid-table.col-resize {
-	cursor: ew-resize;
+.grid-rows-table {
+	width: 100%;               /* required: expand to sum of cell widths */
 }
 
-.grid-header-cell {
-	box-sizing: border-box;
-	border-bottom: 1px solid #666;
-	padding: 6px;
-	cursor: pointer;
+.grid-rows-div {
+	overflow: auto;            /* required: show scrollbars as needed */
+}
+
+.grid-rows-div {
+	position: relative;        /* required: anchor height-div and rows-table */
+}
+
+.grid-rows-height-div {
+	position: absolute;        /* required: keep at y=0 while scrolling */
+	overflow: hidden;          /* required: hide surplus bottom rows */
+}
+
+.grid-rows-table {
+	position: relative;        /* required: make movable */
+}
+
+.grid-header-th {             /* default: header column style */
+	border-bottom: 1px solid #999;
+	height: 2.5em;
+	vertical-align: bottom;
 	white-space: nowrap;
+	padding-bottom: .3em;
 }
 
-.grid-header-cell table {
-	border-spacing: 0px;
+.grid-div.col-resize {
+	cursor: ew-resize;         /* default: column resizing cursor */
 }
 
-.grid-cell {
-	box-sizing: border-box;
-	border-bottom: 1px solid #ccc;
-	padding: 0;
+.grid-div:not(.col-resize) .grid-header-th {
+	cursor: pointer;
+}
+
+.grid-header-th, .grid-td {   /* default: cell style */
+	padding-left: .5em;
+	padding-right: .5em;
+}
+
+.grid-td {                    /* default: in-between rows border */
+	border-bottom: 0px solid #ccc;
 }
 
 .grid-input {
-	box-sizing: border-box;
 	width: 100%;
 	padding: 6px;
-	border: 0;
-	margin: 0;
 	font: inherit;
 	background: none;
 	cursor: inherit;
@@ -61,27 +81,27 @@
 	position: absolute;
 }
 
-.grid-cell.focused .grid-input {
+.grid-td.focused .grid-input {
 	background-color: #ccc;
 }
 
-.grid-cell.editing .grid-input {
+.grid-td.editing .grid-input {
 	outline: 0;
 	box-shadow: inset 2px 2px 6px -2px rgba(0,0,0,0.75);
 }
 
 .grid-sort-icon.fa-sort { color: #ccc; }
 
-.grid-cell.read_only { color: #999; }
+.grid-td.read_only { color: #999; }
 
-.grid-row:hover             { background-color: #efefef; }
-.grid-row.focused           { background-color: #eee; }
-.grid-row.new               { background-color: #eef; }
-.grid-row.new.focused       { background-color: #dde; }
+.grid-tr:hover             { background-color: #efefef; }
+.grid-tr.focused           { background-color: #eee; }
+.grid-tr.new               { background-color: #eef; }
+.grid-tr.new.focused       { background-color: #dde; }
 
-.grid-cell.modified                   { background-color: #ddffdd; }
-.grid-row.focused .grid-cell.modified { background-color: #cceecc; }
+.grid-td.modified                   { background-color: #ddffdd; }
+.grid-tr.focused .grid-td.modified { background-color: #cceecc; }
 
-.grid-cell.invalid                   { background-color: #ffcccc; }
-.grid-row.focused .grid-cell.invalid { background-color: #eebbbb; }
+.grid-td.invalid                   { background-color: #ffcccc; }
+.grid-tr.focused .grid-td.invalid { background-color: #eebbbb; }
 

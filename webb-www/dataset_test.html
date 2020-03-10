@@ -12,10 +12,10 @@
 <script>
 var data = {
 	fields: [
-		{name: 'id', type: 'number', align: 'right', read_only: false, width: 50, min_width: 30},
-		{name: 'name', width: 200, min_width: 100},
-		{name: 'parent_id', type: 'number', width: 100, min_width: 50, allow_null: true, read_only: true},
-		{name: 'comment', width: 200, allow_null: true},
+		{name: 'id', type: 'number', align: 'right', read_only: false, w: 50, min_w: 30},
+		{name: 'name', w: 200, min_w: 100},
+		{name: 'parent_id', type: 'number', w: 100, min_w: 50, allow_null: true, read_only: true},
+		{name: 'comment', w: 200, allow_null: true},
 	],
 	rows: [
 		//{values: [0,'z',null]},
@@ -28,15 +28,15 @@ var data = {
 	],
 }
 
-for (var i = 0; i < 2000; i++) {
-	data.rows.push({values: [i,'record '+i, floor((random() * i))]})
+for (var i = 0; i < 100000; i++) {
+	data.rows.push({values: [i, 'record '+i, floor((random() * i))]})
 }
 
 var d = dataset(data)
 var g = grid({
 	dataset: d,
 	parent: main,
-	order_by: 'parent_id, name desc',
+	//order_by: 'parent_id, name desc',
 })
 
 </script>
