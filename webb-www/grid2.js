@@ -114,16 +114,6 @@ function grid(...options) {
 		}
 	}
 
-	function lr_table(e1, e2, reverse) {
-		if (reverse)
-			[e1, e2] = [e2, e1]
-		return (
-			H.table({class: 'grid-header-th-table', width: '100%'},
-				H.tr(0,
-					H.td({align: 'left' }, e1),
-					H.td({align: 'right'}, e2))))
-	}
-
 	function render_row(tr, row) {
 		for (let i = 0; i < fields.length; i++) {
 			let field = fields[i]
@@ -164,12 +154,19 @@ function grid(...options) {
 		for (let field of fields) {
 
 			let sort_icon  = H.div({class: 'fa grid-sort-icon'})
-			let title_table = lr_table(field.name, sort_icon, field.align == 'right')
+			let e1 = H.td({class: 'grid-header-title-td'}, field.name)
+			let e2 = H.td({class: 'grid-header-sort-icon-td'}, sort_icon)
+			if (field.align == 'right')
+				[e1, e2] = [e2, e1]
+			e1.attr('align', 'left')
+			e2.attr('align', 'right')
+			let title_table =
+				H.table({class: 'grid-header-th-table'},
+					H.tr(0, e1, e2))
 
 			function toggle_order(e) {
 				if (g.col_resize)
 					return
-
 				if (e.which == 3)  // right-click
 					g.clear_order()
 				else
@@ -184,7 +181,7 @@ function grid(...options) {
 
 			if (field.w) th.w = field.w
 			if (field.max_w) th.max_w = field.max_w
-			if (field.min_w) th.min_w = field.min_w
+			if (field.min_w) th.min_w = max(10, field.min_w)
 			th.field = field
 			th.on('mousedown', toggle_order)
 			th.on('contextmenu', function(e) { e.preventDefault() })
@@ -308,15 +305,17 @@ function grid(...options) {
 
 	function mousemove(e) {
 		if (g.col_resizing) {
-			hit_td.w = e.clientX - (g.rows_table.offsetLeft + hit_td.offsetLeft + hit_x)
+			let field = fields[hit_td.index]
+			let w = e.clientX - (g.header_table.offsetLeft + hit_td.offsetLeft + hit_x)
+			hit_td.w = max(max(10, field.min_w || 0), w)
 			size_rows_for(hit_td.index, hit_td.clientWidth)
 			e.preventDefault()
 		} else {
 			hit_td = null
-			for (td of g.header_tr.children) {
-				hit_x = e.clientX - (g.rows_table.offsetLeft + td.offsetLeft + td.offsetWidth)
+			for (th of g.header_tr.children) {
+				hit_x = e.clientX - (g.header_table.offsetLeft + th.offsetLeft + th.offsetWidth)
 				if (hit_x >= -5 && hit_x <= 5) {
-					hit_td = td
+					hit_td = th
 					break
 				}
 			}
