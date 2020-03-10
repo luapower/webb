@@ -37,9 +37,13 @@ function grid(...options) {
 		fields = []
 		if (g.cols) {
 			for (let fi of g.cols)
-				fields.push(d.fields[fi])
-		} else
-			fields = d.fields.slice()
+				if (!d.fields[fi].hidden)
+					fields.push(d.fields[fi])
+		} else {
+			for (let field of d.fields)
+				if (!field.hidden)
+					fields.push(field)
+		}
 
 		onoff_events(true)
 
@@ -165,7 +169,7 @@ function grid(...options) {
 					H.tr(0, e1, e2))
 
 			function toggle_order(e) {
-				if (g.col_resize)
+				if (g.grid_div.hasclass('col-resize'))
 					return
 				if (e.which == 3)  // right-click
 					g.clear_order()
@@ -213,9 +217,8 @@ function grid(...options) {
 				td.style['border-bottom-width'] = g.row_border_h + 'px'
 
 				td.on('mousedown', function() {
-					if (g.col_resize)
+					if (g.grid_div.hasclass('col-resize'))
 						return
-
 					let td = this
 					let tr = this.parent
 					if (g.focused_tr == tr && g.focused_td == td)
@@ -240,44 +243,32 @@ function grid(...options) {
 		g.sort()
 	}
 
-	g.row_tr = function(row) {
-		return trs.get(row)
-	}
-
-	g.field_td = function(tr, field) {
-		let fi = fields.indexOf(field)
-		if (fi != -1) return tr.at[i]
-	}
-
 	g.reload = function() {
-		let row   = g.focused_tr && g.focused_tr.row
-		let field = g.focused_td && fields[g.focused_td.index]
+		let ri = g.focused_ri
+		let fi = g.focused_fi
 		g.render()
-		// find focused row & field again and re-focus them.
-		let tr = row && g.row_tr(row)
+		/*
 		if (tr) {
 			let td = field && g.field_td(tr, field)
 			g.focus_cell(tr, td, false)
 		} else
 			g.focus_near_cell(0, 0, false)
+		*/
 	}
 
 	// make columns resizeable ------------------------------------------------
 
-	let hit_td, hit_x
+	let hit_th, hit_x
 
 	function mousedown(e) {
-		if (g.col_resizing || !hit_td)
+		if (g.grid_div.hasclass('col-resizing') || !hit_th)
 			return
-		g.col_resizing = true
 		g.grid_div.class('col-resizing', true)
 		e.preventDefault()
 	}
 
 	function mouseup(e) {
-		g.col_resizing = false
 		g.grid_div.class('col-resizing', false)
-		g.col_resize = false
 	}
 
 	function size_rows() {
@@ -304,59 +295,43 @@ function grid(...options) {
 	}
 
 	function mousemove(e) {
-		if (g.col_resizing) {
-			let field = fields[hit_td.index]
-			let w = e.clientX - (g.header_table.offsetLeft + hit_td.offsetLeft + hit_x)
-			hit_td.w = max(max(10, field.min_w || 0), w)
-			size_rows_for(hit_td.index, hit_td.clientWidth)
+		if (g.grid_div.hasclass('col-resizing')) {
+			let field = fields[hit_th.index]
+			let w = e.clientX - (g.header_table.offsetLeft + hit_th.offsetLeft + hit_x)
+			let min_w = max(20, field.min_w || 0)
+			let max_w = max(min_w, field.max_w || 1000)
+			hit_th.w = clamp(w, min_w, max_w)
+			size_rows_for(hit_th.index, hit_th.clientWidth)
 			e.preventDefault()
 		} else {
-			hit_td = null
+			hit_th = null
 			for (th of g.header_tr.children) {
 				hit_x = e.clientX - (g.header_table.offsetLeft + th.offsetLeft + th.offsetWidth)
 				if (hit_x >= -5 && hit_x <= 5) {
-					hit_td = th
+					hit_th = th
 					break
 				}
 			}
-			let old_col_resize = g.col_resize
-			g.col_resize = !!hit_td
-			g.grid_div.class('col-resize', g.col_resize)
+			g.grid_div.class('col-resize', !!hit_th)
 		}
 	}
 
 	// focusing ---------------------------------------------------------------
 
-	g.focused_tr = null
-	g.focused_td = null
+	g.focused_ri = null // ri=row_index
+	g.focused_fi = null // fi=field_index
 
-	let next_e = function(e) { return e.next; }
-	let prev_e = function(e) { return e.prev; }
-	let find_sibling = function(e, direction, is_valid, stop) {
-		let next = direction == 'prev' && prev_e || next_e
-		is_valid = is_valid || return_true
-		let last_e
-		for (; e; e = next(e))
-			if (is_valid(e)) {
-				last_e = e
-				if (stop(e))
-					break
-			}
-		return last_e
-	}
+	g.first_focusable_cell = function(ri, fi, rows, cols) {
+		let want_change_row = rows != 0
+		while (rows) {
+			//
+			rows += sign(rows)
+		}
 
-	g.first_focusable_cell = function(tr, td, rows, cols) {
-		let want_change_row = rows
-		let tr1 = find_sibling(
-			tr || g.rows_table.first,
-			rows >= 0 && 'next' || 'prev',
-			function(tr) { return true },
-			function(tr) {
-				let stop = !rows
-				rows -= sign(rows)
-				return stop
-			})
-		let td1 = find_sibling(
+		let row
+		if (rows > 0)
+			for (let ri = ri; ri < g.rows.length; ri++)
+		let td1 = find_sibling(g.rows. row1 && fi
 			tr1 && (td && tr1.at[td.index] || tr1.first),
 			cols >= 0 && 'next' || 'prev',
 			function(td) { return !td.hasclass('read_only') },

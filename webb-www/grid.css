@@ -42,10 +42,10 @@
 	overflow: hidden;          /* required: hide surplus bottom rows */
 }
 .grid-header-th {             /* default: header column style */
-	border-bottom: 1px solid #999;
 	height: 2.5em;
 	vertical-align: bottom;
 	padding-bottom: .3em;
+	border-bottom: 1px solid #999;
 }
 
 .grid-div.col-resize {
