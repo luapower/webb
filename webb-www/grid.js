@@ -27,7 +27,7 @@ function grid(...options) {
 	let d
 	let fields
 
-	init = function() {
+	function init() {
 		update(g, ...options)
 		d = g.dataset
 		init_fields()
@@ -90,7 +90,8 @@ function grid(...options) {
 
 	function make_visible(cell) {
 		let [ri, fi] = cell
-
+		if (ri == null)
+			return
 		let view = g.rows_view_div
 		let th = fi != null && g.header_tr.at[fi]
 
@@ -119,9 +120,11 @@ function grid(...options) {
 		return floor(sy - sy % g.row_h)
 	}
 
-	function init_geometry() {
+	function init_heights() {
 		g.rows_h = g.row_h * d.rows.length - floor(g.row_border_h / 2)
-		g.rows_view_h = g.h - g.grid_div.clientHeight
+		g.rows_view_h = g.h - g.header_table.clientHeight
+		g.rows_height_div.h = g.rows_h
+		g.rows_view_div.h = g.rows_view_h
 	}
 
 	function tr_at(ri) {
@@ -210,10 +213,8 @@ function grid(...options) {
 
 		g.parent.set1(g.grid_div)
 
-		init_geometry()
+		init_heights()
 
-		g.rows_height_div.h = g.rows_h
-		g.rows_view_div.h = g.rows_view_h
 		g.grid_div.w = g.w
 
 		for (let i = 0; i < visible_row_count(); i++) {
@@ -270,7 +271,7 @@ function grid(...options) {
 		}
 	}
 
-	function update_header_xpos(sx) {
+	function update_header_x(sx) {
 		g.header_table.x = -sx
 	}
 
@@ -292,7 +293,7 @@ function grid(...options) {
 		set_scroll_y(sy)
 		update_rows()
 		set_focus(true)
-		update_header_xpos(sx)
+		update_header_x(sx)
 	}
 
 	function reload() {
@@ -344,9 +345,11 @@ function grid(...options) {
 	g.focused_cell = [null, null]
 
 	g.first_focusable_cell = function(cell, rows, cols) {
+		if (cell === false) // explicit remove focus
+			return [null, null, true]
 		rows = rows || 0
 		cols = cols || 0
-		let [ri, fi] = (cell || g.focused_cell)
+		let [ri, fi] = (cell || g.focused_cell) // null cell means focused cell
 		let move_row = rows != 0
 		let move_col = cols != 0
 		let start_ri = ri
@@ -408,6 +411,16 @@ function grid(...options) {
 		return g.focus_cell(null, 0, cols, make_visible)
 			|| ((auto_advance_row || g.auto_advance_row)
 					&& g.focus_cell(null, cols, cols * -1/0, make_visible))
+	}
+
+	function on_last_row() {
+		let [ri, fi, moved] = g.first_focusable_cell(null, 1)
+		return !moved
+	}
+
+	function focused_row() {
+		let [ri] = g.focused_cell
+		return ri != null ? g.rows[ri] : null
 	}
 
 	// editing ----------------------------------------------------------------
@@ -581,20 +594,19 @@ function grid(...options) {
 	g.insert_row = function(add) {
 		if (!d.can_add_rows)
 			return
-		if (!g.focus_cell())
+		let [ri, fi] = g.focused_cell
+		if (!g.focus_cell(false))
 			return
-		let field_index = g.focused_td && g.focused_td.index
 		let reenter_edit = g.input && g.keep_editing
-		let row = d.add_row()
-		let tr = render_row(row)
-		if (add || !g.focused_tr)
-			g.tbody.add(tr)
+		let d_row = d.add_row()
+		let g_row = {row: d_row, is_new: true}
+		if (add || ri == null)
+			g.rows.push(g_row)
 		else
-			g.tbody.insertBefore(tr, g.focused_tr)
-		size_row(tr)
-		tr.class('new', true)
-		let td = field_index && tr.at[field_index]
-		g.focus_cell(tr, td)
+			g.rows.insert(ri, g_row)
+		g.focused_cell = [ri, fi]
+		init_heights()
+		scroll()
 		if (reenter_edit)
 			g.enter_edit(true)
 	}
@@ -603,22 +615,33 @@ function grid(...options) {
 		g.insert_row(true)
 	}
 
-	g.remove_row = function(tr) {
-		if (!d.can_remove_row(tr.row))
-			return // TODO: show error message
+	g.remove_row = function(ri) {
+		let row = g.rows[ri]
+		if (!d.can_remove_row(row.row))
+			return false // TODO: show error message
 		let reenter_edit = g.input && g.keep_editing
-		let [next_tr, next_td, changed] = g.first_focusable_cell(tr, g.focused_td, 1)
-		if (!changed)
-			[next_tr, next_td, changed] = g.first_focusable_cell(tr, g.focused_td, -1)
-		if (!changed)
-			[next_tr, next_td] = [null, null]
-	 	g.exit_edit(true)
-		g.focus_cell()
-		trs.delete(tr.row)
-		tr.remove()
-		g.focus_cell(next_tr, next_td)
+		let [ri1, fi1, moved] = g.first_focusable_cell(null, 1)
+		if (moved)
+			ri1-- // adjust for the to-be-removed row
+		else
+			[ri1, fi1, moved] = g.first_focusable_cell(null, -1)
+		if (!moved)
+			[ri1, fi1] = [null, null]
+		print(ri1)
+		g.exit_edit(true)
+		g.focus_cell(false)
+		g.rows.remove(ri)
+		init_heights()
+		scroll()
+		g.focus_cell([ri1, fi1])
 		if (reenter_edit)
 			g.enter_edit(true)
+		return true
+	}
+
+	g.remove_focused_row = function() {
+		let [ri] = g.focused_cell
+		return ri != null && g.remove_row(ri)
 	}
 
 	// updating from dataset changes ------------------------------------------
@@ -636,8 +659,18 @@ function grid(...options) {
 		// TODO: re-sort (or use bin-search to add the tr)
 	}
 
+	function find_dataset_row(row) {
+		for (let i = 0; i < g.rows.length; i++)
+			if (g.rows[i].row == row)
+				return i
+	}
+
 	function row_removed(e, row) {
-		g.remove_row(trs[row])
+		let ri = find_dataset_row(row)
+		g.rows.remove(ri)
+		init_heights()
+		sync()
+		//g.remove_row()
 	}
 
 	// mouse boundings --------------------------------------------------------
@@ -701,23 +734,19 @@ function grid(...options) {
 
 		// insert with the arrow down key on the last focusable row.
 		if (key == 'ArrowDown') {
-			let [ri, fi, moved] = g.first_focusable_cell(null, 1)
-			if (!moved)
+			if (on_last_row())
 				if (g.add_row())
 					return
 		}
 
 		// remove last row with the arrow up key if not edited.
 		if (key == 'ArrowUp') {
-			let ri = g.focused_cell[0]
-			let [tr, td] = cell_at(g.focused_cell)
-			if (tr
-				&& tr.hasclass('new')
-				&& !hasclass('modified')
-				&& ri == g.rows.length - 1
-			) {
-				g.remove_row(ri)
-				return
+			if (on_last_row()) {
+				let row = focused_row()
+				if (row && row.is_new && !row.modified) {
+					g.remove_focused_row()
+					return
+				}
 			}
 		}
 
@@ -776,17 +805,14 @@ function grid(...options) {
 
 		// insert key: insert row
 		if (key == 'Insert') {
-			if (g.insert_row())
-				return
+			g.insert_row()
+			return
 		}
 
 		// delete key: delete active row
 		if (!g.input && key == 'Delete') {
-			let tr = g.focused_tr
-			if (tr) {
-				g.remove_row(tr)
+			if (g.remove_focused_row())
 				return
-			}
 		}
 
 		return true
