@@ -28,12 +28,15 @@ function grid(...options) {
 	let fields
 
 	init = function() {
-
-		// set options/override.
 		update(g, ...options)
-
 		d = g.dataset
+		init_fields()
+		hook_unhook_events(true)
+		init_order_by()
+		reload()
+	}
 
+	function init_fields() {
 		fields = []
 		if (g.cols) {
 			for (let fi of g.cols)
@@ -44,28 +47,22 @@ function grid(...options) {
 				if (!field.hidden)
 					fields.push(field)
 		}
-
-		onoff_events(true)
-
-		init_order_by()
-
-		g.reload()
 	}
 
-	function onoff_events(on) {
+	function hook_unhook_events(on) {
 		document.onoff('keydown'  , keydown  , on)
 		document.onoff('keypress' , keypress , on)
 		document.onoff('mousedown', mousedown, on)
 		document.onoff('mouseup'  , mouseup  , on)
 		document.onoff('mousemove', mousemove, on)
-		d.onoff('reload'       , g.reload       , on)
-		d.onoff('value_changed', g.value_changed, on)
-		d.onoff('row_added'    , d.row_added    , on)
-		d.onoff('row_removed'  , d.row_removed  , on)
+		d.onoff('reload'       , reload       , on)
+		d.onoff('value_changed', value_changed, on)
+		d.onoff('row_added'    , row_added    , on)
+		d.onoff('row_removed'  , row_removed  , on)
 	}
 
 	g.free = function() {
-		onoff_events(false)
+		hook_unhook_events(false)
 	}
 
 	// virtual grid geometry --------------------------------------------------
@@ -76,14 +73,42 @@ function grid(...options) {
 		return n
 	}
 
-	function scroll_vertically(sy) {
+	function set_scroll_y(sy) {
 		g.scroll_y = clamp(sy, 0, g.rows_h - g.rows_view_h)
 	}
 
-	function scroll_into_view(cell) {
+	function scroll_to_view(x, y, w, h, pw, ph, sx, sy) { // from box2d.lua
+		let min_sx = -x
+		let min_sy = -y
+		let max_sx = -(x + w - pw)
+		let max_sy = -(y + h - ph)
+		return [
+			min(max(sx, min_sx), max_sx),
+			min(max(sy, min_sy), max_sy)
+		]
+	}
+
+	function make_visible(cell) {
 		let [ri, fi] = cell
-		// let sy =
-		g.scroll_y = sy
+
+		let th = g.header_tr.at[fi]
+		let view = g.rows_view_div
+
+		let h = g.row_h
+		let y = h * ri
+		let x = th.clientLeft
+		let w = th.clientWidth
+
+		let pw = view.clientWidth
+		let ph = view.clientHeight
+
+		let sx0 = view.scrollLeft
+		let sy0 = view.scrollTop
+
+		let [sx, sy] = scroll_to_view(x, y, w, h, pw, ph, -sx0, -sy0)
+
+		set_scroll_y(-sy)
+		view.scroll(-sx, -sy)
 	}
 
 	function first_visible_row(sy) {
@@ -114,16 +139,11 @@ function grid(...options) {
 
 	// rendering --------------------------------------------------------------
 
-	/*
-			let input = H.input({
-					type: 'text',
-					class: 'grid-input',
-					disabled: true,
-					maxlength: field.maxlength,
-					value: d.value(row, field),
-				})
-			input.style.textAlign = field.align
-	*/
+	function init_rows() {
+		g.rows = []
+		for (let i = 0; i < d.rows.length; i++)
+			g.rows[i] = {row: d.rows[i]}
+	}
 
 	function update_row(tr, ri) {
 		let row = g.rows[ri]
@@ -150,38 +170,7 @@ function grid(...options) {
 		}
 	}
 
-	function update_header_xpos(sx) {
-		g.header_table.x = -sx
-	}
-
-	function scroll(sy, sx) {
-		set_focus(g.focused_cell, false)
-		scroll_vertically(sy)
-		update_rows()
-		set_focus(g.focused_cell, true)
-		if (sx == null)
-			sx = g.rows_view_div.scrollLeft
-		update_header_xpos(sx)
-	}
-
-	function cell_mousedown() {
-		if (g.grid_div.hasclass('col-resize'))
-			return
-		let td = this
-		let tr = this.parent
-		if (g.focused_tr == tr && g.focused_td == td)
-			g.enter_edit()
-		else
-			g.focus_cell(tr, td)
-	}
-
-	g.render = function() {
-		if (g.grid_div)
-			g.focus_cell()
-
-		g.rows = []
-		for (let i = 0; i < d.rows.length; i++)
-			g.rows[i] = {row: d.rows[i]}
+	function render() {
 
 		g.header_tr = H.tr()
 		g.header_table = H.table({class: 'grid-header-table'}, g.header_tr)
@@ -203,16 +192,6 @@ function grid(...options) {
 				H.table({class: 'grid-header-th-table'},
 					H.tr(0, e1, e2))
 
-			function toggle_order(e) {
-				if (g.grid_div.hasclass('col-resize'))
-					return
-				if (e.which == 3)  // right-click
-					g.clear_order()
-				else
-					g.toggle_order(field, e.shiftKey)
-				e.preventDefault()
-			}
-
 			let th = H.th({class: 'grid-header-th'}, title_table)
 
 			th.field = field
@@ -221,8 +200,8 @@ function grid(...options) {
 			if (field.w) th.w = field.w
 			if (field.max_w) th.max_w = field.max_w
 			if (field.min_w) th.min_w = max(10, field.min_w)
-			th.field = field
-			th.on('mousedown', toggle_order)
+
+			th.on('mousedown', header_cell_mousedown)
 			th.on('contextmenu', function(e) { e.preventDefault() })
 
 			g.header_tr.add(th)
@@ -259,15 +238,9 @@ function grid(...options) {
 			g.rows_table.add(tr)
 		}
 
-		g.rows_view_div.on('scroll', function(e) {
-			scroll(
-				g.rows_view_div.scrollTop,
-				g.rows_view_div.scrollLeft)
-		})
+		g.rows_view_div.on('scroll', function() { scroll() })
 
-		size_rows()
-
-		g.sort()
+		sort()
 	}
 
 	function update_sort_icons() {
@@ -290,15 +263,41 @@ function grid(...options) {
 		if (td) td.class('focused', set)
 	}
 
-	g.reload = function() {
-		g.render()
-		/*
-		if (tr) {
-			let td = field && g.field_td(tr, field)
-			g.focus_cell(tr, td, false)
-		} else
-			g.focus_near_cell(0, 0, false)
-		*/
+	function update_row_width(td_index, w) {
+		for (let tr of g.rows_table.children) {
+			let td = tr.at[td_index]
+			td.w = w
+		}
+	}
+
+	function update_header_xpos(sx) {
+		g.header_table.x = -sx
+	}
+
+	/*
+			let input = H.input({
+					type: 'text',
+					class: 'grid-input',
+					disabled: true,
+					maxlength: field.maxlength,
+					value: d.value(row, field),
+				})
+			input.style.textAlign = field.align
+	*/
+
+	function scroll(sy, sx) {
+		if (sy == null) sy = g.rows_view_div.scrollTop
+		if (sx == null) sx = g.rows_view_div.scrollLeft
+		set_focus(g.focused_cell, false)
+		set_scroll_y(sy)
+		update_rows()
+		set_focus(g.focused_cell, true)
+		update_header_xpos(sx)
+	}
+
+	function reload() {
+		init_rows()
+		render()
 	}
 
 	// make columns resizeable ------------------------------------------------
@@ -316,29 +315,6 @@ function grid(...options) {
 		g.grid_div.class('col-resizing', false)
 	}
 
-	function size_rows() {
-		return
-		for (let td of g.header_tr.children)
-			size_rows_for(td.index, td.clientWidth)
-	}
-
-	function size_row(tr) {
-		return
-		let ths = g.header_tr.children
-		for (let i = 0; i < ths.length; i++) {
-			let th = ths[i]
-			let td = tr.at[i]
-			td.w = th.clientWidth
-		}
-	}
-
-	function size_rows_for(td_index, w) {
-		for (let tr of g.rows_table.children) {
-			let td = tr.at[td_index]
-			td.w = w
-		}
-	}
-
 	function mousemove(e) {
 		if (g.grid_div.hasclass('col-resizing')) {
 			let field = fields[hit_th.index]
@@ -346,7 +322,7 @@ function grid(...options) {
 			let min_w = max(20, field.min_w || 0)
 			let max_w = max(min_w, field.max_w || 1000)
 			hit_th.w = clamp(w, min_w, max_w)
-			size_rows_for(hit_th.index, hit_th.clientWidth)
+			update_row_width(hit_th.index, hit_th.clientWidth)
 			e.preventDefault()
 		} else {
 			hit_th = null
@@ -396,9 +372,8 @@ function grid(...options) {
 		return [last_valid_ri, last_valid_fi]
 	}
 
-	g.focus_cell = function(tr, td, scrollintoview) {
+	g.focus_cell = function(c1, do_make_visible) {
 		let c0 = g.focused_cell
-		let c1 = g.first_focusable_cell([tr.row_index, td.field_index], 0, 0)
 		if (c1[0] == c0[0] && c1[1] == c0[1])
 			return false
 		if (c1[0] != c0[0])  {
@@ -407,15 +382,16 @@ function grid(...options) {
 		} else if (!g.exit_edit())
 			return false
 		set_focus(c0, false)
-		if (scrollintoview)
-			scroll_into_view(c1)
+		if (do_make_visible)
+			make_visible(c1)
 		set_focus(c1, true)
 		g.focused_cell = c1
+		return true
 	}
 
-	g.focus_near_cell = function(rows, cols, scrollintoview) {
-		let [tr, td] = g.first_focusable_cell(g.focused_tr, g.focused_td, rows, cols)
-		return focus_cell(tr, td, scrollintoview)
+	g.focus_near_cell = function(rows, cols, make_visible) {
+		let cell = g.first_focusable_cell(g.focused_cell, rows, cols)
+		return g.focus_cell(cell, make_visible)
 	}
 
 	g.focus_next_cell = function(cols, auto_advance_row) {
@@ -644,14 +620,38 @@ function grid(...options) {
 		input.value = val
 	}
 
-	g.row_added = function(e, row) {
+	function row_added(e, row) {
 		let tr = render_row(row)
 		g.tbody.add(tr)
 		// TODO: re-sort (or use bin-search to add the tr)
 	}
 
-	g.row_removed = function(e, row) {
+	function row_removed(e, row) {
 		g.remove_row(trs[row])
+	}
+
+	// mouse boundings --------------------------------------------------------
+
+	function header_cell_mousedown(e) {
+		if (g.grid_div.hasclass('col-resize'))
+			return
+		if (e.which == 3)  // right-click
+			g.clear_order()
+		else
+			g.toggle_order(this.field, e.shiftKey)
+		e.preventDefault()
+	}
+
+	function cell_mousedown(e) {
+		if (g.grid_div.hasclass('col-resize'))
+			return
+		let ri = this.parent.row_index
+		let fi = this.field_index
+		if (g.focused_ri == ri && g.focused_fi == fi)
+			g.enter_edit()
+		else {
+			g.focus_cell(g.first_focusable_cell([ri, fi], 0, 0), true)
+		}
 	}
 
 	// key bindings -----------------------------------------------------------
@@ -830,48 +830,47 @@ function grid(...options) {
 		if (!keep_others)
 			order_by_dir.clear()
 		order_by_dir.set(field, dir)
-		g.sort()
+		sort()
 	}
 
 	g.clear_order = function() {
 		order_by_dir.clear()
-		g.sort()
+		sort()
 	}
 
-	g.sort = function() {
-
-		let s = []
-		let cmps = []
-		for (let [field, dir] of order_by_dir) {
-			let i = field.index
-			cmps[i] = d.comparator(field)
-			let r = dir == 'asc' ? 1 : -1
-			// header row comes first
-			s.push('if (!r1.row) return -1')
-			s.push('if (!r2.row) return  1')
-			// invalid values come first
-			s.push('var v1 = !(r1.fields && r1.fields['+i+'].invalid)')
-			s.push('var v2 = !(r2.fields && r2.fields['+i+'].invalid)')
-			s.push('if (v1 < v2) return -1')
-			s.push('if (v1 > v2) return  1')
-			// modified values come second
-			s.push('var v1 = !(r1.fields && r1.fields['+i+'].modified)')
-			s.push('var v2 = !(r2.fields && r2.fields['+i+'].modified)')
-			s.push('if (v1 < v2) return -1')
-			s.push('if (v1 > v2) return  1')
-			// compare values using the dataset comparator
-			s.push('var cmp = cmps['+i+']')
-			s.push('var r = cmp(r1.row, r2.row, '+i+')')
-			s.push('if (r) return r * '+r)
+	function sort() {
+		if (order_by_dir.size) {
+			let s = []
+			let cmps = []
+			for (let [field, dir] of order_by_dir) {
+				let i = field.index
+				cmps[i] = d.comparator(field)
+				let r = dir == 'asc' ? 1 : -1
+				// header row comes first
+				s.push('if (!r1.row) return -1')
+				s.push('if (!r2.row) return  1')
+				// invalid values come first
+				s.push('var v1 = !(r1.fields && r1.fields['+i+'].invalid)')
+				s.push('var v2 = !(r2.fields && r2.fields['+i+'].invalid)')
+				s.push('if (v1 < v2) return -1')
+				s.push('if (v1 > v2) return  1')
+				// modified values come second
+				s.push('var v1 = !(r1.fields && r1.fields['+i+'].modified)')
+				s.push('var v2 = !(r2.fields && r2.fields['+i+'].modified)')
+				s.push('if (v1 < v2) return -1')
+				s.push('if (v1 > v2) return  1')
+				// compare values using the dataset comparator
+				s.push('var cmp = cmps['+i+']')
+				s.push('var r = cmp(r1.row, r2.row, '+i+')')
+				s.push('if (r) return r * '+r)
+			}
+			s.push('return 0')
+			s = 'let f = function(r1, r2) {\n\t' + s.join('\n\t') + '\n}; f'
+			let cmp = eval(s)
+			g.rows.sort(cmp)
 		}
-		s.push('return 0')
-		s = 'let f = function(r1, r2) {\n\t' + s.join('\n\t') + '\n}; f'
-		let cmp = eval(s)
-		g.rows.sort(cmp)
-
-		scroll(0, null)
 		update_sort_icons()
-
+		scroll()
 	}
 
 	init()

@@ -81,7 +81,7 @@
 }
 
 .grid-td.focused {
-	background-color: #ccc;
+	background-color: #f8f8f8;
 }
 
 .grid-td.editing .grid-input {

@@ -28,7 +28,7 @@ var data = {
 	],
 }
 
-for (var i = 0; i < 100000; i++) {
+for (var i = 0; i < 20; i++) {
 	data.rows.push({values: [i, 'record '+i, floor((random() * i))]})
 }
 
@@ -36,7 +36,7 @@ var d = dataset(data)
 var g = grid({
 	dataset: d,
 	parent: main,
-	//order_by: 'parent_id, name desc',
+	order_by: 'parent_id, name desc',
 })
 
 </script>
