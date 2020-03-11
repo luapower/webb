@@ -91,13 +91,13 @@ function grid(...options) {
 	function make_visible(cell) {
 		let [ri, fi] = cell
 
-		let th = g.header_tr.at[fi]
 		let view = g.rows_view_div
+		let th = fi != null && g.header_tr.at[fi]
 
 		let h = g.row_h
 		let y = h * ri
-		let x = th.clientLeft
-		let w = th.clientWidth
+		let x = th ? th.offsetLeft  : 0
+		let w = th ? th.clientWidth : 0
 
 		let pw = view.clientWidth
 		let ph = view.clientHeight
@@ -257,8 +257,8 @@ function grid(...options) {
 		}
 	}
 
-	function set_focus(cell, set) {
-		let [tr, td] = cell_at(cell)
+	function set_focus(set) {
+		let [tr, td] = cell_at(g.focused_cell)
 		if (tr) tr.class('focused', set)
 		if (td) td.class('focused', set)
 	}
@@ -288,16 +288,18 @@ function grid(...options) {
 	function scroll(sy, sx) {
 		if (sy == null) sy = g.rows_view_div.scrollTop
 		if (sx == null) sx = g.rows_view_div.scrollLeft
-		set_focus(g.focused_cell, false)
+		set_focus(false)
 		set_scroll_y(sy)
 		update_rows()
-		set_focus(g.focused_cell, true)
+		set_focus(true)
 		update_header_xpos(sx)
 	}
 
 	function reload() {
+		g.focused_cell = [null, null]
 		init_rows()
 		render()
+		g.focus_cell(null, 0, 0, false)
 	}
 
 	// make columns resizeable ------------------------------------------------
@@ -342,37 +344,50 @@ function grid(...options) {
 	g.focused_cell = [null, null]
 
 	g.first_focusable_cell = function(cell, rows, cols) {
-		let [ri, fi] = cell
-		let wanted_to_change_row = rows != 0
+		rows = rows || 0
+		cols = cols || 0
+		let [ri, fi] = (cell || g.focused_cell)
+		let move_row = rows != 0
+		let move_col = cols != 0
 		let start_ri = ri
+		let start_fi = fi
 
-		let last_valid_ri
+		ri = ri || 0
+		fi = fi || 0
+
+		let last_valid_ri = start_ri
+		let last_valid_fi = start_fi
+
+		let r_inc = sign(rows)
 		while (ri >= 0 && ri < g.rows.length) {
 			if (!g.rows[ri].row.read_only) {
 				last_valid_ri = ri
 				if (!rows) break
-				rows += sign(rows)
+				rows -= r_inc
 			}
-			ri += sign(rows)
+			ri += r_inc
 		}
+		let row_moved = !move_row || (last_valid_ri != start_ri)
 
-		if (!last_valid_ri || (wanted_to_change_row && last_valid_ri == start_ri))
-			return [last_valid_ri, null]
+		if (!row_moved) // couldn't move row: don't move col either.
+			return [last_valid_ri, last_valid_fi, false]
 
-		let last_valid_fi
+		let f_inc = sign(cols)
 		while (fi >= 0 && fi < fields.length) {
 			if (!fields[fi].read_only) {
 				last_valid_fi = fi
 				if (!cols) break
-				cols += sign(cols)
+				cols -= f_inc
 			}
-			fi += sign(cols)
+			fi += f_inc
 		}
+		let col_moved = !move_col || (last_valid_fi != start_fi)
 
-		return [last_valid_ri, last_valid_fi]
+		return [last_valid_ri, last_valid_fi, col_moved]
 	}
 
-	g.focus_cell = function(c1, do_make_visible) {
+	g.focus_cell = function(cell, rows, cols, do_make_visible) {
+		let c1 = g.first_focusable_cell(cell, rows, cols)
 		let c0 = g.focused_cell
 		if (c1[0] == c0[0] && c1[1] == c0[1])
 			return false
@@ -381,23 +396,18 @@ function grid(...options) {
 				return false
 		} else if (!g.exit_edit())
 			return false
-		set_focus(c0, false)
-		if (do_make_visible)
+		set_focus(false)
+		if (do_make_visible !== false)
 			make_visible(c1)
-		set_focus(c1, true)
 		g.focused_cell = c1
+		set_focus(true)
 		return true
 	}
 
-	g.focus_near_cell = function(rows, cols, make_visible) {
-		let cell = g.first_focusable_cell(g.focused_cell, rows, cols)
-		return g.focus_cell(cell, make_visible)
-	}
-
-	g.focus_next_cell = function(cols, auto_advance_row) {
-		return g.focus_near_cell(0, cols)
+	g.focus_next_cell = function(cols, auto_advance_row, make_visible) {
+		return g.focus_cell(null, 0, cols, make_visible)
 			|| ((auto_advance_row || g.auto_advance_row)
-					&& g.focus_near_cell(cols, cols * -1/0))
+					&& g.focus_cell(null, cols, cols * -1/0, make_visible))
 	}
 
 	// editing ----------------------------------------------------------------
@@ -597,9 +607,9 @@ function grid(...options) {
 		if (!d.can_remove_row(tr.row))
 			return // TODO: show error message
 		let reenter_edit = g.input && g.keep_editing
-		let [next_tr, next_td, changed] = g.first_focusable_cell(tr, g.focused_td, 1, 0)
+		let [next_tr, next_td, changed] = g.first_focusable_cell(tr, g.focused_td, 1)
 		if (!changed)
-			[next_tr, next_td, changed] = g.first_focusable_cell(tr, g.focused_td, -1, 0)
+			[next_tr, next_td, changed] = g.first_focusable_cell(tr, g.focused_td, -1)
 		if (!changed)
 			[next_tr, next_td] = [null, null]
 	 	g.exit_edit(true)
@@ -647,40 +657,38 @@ function grid(...options) {
 			return
 		let ri = this.parent.row_index
 		let fi = this.field_index
-		if (g.focused_ri == ri && g.focused_fi == fi)
+		if (g.focused_cell[0] == ri && g.focused_cell[1] == fi)
 			g.enter_edit()
-		else {
-			g.focus_cell(g.first_focusable_cell([ri, fi], 0, 0), true)
-		}
+		else
+			g.focus_cell([ri, fi])
 	}
 
 	// key bindings -----------------------------------------------------------
 
-	function keydown(e) {
+	function keydown_key(key, shift) {
 
 		// Arrows: horizontal navigation.
-		if (e.key == 'ArrowLeft' || e.key == 'ArrowRight') {
+		if (key == 'ArrowLeft' || key == 'ArrowRight') {
 
-			let cols = e.key == 'ArrowLeft' ? -1 : 1
+			let cols = key == 'ArrowLeft' ? -1 : 1
 
 			let reenter_edit = g.input && g.keep_editing
 
 			let move = !g.input
-				|| (g.auto_jump_cells && !e.shiftKey
+				|| (g.auto_jump_cells && !shift
 					&& g.input.caret == (cols < 0 ? 0 : g.input.value.length))
 
 			if (move && g.focus_next_cell(cols)) {
 				if (reenter_edit)
 					g.enter_edit(cols > 0 ? 'left' : 'right')
-				e.preventDefault()
 				return
 			}
 		}
 
 		// Tab/Shift+Tab cell navigation.
-		if (e.key == 'Tab') {
+		if (key == 'Tab') {
 
-			let cols = e.shiftKey ? -1 : 1
+			let cols = shift ? -1 : 1
 
 			let reenter_edit = g.input && g.keep_editing
 
@@ -688,64 +696,68 @@ function grid(...options) {
 				if (reenter_edit)
 					g.enter_edit(cols > 0 ? 'left' : 'right')
 
-			e.preventDefault()
 			return
 		}
 
-		// insert with the arrow down key on the last row.
-		if (e.key == 'ArrowDown' && g.focused_tr == g.last_tr) {
-			g.add_row()
-			e.preventDefault()
-			return
+		// insert with the arrow down key on the last focusable row.
+		if (key == 'ArrowDown') {
+			let [ri, fi, moved] = g.first_focusable_cell(null, 1)
+			if (!moved)
+				if (g.add_row())
+					return
 		}
 
 		// remove last row with the arrow up key if not edited.
-		if (e.key == 'ArrowUp'
-			&& g.focused_tr == g.tbody.last
-			&& g.focused_tr.hasclass('new')
-			&& !g.focused_tr.hasclass('modified')
-		) {
-			g.remove_row(g.focused_tr)
-			e.preventDefault()
-			return
+		if (key == 'ArrowUp') {
+			let ri = g.focused_cell[0]
+			let [tr, td] = cell_at(g.focused_cell)
+			if (tr
+				&& tr.hasclass('new')
+				&& !hasclass('modified')
+				&& ri == g.rows.length - 1
+			) {
+				g.remove_row(ri)
+				return
+			}
 		}
 
 		// vertical navigation.
-		if (e.key == 'ArrowDown' || e.key == 'ArrowUp'
-			|| e.key == 'PageDown' || e.key == 'PageUp') {
-
+		if (  key == 'ArrowDown' || key == 'ArrowUp'
+			|| key == 'PageDown'  || key == 'PageUp'
+			|| key == 'Home'      || key == 'End'
+		) {
 			let rows
-			switch (e.key) {
+			switch (key) {
 				case 'ArrowUp'   : rows = -1; break
 				case 'ArrowDown' : rows =  1; break
 				case 'PageUp'    : rows = -g.page_rows; break
 				case 'PageDown'  : rows =  g.page_rows; break
+				case 'Home'      : rows = -1/0; break
+				case 'End'       : rows =  1/0; break
 			}
 
 			let reenter_edit = g.input && g.keep_editing
 
-			if (g.focus_near_cell(rows, 0)) {
+			if (g.focus_cell(null, rows)) {
 				if (reenter_edit)
 					g.enter_edit(true)
-				e.preventDefault()
 				return
 			}
 		}
 
 		// F2: enter edit mode
-		if (!g.input && e.key == 'F2') {
+		if (!g.input && key == 'F2') {
 			g.enter_edit(true)
-			e.preventDefault()
 			return
 		}
 
 		// Enter: toggle edit mode, and navigate on exit
-		if (e.key == 'Enter') {
+		if (key == 'Enter') {
 			if (!g.input) {
 				g.enter_edit(true)
 			} else if (g.exit_edit()) {
 				if (g.auto_advance == 'next_row') {
-					if (g.focus_near_cell(1, 0))
+					if (g.focus_cell(null, 1))
 						if (g.keep_editing)
 							g.enter_edit(true)
 				} else if (g.auto_advance == 'next_cell')
@@ -753,32 +765,36 @@ function grid(...options) {
 						if (g.keep_editing)
 							g.enter_edit(true)
 			}
-			e.preventDefault()
 			return
 		}
 
 		// Esc: revert cell edits or row edits.
-		if (e.key == 'Escape') {
+		if (key == 'Escape') {
 			g.exit_edit()
-			e.preventDefault()
 			return
 		}
 
 		// insert key: insert row
-		if (e.key == 'Insert') {
-			g.insert_row()
-			e.preventDefault()
+		if (key == 'Insert') {
+			if (g.insert_row())
+				return
 		}
 
 		// delete key: delete active row
-		if (!g.input && e.key == 'Delete') {
+		if (!g.input && key == 'Delete') {
 			let tr = g.focused_tr
-			if (!tr) return
-			g.remove_row(tr)
-			e.preventDefault()
-			return
+			if (tr) {
+				g.remove_row(tr)
+				return
+			}
 		}
 
+		return true
+	}
+
+	function keydown(e) {
+		if (!keydown_key(e.key, e.shiftKey))
+			e.preventDefault()
 	}
 
 	// printable characters: enter quick edit mode
@@ -838,37 +854,58 @@ function grid(...options) {
 		sort()
 	}
 
+	function find_row(row) {
+		for (let i = 0; i < g.rows.length; i++)
+			if (row == g.rows[i])
+				return i
+	}
+
 	function sort() {
-		if (order_by_dir.size) {
-			let s = []
-			let cmps = []
-			for (let [field, dir] of order_by_dir) {
-				let i = field.index
-				cmps[i] = d.comparator(field)
-				let r = dir == 'asc' ? 1 : -1
-				// header row comes first
-				s.push('if (!r1.row) return -1')
-				s.push('if (!r2.row) return  1')
-				// invalid values come first
-				s.push('var v1 = !(r1.fields && r1.fields['+i+'].invalid)')
-				s.push('var v2 = !(r2.fields && r2.fields['+i+'].invalid)')
-				s.push('if (v1 < v2) return -1')
-				s.push('if (v1 > v2) return  1')
-				// modified values come second
-				s.push('var v1 = !(r1.fields && r1.fields['+i+'].modified)')
-				s.push('var v2 = !(r2.fields && r2.fields['+i+'].modified)')
-				s.push('if (v1 < v2) return -1')
-				s.push('if (v1 > v2) return  1')
-				// compare values using the dataset comparator
-				s.push('var cmp = cmps['+i+']')
-				s.push('var r = cmp(r1.row, r2.row, '+i+')')
-				s.push('if (r) return r * '+r)
-			}
-			s.push('return 0')
-			s = 'let f = function(r1, r2) {\n\t' + s.join('\n\t') + '\n}; f'
-			let cmp = eval(s)
-			g.rows.sort(cmp)
+
+		if (!order_by_dir.size) {
+			update_sort_icons()
+			return
 		}
+
+		let ri = g.focused_cell[0]
+		let focused_row = ri != null && g.rows[ri]
+		set_focus(false)
+
+		let s = []
+		let cmps = []
+		for (let [field, dir] of order_by_dir) {
+			let i = field.index
+			cmps[i] = d.comparator(field)
+			let r = dir == 'asc' ? 1 : -1
+			// header row comes first
+			s.push('if (!r1.row) return -1')
+			s.push('if (!r2.row) return  1')
+			// invalid values come first
+			s.push('var v1 = !(r1.fields && r1.fields['+i+'].invalid)')
+			s.push('var v2 = !(r2.fields && r2.fields['+i+'].invalid)')
+			s.push('if (v1 < v2) return -1')
+			s.push('if (v1 > v2) return  1')
+			// modified values come second
+			s.push('var v1 = !(r1.fields && r1.fields['+i+'].modified)')
+			s.push('var v2 = !(r2.fields && r2.fields['+i+'].modified)')
+			s.push('if (v1 < v2) return -1')
+			s.push('if (v1 > v2) return  1')
+			// compare values using the dataset comparator
+			s.push('var cmp = cmps['+i+']')
+			s.push('var r = cmp(r1.row, r2.row, '+i+')')
+			s.push('if (r) return r * '+r)
+		}
+		s.push('return 0')
+		s = 'let f = function(r1, r2) {\n\t' + s.join('\n\t') + '\n}; f'
+		let cmp = eval(s)
+		g.rows.sort(cmp)
+
+		if (focused_row) {
+			g.focused_cell[0] = find_row(focused_row)
+			make_visible(g.focused_cell)
+			set_focus(true)
+		}
+
 		update_sort_icons()
 		scroll()
 	}
