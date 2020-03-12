@@ -166,7 +166,7 @@ function install_events(o) {
 		obs.get(topic).push(handler)
 	}
 	o.off = function(topic, handler) {
-		obs[topic].remove_value(handler)
+		obs.get(topic).remove_value(handler)
 	}
 	o.onoff = function(topic, handler, enable) {
 		if (enable)
@@ -175,7 +175,7 @@ function install_events(o) {
 			o.off(topic, handler)
 	}
 	o.trigger = function(topic, ...args) {
-		var a = obs[topic]
+		var a = obs.get(topic)
 		if (!a) return
 		for (f of a)
 			f.call(o, ...args)

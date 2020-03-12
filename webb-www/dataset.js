@@ -141,11 +141,16 @@ let dataset = function(...options) {
 		}
 	}
 
-	d.can_change_value = function(row, field) {
-		return d.can_change_rows && !row.read_only && !field.read_only && !field.get_value
+	d.can_be_focused = function(row, field) {
+		return row.focusable != false && (field == null || field.focusable != false)
 	}
 
-	d.set_value = function(row, field, val) {
+	d.can_change_value = function(row, field) {
+		return d.can_change_rows && !row.read_only
+			&& (field == null || (!field.read_only && !field.get_value))
+	}
+
+	d.set_value = function(row, field, val, source) {
 
 		if (!d.can_change_value(row, field))
 			return 'read only'
@@ -168,7 +173,7 @@ let dataset = function(...options) {
 		row.modified = true
 
 		// trigger changed event.
-		d.trigger('value_changed', [row, field, val])
+		d.trigger('value_changed', row, field, val, source)
 
 		return true
 	}
@@ -189,12 +194,12 @@ let dataset = function(...options) {
 		return row
 	}
 
-	d.add_row = function() {
+	d.add_row = function(source) {
 		if (!d.can_add_rows)
 			return
 		let row = create_row()
 		rows.push(row)
-		d.trigger('row_added', [row])
+		d.trigger('row_added', row, source)
 		return row
 	}
 
@@ -206,7 +211,7 @@ let dataset = function(...options) {
 		return true
 	}
 
-	d.remove_row = function(row) {
+	d.remove_row = function(row, source) {
 		if (!d.can_remove_row(row))
 			return
 		if (row.is_new) {
@@ -215,7 +220,7 @@ let dataset = function(...options) {
 			// mark row as removed
 			row.removed = true
 		}
-		d.trigger('row_removed', [row])
+		d.trigger('row_removed', row, source)
 		return row
 	}
 

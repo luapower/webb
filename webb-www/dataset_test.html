@@ -8,7 +8,8 @@
 <script src="divs.js"></script>
 <script src="dataset.js"></script>
 <script src="grid.js"></script>
-<div id=main></div>
+<div id=div1></div>
+<div id=div2></div>
 <script>
 var data = {
 	fields: [
@@ -28,15 +29,28 @@ var data = {
 	],
 }
 
-for (var i = 0; i < 20; i++) {
-	data.rows.push({values: [i, 'record '+i, floor((random() * i))]})
+for (var i = 0; i < 10; i++) {
+	data.rows.push({focusable: i % 2 == 0, values: [i, 'record '+i, floor((random() * i))]})
 }
 
 var d = dataset(data)
-var g = grid({
+
+var g1 = grid({
 	dataset: d,
-	parent: main,
-	order_by: 'parent_id, name desc',
+	parent: div1,
+	h: 200,
+	row_border_h: 1,
+	row_h: 24,
+	//row_border_h: 30,
+	//order_by: 'parent_id, name desc',
+})
+
+var g2 = grid({
+	dataset: d,
+	parent: div2,
+	h: 300,
+	row_h: 22,
+	//order_by: 'parent_id, name desc',
 })
 
 </script>

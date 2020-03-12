@@ -2,8 +2,11 @@
 .grid-div {
 	display: inline-block;     /* required: don't expand to fit parent width */
 	font: 14px sans-serif;     /* default: font */
-	border: 1px solid #ccc;    /* default: border around widget */
 	overflow: hidden;          /* required: hide header trail */
+}
+
+.grid-div:focus {
+	outline: none;
 }
 
 .grid-div, .grid-div * {
@@ -48,12 +51,14 @@
 	border-bottom: 1px solid #999;
 }
 
+.grid-div {
+	cursor: default;           /* required: don't show caret over text */
+}
 .grid-div.col-resize {
 	cursor: ew-resize;         /* default: column resizing cursor */
 }
-
 .grid-div:not(.col-resize) .grid-header-th {
-	cursor: pointer;
+	cursor: pointer;           /* required: resizing area is underneath */
 }
 
 .grid-header-th, .grid-td {
@@ -63,8 +68,33 @@
 	padding-right: .5em;       /* default */
 }
 
-.grid-td {                    /* default: in-between rows border */
+.grid-td {
 	border-bottom: 0px solid #ccc;
+	cursor: parent;           /* required: show cursor as set by parent */
+}
+
+.grid-sort-icon.fa-sort { color: #ccc; }
+
+/* cell & row states ------------------------------------------------------ */
+
+.grid-td.not-focusable              { color: #bbb; }
+.grid-td.read-only                  { color: #999; }
+.grid-tr:hover                      { background-color: #efefef; }
+.grid-td.focused                    { background-color: #666; color: white; }
+.grid-tr.focused                    { background-color: #333; color: white; }
+.grid-div:focus .grid-tr.focused    { background-color: #246; color: white; }
+.grid-div:focus .grid-td.focused    { background-color: #47a; }
+.grid-tr.new                        { background-color: #eef; }
+.grid-tr.new.focused                { background-color: #dde; }
+.grid-td.modified                   { background-color: #ddffdd; }
+.grid-tr.focused .grid-td.modified  { background-color: #cceecc; }
+.grid-td.invalid                    { background-color: #ffcccc; }
+.grid-tr.focused .grid-td.invalid   { background-color: #eebbbb; }
+
+/* editing ---------------------------------------------------------------- */
+
+.grid-error {
+	position: absolute;
 }
 
 .grid-input {
@@ -76,31 +106,8 @@
 	color: inherit;
 }
 
-.grid-error {
-	position: absolute;
-}
-
-.grid-td.focused {
-	background-color: #f8f8f8;
-}
-
 .grid-td.editing .grid-input {
 	outline: 0;
 	box-shadow: inset 2px 2px 6px -2px rgba(0,0,0,0.75);
 }
-
-.grid-sort-icon.fa-sort { color: #ccc; }
-
-.grid-td.read_only { color: #999; }
-
-.grid-tr:hover             { background-color: #efefef; }
-.grid-tr.focused           { background-color: #eee; }
-.grid-tr.new               { background-color: #eef; }
-.grid-tr.new.focused       { background-color: #dde; }
-
-.grid-td.modified                   { background-color: #ddffdd; }
-.grid-tr.focused .grid-td.modified { background-color: #cceecc; }
-
-.grid-td.invalid                   { background-color: #ffcccc; }
-.grid-tr.focused .grid-td.invalid { background-color: #eebbbb; }
 
