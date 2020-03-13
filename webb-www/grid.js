@@ -5,7 +5,7 @@
 */
 
 // box scroll-to-view box. from box2d.lua.
-function box2d_scroll_to_view(x, y, w, h, pw, ph, sx, sy) {
+function scroll_to_view_rect(x, y, w, h, pw, ph, sx, sy) {
 	let min_sx = -x
 	let min_sy = -y
 	let max_sx = -(x + w - pw)
@@ -14,6 +14,11 @@ function box2d_scroll_to_view(x, y, w, h, pw, ph, sx, sy) {
 		min(max(sx, min_sx), max_sx),
 		min(max(sy, min_sy), max_sy)
 	]
+}
+
+// sign() that only returns only -1 or 1, never 0, and returns -1 for -0.
+function strict_sign(x) {
+	return 1/x == 1/-0 ? -1 : (x >= 0 ? 1 : -1)
 }
 
 function grid(...options) {
@@ -101,7 +106,7 @@ function grid(...options) {
 		let sx0 = view.scrollLeft
 		let sy0 = view.scrollTop
 
-		let [sx, sy] = box2d_scroll_to_view(x, y, w, h, pw, ph, -sx0, -sy0)
+		let [sx, sy] = scroll_to_view_rect(x, y, w, h, pw, ph, -sx0, -sy0)
 
 		set_scroll_y(-sy)
 		view.scroll(-sx, -sy)
@@ -311,7 +316,7 @@ function grid(...options) {
 		g.focused_cell = [null, null]
 		init_rows()
 		render()
-		g.focus_cell(null, 0, 0, false)
+		g.focus_cell()
 	}
 
 	// make columns resizeable ------------------------------------------------
@@ -369,24 +374,35 @@ function grid(...options) {
 	g.focused_cell = [null, null]
 
 	g.first_focusable_cell = function(cell, rows, cols, for_editing) {
-		if (cell == false) // explicit remove focus
-			return [null, null, true]
-		rows = rows || 0
-		cols = cols || 0
-		let [ri, fi] = (cell || g.focused_cell) // null cell means focused cell
-		let move_row = rows != 0
-		let move_col = cols != 0
+
+		if (cell == false) // false means remove focus.
+			return [null, null]
+
+		if (cell == null) cell = g.focused_cell // null cell means focused cell.
+		if (rows == null) rows = 0 // find the first focusable row by default.
+		if (cols == null) cols = 0 // find the first focusable col by default.
+
+		let [ri, fi] = cell
+		let ri_inc = strict_sign(rows)
+		let fi_inc = strict_sign(cols)
+		rows = abs(rows)
+		cols = abs(cols)
+		let move_row = rows >= 1
 		let start_ri = ri
 		let start_fi = fi
 
-		ri = ri || 0
-		fi = fi || 0
+		// the default cell is the first or the last depending on direction.
+		if (ri == null) ri = ri_inc * -1/0
+		if (fi == null) fi = fi_inc * -1/0
+
+		// clamp out-of-bound row/col indices.
+		ri = clamp(ri, 0, g.rows.length-1)
+		fi = clamp(fi, 0, fields.length-1)
 
 		let last_valid_ri = null
 		let last_valid_fi = null
 		let last_valid_row
 
-		let r_inc = sign(rows)
 		while (ri >= 0 && ri < g.rows.length) {
 			let row = g.rows[ri].row
 			let focusable = d.can_be_focused(row)
@@ -395,23 +411,19 @@ function grid(...options) {
 			if (focusable) {
 				last_valid_ri = ri
 				last_valid_row = row
-				if (!rows) break
-				rows -= r_inc
+				if (rows <= 0)
+					break
 			}
-			ri += r_inc
+			rows--
+			ri += ri_inc
 		}
 		if (last_valid_ri == null)
-			return [null, null, false]
+			return [null, null]
 
-		let row_moved = !move_row || last_valid_ri != start_ri
-
-		// if couldn't move row, don't move col either.
-		if (!row_moved) {
-			move_col = false
+		// if couldn't move the row, don't move the col either.
+		if (move_row && last_valid_ri == start_ri)
 			cols = 0
-		}
 
-		let f_inc = sign(cols)
 		while (fi >= 0 && fi < fields.length) {
 			let field = fields[fi]
 			let focusable = d.can_be_focused(last_valid_row, field)
@@ -419,44 +431,45 @@ function grid(...options) {
 				focusable = d.can_change_value(last_valid_row, field)
 			if (focusable) {
 				last_valid_fi = fi
-				if (!cols) break
-				cols -= f_inc
+				if (cols <= 0)
+					break
 			}
-			fi += f_inc
+			cols--
+			fi += fi_inc
 		}
 
-		let col_moved = !move_col || last_valid_fi != start_fi
-
-		return [last_valid_ri, last_valid_fi, row_moved || col_moved]
+		return [last_valid_ri, last_valid_fi]
 	}
 
 	g.focus_cell = function(cell, rows, cols, make_it_visible, for_editing) {
-		let c1 = g.first_focusable_cell(cell, rows, cols, for_editing)
-		let c0 = g.focused_cell
-		if (c1[0] == c0[0] && c1[1] == c0[1])
-			return false
-		if (c1[0] != c0[0])  {
+		let [ri0, fi0] = g.focused_cell
+		cell = g.first_focusable_cell(cell, rows, cols, for_editing)
+		let [ri1, fi1] = cell
+		if (ri1 != ri0) {
 			if (!g.exit_row())
 				return false
-		} else if (!g.exit_edit())
-			return false
+		} else if (fi1 != fi0) {
+			if (!g.exit_edit())
+				return false
+		}
 		set_focus(false)
 		if (make_it_visible != false)
-			make_visible(c1)
-		g.focused_cell = c1
+			make_visible(cell)
+		g.focused_cell = cell
 		set_focus(true)
-		return true
+		return ri1 != null
 	}
 
-	g.focus_next_cell = function(cols, auto_advance_row, make_it_visible, for_editing) {
-		return g.focus_cell(null, 0, cols, make_it_visible, for_editing)
+	g.focus_next_cell = function(cols, auto_advance_row, ...args) {
+		let dir = strict_sign(cols)
+		return g.focus_cell(null, dir * 0, cols, ...args)
 			|| ((auto_advance_row || g.auto_advance_row)
-				&& g.focus_cell(null, cols, cols * -1/0, make_visible))
+				&& g.focus_cell(null, dir, dir * -1/0, ...args))
 	}
 
 	function on_last_row() {
-		let [ri, fi, moved] = g.first_focusable_cell(null, 1)
-		return !moved
+		let [ri] = g.first_focusable_cell(null, 1)
+		return ri == g.focused_cell[0]
 	}
 
 	function focused_row() {
@@ -653,9 +666,8 @@ function grid(...options) {
 			return false
 		if (!g.remove_row(ri))
 			return false
-		ri = clamp(ri, 0, g.rows.length-1)
 		if (!g.focus_cell([ri, fi]))
-			if (g.focus_cell([ri, fi], -1))
+			g.focus_cell([ri, fi], -0)
 		return true
 	}
 
@@ -674,11 +686,12 @@ function grid(...options) {
 			let [ri] = g.focused_cell
 			if (ri == null) {
 				ri = g.rows.length
-				g.focused_cell[0] = ri // move focus to added row.
+				g.focused_cell[0] = ri // move focus to added row index.
 			}
 			g.rows.insert(ri, row)
 			init_heights()
 			scroll()
+			make_visible(g.focused_cell)
 			if (reenter_edit)
 				g.enter_edit(true)
 		} else {
@@ -692,13 +705,12 @@ function grid(...options) {
 		let ri = find_ri(row)
 		if (ri == null)
 			return
-		set_focus(false)
 		if (g.focused_cell[0] == ri) {
 			// removing the focused row: unfocus it.
-			g.exit_edit(true)
 			g.focus_cell(false)
 		} else if (g.focused_cell[0] > ri) {
 			// adjust focused row index to account for the removed row.
+			set_focus(false)
 			g.focused_cell[0]--
 		}
 		g.rows.remove(ri)
@@ -823,7 +835,7 @@ function grid(...options) {
 						if (g.keep_editing)
 							g.enter_edit(true)
 				} else if (g.auto_advance == 'next_cell')
-					if (g.focus_next_cell(1))
+					if (g.focus_next_cell(shift ? -1 : 1))
 						if (g.keep_editing)
 							g.enter_edit(true)
 			}
