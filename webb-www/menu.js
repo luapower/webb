@@ -14,7 +14,8 @@ function menu(...options) {
 
 	function create_item(a) {
 		let check_div = H.div({class: 'menu-check-div fa fa-check'})
-		let check_td  = H.td ({class: 'menu-check-td'}, check_div)
+		let icon_div  = H.div({class: 'menu-icon-div '+(a.icon_class || '')})
+		let check_td  = H.td ({class: 'menu-check-td'}, check_div, icon_div)
 		let title_td  = H.td ({class: 'menu-title-td'}, a.title)
 		let key_td    = H.td ({class: 'menu-key-td'}, a.key)
 		let sub_div   = H.div({class: 'menu-sub-div fa fa-caret-right'})
@@ -32,7 +33,7 @@ function menu(...options) {
 	}
 
 	function create_separator() {
-		let td = H.td({colspan: 4}, H.hr())
+		let td = H.td({colspan: 5}, H.hr())
 		let tr = H.tr({class: 'menu-separator-tr'}, td)
 		return tr
 	}
@@ -91,7 +92,7 @@ function menu(...options) {
 	}
 
 	function update_check(tr) {
-		tr.check_div.style.visibility = tr.action.checked ? null : 'hidden'
+		tr.check_div.style.display = tr.action.checked ? null : 'none'
 	}
 
 	function item_mousedown(e) {

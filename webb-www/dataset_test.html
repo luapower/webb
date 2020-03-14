@@ -20,14 +20,14 @@
 function act(a) { print(a.title) }
 var m = menu({
 	actions: [
-		{title: 'Open', click: act, key: 'Ctrl+B'},
-		{title: 'Close', enabled: false, click: act, separator: true},
+		{title: 'Open', click: act, key: 'Ctrl+B', icon_class: 'fa fa-folder-open'},
+		{title: 'Close', enabled: false, icon_class: 'fa fa-window-close', click: act, separator: true},
 		{title: 'More', actions: [
 			{title: 'Check', checked: true},
 			{title: 'Check No Close', checked: true,
 				click: function(a) { print(a.checked); return false } },
 			{title: 'More Stuff', actions: [
-				{title: 'More Stuff 1'},
+				{title: 'More Stuff 1 this is a very long item text'},
 				{title: 'More Stuff 2', click: act},
 			]},
 		]},

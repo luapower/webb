@@ -6,7 +6,6 @@
 	position: absolute;        /* required: submenus are positioned manually */
 	overflow: visible;         /* required: submenus are positioned outside */
 	background: white;         /* required: submenus overlap parent */
-	table-layout: fixed;       /* TODO: required ??? */
 
 	font: 12px sans-serif;     /* default styling */
 	width: 200px;
