@@ -16,7 +16,7 @@ function menu(...options) {
 		let check_div = H.div({class: 'menu-check-div fa fa-check'})
 		let check_td  = H.td ({class: 'menu-check-td'}, check_div)
 		let title_td  = H.td ({class: 'menu-title-td'}, a.title)
-		let key_td    = H.td ({class: 'menu-key-td'})
+		let key_td    = H.td ({class: 'menu-key-td'}, a.key)
 		let sub_div   = H.div({class: 'menu-sub-div fa fa-caret-right'})
 		let sub_td    = H.td ({class: 'menu-sub-td'}, sub_div)
 		sub_div.style.visibility = a.actions ? null : 'hidden'
@@ -97,12 +97,11 @@ function menu(...options) {
 	function item_mousedown(e) {
 		let a = this.action
 		if ((a.on || a.checked != null) && this.hasclass('enabled')) {
-			let ok = !a.on || a.on.call(a) != false
 			if (a.checked != null) {
 				a.checked = !a.checked
 				update_check(this)
 			}
-			if (ok)
+			if (!a.on || a.on(a) != false)
 				m.close()
 		}
 		e.preventDefault()

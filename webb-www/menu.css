@@ -32,10 +32,6 @@
 	border-top: 1px solid #ccc;
 }
 
-.menu-tr:last-child > td {
-	border-bottom: 0;
-}
-
 td.menu-title-td {
 	width: 100%;
 	padding-left: 0;
@@ -45,9 +41,6 @@ td.menu-title-td {
 	color: white;
 	background-color: #333;
 	cursor: default;
-}
-
-.menu-sub-div {
 }
 
 .menu-tr:not(.enabled) > td {
