@@ -98,20 +98,10 @@ function H(tag, attrs, ...children) {
 	return e
 }
 
-H.div      = function(...a) { return H('div'     , ...a) }
-H.span     = function(...a) { return H('span'    , ...a) }
-H.button   = function(...a) { return H('button'  , ...a) }
-H.input    = function(...a) { return H('input'   , ...a) }
-H.textarea = function(...a) { return H('textarea', ...a) }
-H.table    = function(...a) { return H('table'   , ...a) }
-H.thead    = function(...a) { return H('thead'   , ...a) }
-H.tbody    = function(...a) { return H('tbody'   , ...a) }
-H.tr       = function(...a) { return H('tr'      , ...a) }
-H.td       = function(...a) { return H('td'      , ...a) }
-H.th       = function(...a) { return H('th'      , ...a) }
-H.a        = function(...a) { return H('a'       , ...a) }
-H.i        = function(...a) { return H('i'       , ...a) }
-H.b        = function(...a) { return H('b'       , ...a) }
+['div', 'span', 'button', 'input', 'textarea', 'table', 'thead',
+'tbody', 'tr', 'td', 'th', 'a', 'i', 'b', 'hr'].forEach(function(s) {
+	H[s] = function(...a) { return H(s, ...a) }
+})
 
 // events
 

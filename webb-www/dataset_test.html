@@ -10,21 +10,22 @@
 <script src="dataset.js"></script>
 <script src="grid.js"></script>
 <script src="menu.js"></script>
-<div id=div0></div>
 <div id=div1></div>
 <div id=div2></div>
+<div id=div0>press for menu</div>
 <script>
 
 function act() { print(this.title) }
 var m = menu({
 	actions: [
 		{title: 'Open', on: act},
-		{title: 'Close', enabled: false, on: act},
+		{title: 'Close', enabled: false, on: act, separator: true},
 		{title: 'More', actions: [
-			{title: 'Stuff'},
+			{title: 'Check', checked: true},
+			{title: 'Check No Close', checked: true, on: function() { return false } },
 			{title: 'More Stuff', actions: [
 				{title: 'More Stuff 1'},
-				{title: 'More Stuff 2'},
+				{title: 'More Stuff 2', on: act},
 			]},
 		]},
 		{title: 'Even More', actions: [
@@ -34,7 +35,9 @@ var m = menu({
 	],
 })
 
-m.popup(100, 400)
+div0.on('click', function() {
+	m.popup(100, 400)
+})
 
 var data = {
 	fields: [
