@@ -50,12 +50,12 @@ function menu(...options) {
 		return table
 	}
 
-	function show_menu(x, y, parent) {
-		parent = parent || document.body
+	function show_menu(x, y, offset_parent) {
+		offset_parent = offset_parent || document.body
 		let table = create_menu(m.actions)
-		table.x = x
-		table.y = y
-		parent.add(table)
+		table.x = offset_parent.offsetLeft + x
+		table.y = offset_parent.offsetTop + y
+		document.body.add(table)
 		table.document_mousedown = function() {
 			m.close()
 		}
@@ -96,12 +96,12 @@ function menu(...options) {
 
 	function item_mousedown(e) {
 		let a = this.action
-		if ((a.on || a.checked != null) && this.hasclass('enabled')) {
+		if ((a.click || a.checked != null) && this.hasclass('enabled')) {
 			if (a.checked != null) {
 				a.checked = !a.checked
 				update_check(this)
 			}
-			if (!a.on || a.on(a) != false)
+			if (!a.click || a.click(a) != false)
 				m.close()
 		}
 		e.preventDefault()
@@ -129,10 +129,10 @@ function menu(...options) {
 		tr.parent.selected_item_tr = null
 	}
 
-	m.popup = function(x, y, parent) {
+	m.popup = function(x, y, offset_parent) {
 		if (m.table)
 			return
-		m.table = show_menu(x, y, parent)
+		m.table = show_menu(x, y, offset_parent)
 	}
 
 	m.close = function() {

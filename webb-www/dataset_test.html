@@ -3,6 +3,7 @@
 <body>
 <link rel="stylesheet" type="text/css" href="grid.css">
 <link rel="stylesheet" type="text/css" href="menu.css">
+<link rel="stylesheet" type="text/css" href="button.css">
 <link rel="stylesheet" type="text/css" href="fontawesome.css">
 <script src="jquery.js"></script>
 <script src="glue.js"></script>
@@ -10,23 +11,24 @@
 <script src="dataset.js"></script>
 <script src="grid.js"></script>
 <script src="menu.js"></script>
+<script src="button.js"></script>
 <div id=div1></div>
 <div id=div2></div>
-<div id=div0>press for menu</div>
+<div id=div0></div>
 <script>
 
 function act(a) { print(a.title) }
 var m = menu({
 	actions: [
-		{title: 'Open', on: act, key: 'Ctrl+B'},
-		{title: 'Close', enabled: false, on: act, separator: true},
+		{title: 'Open', click: act, key: 'Ctrl+B'},
+		{title: 'Close', enabled: false, click: act, separator: true},
 		{title: 'More', actions: [
 			{title: 'Check', checked: true},
 			{title: 'Check No Close', checked: true,
-				on: function(a) { print(a.checked); return false } },
+				click: function(a) { print(a.checked); return false } },
 			{title: 'More Stuff', actions: [
 				{title: 'More Stuff 1'},
-				{title: 'More Stuff 2', on: act},
+				{title: 'More Stuff 2', click: act},
 			]},
 		]},
 		{title: 'Even More', actions: [
@@ -36,8 +38,11 @@ var m = menu({
 	],
 })
 
-div0.on('click', function() {
-	m.popup(100, 400)
+var b = button({
+	parent: div0,
+	title: 'Click for menu',
+	primary: true,
+	click: function() { m.popup(0, 30, b.button) },
 })
 
 var data = {
