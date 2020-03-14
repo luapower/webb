@@ -11,8 +11,8 @@
 		type           : for type-based validators and converters.
 		client_default : default value that new rows are initialized with.
 		server_default : default value that the server sets.
-		allow_null     : allow null.
-		read_only      : cannot edit.
+		allow_null     : allow null (true).
+		editable       : allow modifying (true).
 		validate_value : f(field, v) -> true|err
 		validate_row   : f(row) -> true|err
 		convert_value  : f(field, s) -> v
@@ -85,7 +85,7 @@ let dataset = function(...options) {
 
 	d.validate_value = function(field, val) {
 		if (val == '' || val == null)
-			return field.allow_null || 'NULL not allowed'
+			return field.allow_null != false || 'NULL not allowed'
 		let validate = field.validate || d.validators[field.type]
 		if (!validate)
 			return true
@@ -142,8 +142,8 @@ let dataset = function(...options) {
 	}
 
 	d.can_change_value = function(row, field) {
-		return d.can_change_rows && !row.read_only
-			&& (field == null || (!field.read_only && !field.get_value))
+		return d.can_change_rows && row.editable != false
+			&& (field == null || (field.editable != false && !field.get_value))
 	}
 
 	d.can_be_focused = function(row, field, for_editing) {

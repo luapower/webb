@@ -1,18 +1,24 @@
 
 .menu-table {
+	display: inline-block;     /* required: don't expand to fit parent width */
+	overflow: hidden;          /* required: hide header trail */
+	border-collapse: collapse; /* required: separators are done with borders */
+	position: absolute;        /* required: submenus are positioned manually */
+	overflow: visible;         /* required: submenus are positioned outside */
+	background: white;         /* required: submenus overlap parent */
+	table-layout: fixed;       /* TODO: required ??? */
+
+	font: 12px sans-serif;     /* default styling */
 	width: 200px;
 	border: 1px solid #666;
-	display: inline-block;     /* required: don't expand to fit parent width */
-	font: 12px sans-serif;     /* default: font */
-	overflow: hidden;          /* required: hide header trail */
-	table-layout: fixed;       /* required */
-	border-collapse: collapse; /* required */
 	box-shadow: 4px 4px 4px #999;
-	position: absolute;
-	background: white;
 }
 
-.menu-tr td {
+.menu-tr {
+	position: relative;        /* required: submenus are anchored to item trs */
+}
+
+.menu-tr > td {
 	#border-bottom: 1px solid #999;
 	padding: .4em;
 	padding-left: .2em;
@@ -32,7 +38,7 @@
 	padding-left: 1em;
 }
 
-.menu-tr:hover {
+.menu-tr:hover > td {
 	color: white;
 	background-color: #333;
 	cursor: default;
@@ -41,3 +47,8 @@
 .menu-sub-div {
 	padding-right: .4em;
 }
+
+.menu-tr:not(.enabled) > td {
+	color: #999;
+}
+

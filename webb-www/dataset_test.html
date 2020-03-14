@@ -15,25 +15,33 @@
 <div id=div2></div>
 <script>
 
+function act() { print(this.title) }
 var m = menu({
 	actions: [
-		{title: 'Open'},
-		{title: 'Close'},
+		{title: 'Open', on: act},
+		{title: 'Close', enabled: false, on: act},
 		{title: 'More', actions: [
 			{title: 'Stuff'},
-			{title: 'More Stuff'},
+			{title: 'More Stuff', actions: [
+				{title: 'More Stuff 1'},
+				{title: 'More Stuff 2'},
+			]},
+		]},
+		{title: 'Even More', actions: [
+			{title: 'Even More Stuff 1'},
+			{title: 'Even More Stuff 2'},
 		]},
 	],
 })
 
-m.popup(550, 100)
+m.popup(100, 400)
 
 var data = {
 	fields: [
-		{name: 'id', type: 'number', align: 'right', read_only: false, w: 50, min_w: 30},
+		{name: 'id', type: 'number', align: 'right', editable: false, w: 50, min_w: 30},
 		{name: 'name', w: 100, min_w: 100, max_w: 200},
 		{name: 'parent_id', type: 'number', w: 100, min_w: 50,
-			allow_null: true, read_only: true, focusable: false},
+			allow_null: true, editable: false, focusable: false},
 		{name: 'comment', w: 200, allow_null: true},
 	],
 	rows: [

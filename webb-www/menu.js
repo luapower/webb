@@ -12,25 +12,6 @@ function menu(...options) {
 
 	function init() {
 		update(m, ...options)
-		reload()
-		hook_unhook_events(true)
-	}
-
-	function hook_unhook_events(on) {
-		document.onoff('mousedown', mousedown)
-	}
-
-	function item_click(e) {
-		let a = this.action
-		print(a)
-	}
-
-	function item_mouseenter(e) {
-		show_submenu(this)
-	}
-
-	function item_mouseleave(e) {
-		hide_submenu(this)
 	}
 
 	function create_item(a) {
@@ -41,12 +22,12 @@ function menu(...options) {
 		let sub_td   = H.td({class: 'menu-sub-td'}, sub_div)
 		sub_div.style.visibility = a.actions ? null : 'hidden'
 		let tr = H.tr({class: 'menu-tr'}, check_td, title_td, key_td, sub_td)
+		tr.class('enabled', a.enabled != false)
 		tr.action = a
-		tr.on('click', item_click)
-		if (a.actions) {
-			tr.on('mouseenter', item_mouseenter)
-			tr.on('mouseleave', item_mouseleave)
-		}
+		tr.menu = m
+		tr.on('mousedown', item_mousedown)
+		tr.on('mouseenter', item_mouseenter)
+		tr.on('mouseleave', item_mouseleave)
 		return tr
 	}
 
@@ -54,40 +35,93 @@ function menu(...options) {
 		let table = H.table({class: 'menu-table'})
 		for (let i = 0; i < actions.length; i++)
 			table.add(create_item(actions[i]))
+		table.on('mouseenter', menu_mouseenter)
+		table.on('mouseleave', menu_mouseleave)
 		return table
 	}
 
-	function show_submenu(parent_tr) {
-		let table = create_menu(parent_tr.action.actions)
-		table.x = parent_tr.parent.offsetLeft + parent_tr.clientWidth - 5
-		table.y = parent_tr.parent.offsetTop + parent_tr.offsetTop
-		document.body.add(table)
+	function show_menu(x, y, parent) {
+		parent = parent || document.body
+		let table = create_menu(m.actions)
+		table.x = x
+		table.y = y
+		parent.add(table)
+		table.document_mousedown = function() {
+			hide_menu(table)
+		}
+		document.on('mousedown', table.document_mousedown)
+		return table
 	}
 
-	function create_view() {
-		m.table = create_menu(m.actions)
+	function hide_menu(table) {
+		table.remove()
+		document.off('mousedown', table.document_mousedown)
 	}
 
-	function reload() {
-		create_view()
-	}
-
-	m.popup = function(x, y) {
-		let parent = document.body
-		if (parent.contains(m.table))
+	function show_submenu(item_tr) {
+		let actions = item_tr.action.actions
+		if (!actions)
 			return
-		m.popup_parent = parent
-		m.table.x = x || 0
-		m.table.y = y || 0
-		parent.add(m.table)
-		document.on('mousedown', mousedown)
+		let table = create_menu(actions)
+		table.x = item_tr.clientWidth - 2
+		item_tr.submenu_table = table
+		item_tr.add(table)
+		return table
 	}
 
-	function mousedown(e) {
-		if (!m.popup_parent)
+	function hide_submenu(item_tr) {
+		if (!item_tr)
 			return
-		m.popup_parent.remove(m.table)
-		m.popup_parent = null
+		if (!item_tr.submenu_table)
+			return
+		if (item_tr.submenu_table.keep_open)
+			return
+		item_tr.submenu_table.remove()
+		item_tr.submenu_table = null
+	}
+
+	function item_mousedown(e) {
+		let a = this.action
+		if (a.on && this.hasclass('enabled')) {
+			a.on.call(a)
+			this.menu.close()
+		}
+		e.preventDefault()
+		e.stopPropagation()
+	}
+
+	function menu_mouseenter() {
+		this.keep_open = true
+	}
+
+	function menu_mouseleave() {
+		this.keep_open = false
+	}
+
+	function item_mouseenter() {
+		let tr = this
+		hide_submenu(tr.parent.selected_item_tr)
+		show_submenu(tr)
+		tr.parent.selected_item_tr = tr
+	}
+
+	function item_mouseleave() {
+		let tr = this
+		hide_submenu(tr)
+		tr.parent.selected_item_tr = null
+	}
+
+	m.popup = function(x, y, parent) {
+		if (m.table)
+			return
+		m.table = show_menu(x, y, parent)
+	}
+
+	m.close = function() {
+		if (!m.table)
+			return
+		hide_menu(m.table)
+		m.table = null
 	}
 
 	init()
