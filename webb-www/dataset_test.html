@@ -2,19 +2,36 @@
 <html>
 <body>
 <link rel="stylesheet" type="text/css" href="grid.css">
+<link rel="stylesheet" type="text/css" href="menu.css">
 <link rel="stylesheet" type="text/css" href="fontawesome.css">
 <script src="jquery.js"></script>
 <script src="glue.js"></script>
 <script src="divs.js"></script>
 <script src="dataset.js"></script>
 <script src="grid.js"></script>
+<script src="menu.js"></script>
+<div id=div0></div>
 <div id=div1></div>
 <div id=div2></div>
 <script>
+
+var m = menu({
+	actions: [
+		{title: 'Open'},
+		{title: 'Close'},
+		{title: 'More', actions: [
+			{title: 'Stuff'},
+			{title: 'More Stuff'},
+		]},
+	],
+})
+
+m.popup(550, 100)
+
 var data = {
 	fields: [
 		{name: 'id', type: 'number', align: 'right', read_only: false, w: 50, min_w: 30},
-		{name: 'name', w: 200, min_w: 100, max_w: 200},
+		{name: 'name', w: 100, min_w: 100, max_w: 200},
 		{name: 'parent_id', type: 'number', w: 100, min_w: 50,
 			allow_null: true, read_only: true, focusable: false},
 		{name: 'comment', w: 200, allow_null: true},
@@ -30,7 +47,7 @@ var data = {
 	],
 }
 
-for (var i = 0; i < 10; i++) {
+for (var i = 0; i < 20; i++) {
 	data.rows.push({focusable: i % 2 == 0, values: [i, 'record '+i, floor((random() * i))]})
 }
 
@@ -39,7 +56,7 @@ var d = dataset(data)
 var g1 = grid({
 	dataset: d,
 	parent: div1,
-	h: 200,
+	h: 100,
 	row_border_h: 1,
 	row_h: 24,
 	//row_border_h: 30,
@@ -49,8 +66,8 @@ var g1 = grid({
 var g2 = grid({
 	dataset: d,
 	parent: div2,
-	h: 300,
-	row_h: 22,
+	h: 200,
+	row_h: 40,
 	//order_by: 'parent_id, name desc',
 })
 

@@ -141,13 +141,15 @@ let dataset = function(...options) {
 		}
 	}
 
-	d.can_be_focused = function(row, field) {
-		return row.focusable != false && (field == null || field.focusable != false)
-	}
-
 	d.can_change_value = function(row, field) {
 		return d.can_change_rows && !row.read_only
 			&& (field == null || (!field.read_only && !field.get_value))
+	}
+
+	d.can_be_focused = function(row, field, for_editing) {
+		return row.focusable != false
+			&& (field == null || field.focusable != false)
+			&& (!for_editing || d.can_change_value(row, field))
 	}
 
 	d.set_value = function(row, field, val, source) {

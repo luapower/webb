@@ -33,14 +33,14 @@
 	width: 10px;               /* required: leave the rest of the space to the title */
 }
 
-.grid-rows-div {
+.grid-rows-view-div {
 	overflow: auto;            /* required: show scrollbars as needed */
 }
 
-.grid-rows-div {
-	position: relative;        /* required: anchor height-div and rows-table */
+.grid-rows-view-div {
+	position: relative;        /* required: anchor rows-div */
 }
-.grid-rows-height-div {
+.grid-rows-div {
 	position: absolute;        /* required: keep at y=0 while scrolling */
 	overflow: hidden;          /* required: hide surplus bottom rows */
 }
@@ -64,6 +64,9 @@
 .grid-header-th, .grid-td {
 	white-space: nowrap;       /* required: height must be kept constant */
 	overflow: hidden;          /* required */
+}
+
+.grid-cell {
 	padding-left: .5em;        /* default */
 	padding-right: .5em;       /* default */
 }
@@ -82,8 +85,8 @@
 .grid-tr:hover                      { background-color: #efefef; }
 .grid-td.focused                    { background-color: #666; color: white; }
 .grid-tr.focused                    { background-color: #333; color: white; }
-.grid-div:focus .grid-tr.focused    { background-color: #246; color: white; }
-.grid-div:focus .grid-td.focused    { background-color: #47a; }
+.grid-div.focused .grid-tr.focused  { background-color: #246; color: white; }
+.grid-div.focused .grid-td.focused  { background-color: #47a; }
 .grid-tr.new                        { background-color: #eef; }
 .grid-tr.new.focused                { background-color: #dde; }
 .grid-td.modified                   { background-color: #ddffdd; }
@@ -98,16 +101,12 @@
 }
 
 .grid-input {
-	width: 100%;
-	padding: 6px;
+	position: absolute;
+	border: 0;
 	font: inherit;
-	background: none;
-	cursor: inherit;
+	cursor: initial;
 	color: inherit;
-}
-
-.grid-td.editing .grid-input {
+	background: parent;
 	outline: 0;
 	box-shadow: inset 2px 2px 6px -2px rgba(0,0,0,0.75);
 }
-

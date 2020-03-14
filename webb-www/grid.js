@@ -30,7 +30,6 @@ function grid(...options) {
 		row_h: 24,
 		row_border_h: 0,
 		// keyboard behavior
-		page_rows: 20,            // how many rows to move on page-down/page-up
 		auto_advance: 'next_row', // advance on enter: false|'next_row'|'next_cell'
 		auto_advance_row: true,   // jump row on horiz. navigation limits
 		auto_jump_cells: true,    // jump to next/prev cell on caret limits
@@ -84,11 +83,11 @@ function grid(...options) {
 
 	// virtual grid geometry --------------------------------------------------
 
-	function set_scroll_y(sy) {
-		g.scroll_y = clamp(sy, 0, max(0, g.rows_h - g.rows_view_h))
+	function scroll_y(sy) {
+		return clamp(sy, 0, max(0, g.rows_h - g.rows_view_h))
 	}
 
-	function make_visible(cell) {
+	function scroll_to_cell(cell) {
 		let [ri, fi] = cell
 		if (ri == null)
 			return
@@ -108,7 +107,6 @@ function grid(...options) {
 
 		let [sx, sy] = scroll_to_view_rect(x, y, w, h, pw, ph, -sx0, -sy0)
 
-		set_scroll_y(-sy)
 		view.scroll(-sx, -sy)
 	}
 
@@ -120,13 +118,41 @@ function grid(...options) {
 		return floor(sy - sy % g.row_h)
 	}
 
-	function init_heights() {
+	function update_heights() {
 		g.rows_h = g.row_h * g.rows.length - floor(g.row_border_h / 2)
 		g.rows_view_h = g.h - g.header_table.clientHeight
-		g.rows_height_div.h = g.rows_h
+		g.rows_div.h = g.rows_h
 		g.rows_view_div.h = g.rows_view_h
 		g.visible_row_count = floor(g.rows_view_h / g.row_h) + 2
+		g.page_rows = floor(g.rows_view_h / g.row_h)
+		update_input_geometry()
 	}
+
+	// model ------------------------------------------------------------------
+
+	function create_row(row) {
+		return {row: row}
+	}
+
+	function create_rows() {
+		g.rows = []
+		for (let i = 0; i < d.rows.length; i++)
+			if (!d.rows[i].removed)
+				g.rows.push(create_row(d.rows[i]))
+	}
+
+	function row_index(row) {
+		for (let i = 0; i < g.rows.length; i++)
+			if (g.rows[i].row == row)
+				return i
+	}
+
+	function row_field_at(cell) {
+		let [ri, fi] = cell
+		return [ri != null ? g.rows[ri] : null, fi != null ? fields[fi] : null]
+	}
+
+	// rendering --------------------------------------------------------------
 
 	function tr_at(ri) {
 		let sy = g.scroll_y
@@ -135,29 +161,10 @@ function grid(...options) {
 		return g.rows_table.at[ri - i0]
 	}
 
-	function cell_at(cell) {
+	function tr_td_at(cell) {
 		let [ri, fi] = cell
 		let tr = ri != null && tr_at(ri)
 		return [tr, tr && fi != null ? tr.at[fi] : null]
-	}
-
-	// rendering --------------------------------------------------------------
-
-	function create_row(row) {
-		return {row: row}
-	}
-
-	function init_rows() {
-		g.rows = []
-		for (let i = 0; i < d.rows.length; i++)
-			if (!d.rows[i].removed)
-				g.rows.push(create_row(d.rows[i]))
-	}
-
-	function find_ri(row) {
-		for (let i = 0; i < g.rows.length; i++)
-			if (g.rows[i].row == row)
-				return i
 	}
 
 	function update_row(tr, ri) {
@@ -192,15 +199,19 @@ function grid(...options) {
 		}
 	}
 
-	function render() {
+	function create_view() {
 
 		g.header_tr = H.tr()
 		g.header_table = H.table({class: 'grid-header-table'}, g.header_tr)
 		g.rows_table = H.table({class: 'grid-rows-table'})
-		g.rows_height_div = H.div({class: 'grid-rows-height-div'}, g.rows_table)
-		g.rows_view_div = H.div({class: 'grid-rows-div'}, g.rows_height_div)
-		g.grid_div = H.div({class: 'grid-div', tabindex: '0'}, g.header_table, g.rows_view_div)
+		g.rows_div = H.div({class: 'grid-rows-div'}, g.rows_table)
+		g.rows_view_div = H.div({class: 'grid-rows-view-div'}, g.rows_div)
+		g.grid_div = H.div({class: 'grid-div', tabindex: '0'},
+			g.header_table,
+			g.rows_view_div)
 		g.grid_div.on('mousemove', grid_div_mousemove)
+		g.grid_div.on('focusin', grid_div_focusin)
+		g.grid_div.on('blur', grid_div_blur)
 
 		for (let field of fields) {
 
@@ -215,7 +226,7 @@ function grid(...options) {
 				H.table({class: 'grid-header-th-table'},
 					H.tr(0, e1, e2))
 
-			let th = H.th({class: 'grid-header-th'}, title_table)
+			let th = H.th({class: 'grid-header-th grid-cell'}, title_table)
 
 			th.field = field
 			th.sort_icon = sort_icon
@@ -233,7 +244,7 @@ function grid(...options) {
 
 		g.parent.set1(g.grid_div)
 
-		init_heights()
+		update_heights()
 
 		g.grid_div.w = g.w
 
@@ -244,7 +255,7 @@ function grid(...options) {
 			for (let i = 0; i < fields.length; i++) {
 				let th = g.header_tr.at[i]
 				let field = fields[i]
-				let td = H.td({class: 'grid-td'})
+				let td = H.td({class: 'grid-td grid-cell'})
 				td.w = th.clientWidth
 				td.h = g.row_h
 				td.style['border-bottom-width'] = g.row_border_h + 'px'
@@ -255,7 +266,7 @@ function grid(...options) {
 			g.rows_table.add(tr)
 		}
 
-		g.rows_view_div.on('scroll', function() { scroll() })
+		g.rows_view_div.on('scroll', update_view)
 
 		sort()
 	}
@@ -274,13 +285,24 @@ function grid(...options) {
 		}
 	}
 
-	function set_focus(set) {
-		let [tr, td] = cell_at(g.focused_cell)
-		if (tr) tr.class('focused', set)
-		if (td) td.class('focused', set)
+	function update_focus(set) {
+		let [tr, td] = tr_td_at(g.focused_cell)
+		if (tr) { tr.class('focused', set); tr.class('editing', g.input && set); }
+		if (td) { td.class('focused', set); td.class('editing', g.input && set); }
 	}
 
-	function update_row_width(td_index, w) {
+	function update_input_geometry() {
+		if (!g.input)
+			return
+		let [ri, fi] = g.focused_cell
+		let th = g.header_tr.at[fi]
+		g.input.x = th.offsetLeft
+		g.input.y = g.row_h * ri
+		g.input.w = th.clientWidth
+		g.input.h = g.row_h
+	}
+
+	function update_col_width(td_index, w) {
 		for (let tr of g.rows_table.children) {
 			let td = tr.at[td_index]
 			td.w = w
@@ -291,31 +313,50 @@ function grid(...options) {
 		g.header_table.x = -sx
 	}
 
-	/*
-			let input = H.input({
-					type: 'text',
-					class: 'grid-input',
-					disabled: true,
-					maxlength: field.maxlength,
-					value: d.value(row, field),
-				})
-			input.style.textAlign = field.align
-	*/
-
-	function scroll(sy, sx) {
-		if (sy == null) sy = g.rows_view_div.scrollTop
-		if (sx == null) sx = g.rows_view_div.scrollLeft
-		set_focus(false)
-		set_scroll_y(sy)
+	function update_view() {
+		let sy = g.rows_view_div.scrollTop
+		let sx = g.rows_view_div.scrollLeft
+		update_focus(false)
+		sy = scroll_y(sy)
+		g.scroll_y = sy
 		update_rows()
-		set_focus(true)
+		update_focus(true)
 		update_header_x(sx)
+	}
+
+	function create_input() {
+		let [row, field] = row_field_at(g.focused_cell)
+		let [_, td] = tr_td_at(g.focused_cell)
+		g.input = H.input({
+			type: 'text',
+			class: 'grid-input grid-cell',
+			maxlength: field.maxlength,
+			value: d.value(row.row, field),
+		})
+		g.input.on('input', input_input)
+		g.input.on('focus', input_focus)
+		g.input.on('blur', input_blur)
+		g.rows_div.add(g.input)
+		update_input_geometry()
+		g.input.style.textAlign = field.align
+		if (td)
+			td.innerHTML = null
+	}
+
+	function free_input() {
+		let input = g.input
+		let [row, field] = row_field_at(g.focused_cell)
+		let [tr, td] = tr_td_at(g.focused_cell)
+		g.input = null
+		g.rows_div.removeChild(input)
+		if (td)
+			td.innerHTML = d.value(row.row, field)
 	}
 
 	function reload() {
 		g.focused_cell = [null, null]
-		init_rows()
-		render()
+		create_rows()
+		create_view()
 		g.focus_cell()
 	}
 
@@ -324,19 +365,21 @@ function grid(...options) {
 	let hit_th, hit_x
 
 	function mousedown(e) {
-		if (g.grid_div.hasclass('col-resizing') || !hit_th)
+		if (window.grid_col_resizing || !hit_th)
 			return
 		focus()
+		window.grid_col_resizing = true
 		g.grid_div.class('col-resizing', true)
 		e.preventDefault()
 	}
 
 	function mouseup(e) {
+		window.grid_col_resizing = false
 		g.grid_div.class('col-resizing', false)
 	}
 
 	function grid_div_mousemove(e) {
-		if (g.grid_div.hasclass('col-resizing'))
+		if (window.grid_col_resizing)
 			return
 		hit_th = null
 		for (th of g.header_tr.children) {
@@ -357,30 +400,54 @@ function grid(...options) {
 		let min_w = max(20, field.min_w || 0)
 		let max_w = max(min_w, field.max_w || 1000)
 		hit_th.w = clamp(w, min_w, max_w)
-		update_row_width(hit_th.index, hit_th.clientWidth)
+		update_col_width(hit_th.index, hit_th.clientWidth)
+		update_input_geometry()
 		e.preventDefault()
 	}
 
 	// focusing ---------------------------------------------------------------
 
 	function is_focused() {
-		return document.activeElement == g.grid_div
+		let e = document.activeElement
+		return e == g.grid_div || e == g.input
 	}
 
 	function focus() {
 		g.grid_div.focus()
 	}
 
+	function grid_div_focusin() {
+		print('grid_div_focusin')
+		g.grid_div.class('focused', true)
+	}
+
+	function grid_div_blur() {
+		print('grid_div_blur')
+		g.grid_div.class('focused', false)
+	}
+
+	function input_focus() {
+		print('input_focus')
+		//grid_div_focus()
+	}
+
+	function input_blur() {
+		print('input_blur')
+		//g.exit_edit()
+		//grid_div_blur()
+	}
+
 	g.focused_cell = [null, null]
 
-	g.first_focusable_cell = function(cell, rows, cols, for_editing) {
-
-		if (cell == false) // false means remove focus.
-			return [null, null]
+	g.first_focusable_cell = function(cell, rows, cols, options) {
 
 		if (cell == null) cell = g.focused_cell // null cell means focused cell.
-		if (rows == null) rows = 0 // find the first focusable row by default.
-		if (cols == null) cols = 0 // find the first focusable col by default.
+		if (rows == null) rows = 0 // by default find the first focusable row.
+		if (cols == null) cols = 0 // by default find the first focusable col.
+
+		let for_editing = options && options.for_editing // skip non-editable cells.
+		let must_move = options && options.must_move // return only if moved.
+		let must_not_move = options && options.must_not_move // return only if not moved.
 
 		let [ri, fi] = cell
 		let ri_inc = strict_sign(rows)
@@ -388,6 +455,7 @@ function grid(...options) {
 		rows = abs(rows)
 		cols = abs(cols)
 		let move_row = rows >= 1
+		let move_col = cols >= 1
 		let start_ri = ri
 		let start_fi = fi
 
@@ -403,12 +471,10 @@ function grid(...options) {
 		let last_valid_fi = null
 		let last_valid_row
 
+		// find the last valid row, stopping after the specified row count.
 		while (ri >= 0 && ri < g.rows.length) {
 			let row = g.rows[ri].row
-			let focusable = d.can_be_focused(row)
-			if (focusable && for_editing)
-				focusable = d.can_change_value(row)
-			if (focusable) {
+			if (d.can_be_focused(row, for_editing)) {
 				last_valid_ri = ri
 				last_valid_row = row
 				if (rows <= 0)
@@ -420,16 +486,14 @@ function grid(...options) {
 		if (last_valid_ri == null)
 			return [null, null]
 
-		// if couldn't move the row, don't move the col either.
-		if (move_row && last_valid_ri == start_ri)
+		// if wanted to move the row but couldn't, don't move the col either.
+		let row_moved = last_valid_ri != start_ri
+		if (move_row && !row_moved)
 			cols = 0
 
 		while (fi >= 0 && fi < fields.length) {
 			let field = fields[fi]
-			let focusable = d.can_be_focused(last_valid_row, field)
-			if (focusable && for_editing)
-				focusable = d.can_change_value(last_valid_row, field)
-			if (focusable) {
+			if (d.can_be_focused(last_valid_row, field, for_editing)) {
 				last_valid_fi = fi
 				if (cols <= 0)
 					break
@@ -438,38 +502,55 @@ function grid(...options) {
 			fi += fi_inc
 		}
 
+		let col_moved = last_valid_fi != start_fi
+
+		if (must_move && !(row_moved || col_moved))
+			return [null, null]
+
+		if (must_not_move && (row_moved || col_moved))
+			return [null, null]
+
 		return [last_valid_ri, last_valid_fi]
 	}
 
-	g.focus_cell = function(cell, rows, cols, make_it_visible, for_editing) {
-		let [ri0, fi0] = g.focused_cell
-		cell = g.first_focusable_cell(cell, rows, cols, for_editing)
-		let [ri1, fi1] = cell
-		if (ri1 != ri0) {
-			if (!g.exit_row())
-				return false
-		} else if (fi1 != fi0) {
-			if (!g.exit_edit())
+	g.focus_cell = function(cell, rows, cols, options) {
+
+		if (cell == false) { // false means remove focus only.
+			cell = [null, null]
+		} else {
+			cell = g.first_focusable_cell(cell, rows, cols, options)
+			if (cell[0] == null) // failure to find cell means cancel.
 				return false
 		}
-		set_focus(false)
-		if (make_it_visible != false)
-			make_visible(cell)
+
+		if (g.focused_cell[0] != cell[0]) {
+			if (!g.exit_row())
+				return false
+		} else if (g.focused_cell[1] != cell[1]) {
+			if (!g.exit_edit())
+				return false
+		} else
+			return true // same cell.
+
+		update_focus(false)
 		g.focused_cell = cell
-		set_focus(true)
-		return ri1 != null
+		update_focus(true)
+		if (!options || options.make_visible != false)
+			scroll_to_cell(cell)
+
+		return true
 	}
 
-	g.focus_next_cell = function(cols, auto_advance_row, ...args) {
+	g.focus_next_cell = function(cols, auto_advance_row) {
 		let dir = strict_sign(cols)
-		return g.focus_cell(null, dir * 0, cols, ...args)
+		return g.focus_cell(null, dir * 0, cols, {must_move: true})
 			|| ((auto_advance_row || g.auto_advance_row)
-				&& g.focus_cell(null, dir, dir * -1/0, ...args))
+				&& g.focus_cell(null, dir, dir * -1/0))
 	}
 
 	function on_last_row() {
-		let [ri] = g.first_focusable_cell(null, 1)
-		return ri == g.focused_cell[0]
+		let [ri] = g.first_focusable_cell(null, 1, 0, {must_move: true})
+		return ri == null
 	}
 
 	function focused_row() {
@@ -502,11 +583,6 @@ function grid(...options) {
 	}
 	*/
 
-	function input_focusout(e) {
-		g.exit_edit()
-		return
-	}
-
 	// NOTE: input even is not cancellable.
 	function input_input(e) {
 		let td = g.focused_td
@@ -533,48 +609,37 @@ function grid(...options) {
 
 	g.enter_edit = function(where) {
 		if (g.input)
-			return false
-		let td = g.focused_td
-		let input = td && td_input(td)
-		if (!input)
-			return false
-		g.input = input
-		td.class('editing', true)
-		input.attr('disabled', null)
-		input.focus()
-		input.on('focusout', input_focusout)
-		input.on('input', input_input)
+			return
+		create_input()
 		if (where == 'right')
-			input.select(g.input.value.length, input.value.length)
+			g.input.select(g.input.value.length, g.input.value.length)
 		else if (where == 'left')
-			input.select(0, 0)
+			g.input.select(0, 0)
 		else if (where)
-			input.select(0, input.value.length)
-		return true
+			g.input.select(0, g.input.value.length)
+		if (where)
+			g.input.focus()
 	}
 
 	g.exit_edit = function() {
-		let input = g.input
-		if (!input)
+		if (!g.input)
 			return true
-		let td = g.focused_td
+		/*
+		let [tr, td] = tr_td_at(g.focused_cell)
 		if (g.save_cell_on == 'exit_edit')
-			g.save_cell(g.focused_td)
+			g.save_cell(td)
 		if (g.save_row_on == 'exit_edit')
-			g.save_row(g.focused_tr)
+			g.save_row(tr)
 		if (g.prevent_exit_edit)
 			if (g.focused_td.hasclass('invalid'))
 				return false
-		input.off('focusout', input_focusout)
-		input.off('input', input_input)
-		input.select(0, 0)
-		input.attr('disabled', true)
-		td.class('editing', false)
-		g.input = null
+		*/
+		free_input()
 		return true
 	}
 
 	g.exit_row = function() {
+		/*
 		let tr = g.focused_tr
 		if (!tr)
 			return true
@@ -584,12 +649,24 @@ function grid(...options) {
 		if (g.prevent_exit_row)
 			if (tr.hasclass('invalid_values') || tr.hasclass('invalid'))
 				return false
+		*/
 		if (!g.exit_edit())
 			return false
 		return true
 	}
 
 	// saving -----------------------------------------------------------------
+
+	function cell_data(cell) {
+		let [ri, fi] = cell
+		let row = g.rows[ri]
+		let t = row.metadata[fi]
+		if (!t) {
+			t = {}
+			row.metadata[fi] = t
+		}
+		return t
+	}
 
 	function no_child_has_class(e, classname) {
 		for (let c of e.children)
@@ -603,17 +680,17 @@ function grid(...options) {
 		e.title = msg || ''
 	}
 
-	g.save_cell = function(td) {
-		if (!td.hasclass('unsaved'))
-			return !td.hasclass('invalid')
-		let tr = td.parent
-		let row = tr.row
-		let field = fields[td.index]
-		let input = td_input(td)
-		let ret = d.set_value(row, field, input.value, g)
+	g.save_cell = function(cell) {
+		let t = cell_data(cell)
+		if (!t.unsaved)
+			return !t.invalid
+		let [row, field] = row_field_at(cell)
+		let ret = d.set_value(row, field, g.input.value, g)
 		let ok = ret === true
-		td.class('unsaved', false)
-		td.class('invalid', !ok)
+		t.unsaved = false
+		t.invalid = !ok
+		td.class('unsaved', t.unsaved)
+		td.class('invalid', t.invalid)
 		tr.class('invalid_values', !no_child_has_class(tr, 'invalid'))
 		if (ok)
 			tr.class('unsaved', true)
@@ -621,9 +698,10 @@ function grid(...options) {
 		return ok
 	}
 
-	g.save_row = function(tr) {
-		if (!tr.hasclass('unsaved'))
-			return !tr.hasclass('invalid')
+	g.save_row = function(cell) {
+		let t = cell_data(cell)
+		if (!t.unsaved)
+			return !t.invalid
 		for (td of tr.children)
 			if (!g.save_cell(td))
 				return false
@@ -645,14 +723,18 @@ function grid(...options) {
 
 	// adding & removing rows -------------------------------------------------
 
+	let adding
+
 	g.insert_row = function() {
+		adding = false
 		let row = d.add_row(g)
 		return row != null
 	}
 
 	g.add_row = function() {
-		g.focus_cell(false)
-		return g.insert_row()
+		adding = true
+		let row = d.add_row(g)
+		return row != null
 	}
 
 	g.remove_row = function(ri) {
@@ -674,35 +756,36 @@ function grid(...options) {
 	// updating from dataset changes ------------------------------------------
 
 	function value_changed(row, field, val, source) {
-		let ri = find_ri(row)
-		//
+		let ri = row_index(row)
+		if (ri == null)
+			return
 	}
 
 	function row_added(row, source) {
 		row = create_row(row)
-		set_focus(false)
+		update_focus(false)
 		if (source == g) {
 			let reenter_edit = g.input && g.keep_editing
 			let [ri] = g.focused_cell
-			if (ri == null) {
+			if (adding) {
 				ri = g.rows.length
 				g.focused_cell[0] = ri // move focus to added row index.
 			}
 			g.rows.insert(ri, row)
-			init_heights()
-			scroll()
-			make_visible(g.focused_cell)
+			update_heights()
+			update_view()
+			scroll_to_cell(g.focused_cell)
 			if (reenter_edit)
 				g.enter_edit(true)
 		} else {
 			g.rows.push(row)
-			init_heights()
+			update_heights()
 			sort()
 		}
 	}
 
 	function row_removed(row, source) {
-		let ri = find_ri(row)
+		let ri = row_index(row)
 		if (ri == null)
 			return
 		if (g.focused_cell[0] == ri) {
@@ -710,12 +793,12 @@ function grid(...options) {
 			g.focus_cell(false)
 		} else if (g.focused_cell[0] > ri) {
 			// adjust focused row index to account for the removed row.
-			set_focus(false)
+			update_focus(false)
 			g.focused_cell[0]--
 		}
 		g.rows.remove(ri)
-		init_heights()
-		scroll()
+		update_heights()
+		update_view()
 	}
 
 	// mouse boundings --------------------------------------------------------
@@ -735,10 +818,10 @@ function grid(...options) {
 			return
 		let ri = this.parent.row_index
 		let fi = this.field_index
-		if (g.focused_cell[0] == ri && g.focused_cell[1] == fi)
+		if (g.focused_cell[0] == ri && g.focused_cell[1] == fi) {
 			g.enter_edit()
-		else
-			g.focus_cell([ri, fi])
+		} else
+			g.focus_cell([ri, fi], 0, 0, {must_not_move: true})
 	}
 
 	// key bindings -----------------------------------------------------------
@@ -930,13 +1013,12 @@ function grid(...options) {
 
 		if (!order_by_dir.size) {
 			update_sort_icons()
-			scroll()
+			update_view()
 			return
 		}
 
-		let ri = g.focused_cell[0]
-		let focused_row = ri != null && g.rows[ri].row
-		set_focus(false)
+		let [focused_row] = row_field_at(g.focused_cell)
+		update_focus(false)
 
 		let s = []
 		let cmps = []
@@ -967,14 +1049,15 @@ function grid(...options) {
 		let cmp = eval(s)
 		g.rows.sort(cmp)
 
-		if (focused_row) {
-			g.focused_cell[0] = find_ri(focused_row)
-			make_visible(g.focused_cell)
-			set_focus(true)
-		}
+		if (focused_row)
+			g.focused_cell[0] = row_index(focused_row.row)
 
 		update_sort_icons()
-		scroll()
+		update_view()
+		update_focus(true)
+		update_input_geometry()
+		scroll_to_cell(g.focused_cell)
+
 	}
 
 	init()

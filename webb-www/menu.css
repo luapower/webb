@@ -1,0 +1,43 @@
+
+.menu-table {
+	width: 200px;
+	border: 1px solid #666;
+	display: inline-block;     /* required: don't expand to fit parent width */
+	font: 12px sans-serif;     /* default: font */
+	overflow: hidden;          /* required: hide header trail */
+	table-layout: fixed;       /* required */
+	border-collapse: collapse; /* required */
+	box-shadow: 4px 4px 4px #999;
+	position: absolute;
+	background: white;
+}
+
+.menu-tr td {
+	#border-bottom: 1px solid #999;
+	padding: .4em;
+	padding-left: .2em;
+	padding-right: .2em;
+}
+
+.menu-tr:last-child > td {
+	border-bottom: 0;
+}
+
+.menu-check-td {
+	width: 10px;
+}
+
+.menu-title-td {
+	width: 100%;
+	padding-left: 1em;
+}
+
+.menu-tr:hover {
+	color: white;
+	background-color: #333;
+	cursor: default;
+}
+
+.menu-sub-div {
+	padding-right: .4em;
+}
