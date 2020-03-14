@@ -92,7 +92,8 @@ function menu(...options) {
 	}
 
 	function update_check(tr) {
-		tr.check_div.style.display = tr.action.checked ? null : 'none'
+		tr.check_div.style.display = tr.action.checked != null ? null : 'none'
+		tr.check_div.style.visibility = tr.action.checked ? null : 'hidden'
 	}
 
 	function item_mousedown(e) {
