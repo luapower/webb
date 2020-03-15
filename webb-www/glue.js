@@ -183,6 +183,65 @@ function install_events(o) {
 	return o
 }
 
+// timestamps ----------------------------------------------------------------
+
+now = Date.now
+utctime = Date.UTC
+
+// get the time at the start of the day of a given time, plus/minus a number of days.
+function day(t, offset) {
+	let d = new Date(t)
+	d.setMilliseconds(0)
+	d.setSeconds(0)
+	d.setMinutes(0)
+	d.setHours(0)
+	d.setDate(d.getDate() + (offset || 0))
+	return d.valueOf()
+}
+
+// get the time at the start of the month of a given time, plus/minus a number of months.
+function month(t, offset) {
+	let d = new Date(t)
+	d.setMilliseconds(0)
+	d.setSeconds(0)
+	d.setMinutes(0)
+	d.setHours(0)
+	d.setDate(1)
+	d.setMonth(d.getMonth() + (offset || 0))
+	return d.valueOf()
+}
+
+// get the time at the start of the year of a given time, plus/minus a number of years.
+function year(t, offset) {
+	let d = new Date(t)
+	d.setMilliseconds(0)
+	d.setSeconds(0)
+	d.setMinutes(0)
+	d.setHours(0)
+	d.setDate(1)
+	d.setMonth(1)
+	d.setYear(d.getYear() + (offset || 0))
+	return d.valueOf()
+}
+
+// get the time at the start of the week of a given time, plus/minus a number of weeks.
+function week(t, offset) {
+	let d = new Date(t)
+	d.setMilliseconds(0)
+	d.setSeconds(0)
+	d.setMinutes(0)
+	d.setHours(0)
+	d.setDate(d.getDate() - d.getDay() + (offset || 0) * 7)
+	return d.valueOf()
+}
+
+function days(dt) {
+	return dt / (3600 * 24 * 1000)
+}
+
+function year_of (t) { return (new Date(t)).getFullYear() }
+function month_of(t) { return (new Date(t)).getMonth() }
+
 // serialization -------------------------------------------------------------
 
 json = JSON.stringify

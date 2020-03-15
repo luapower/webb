@@ -8,9 +8,10 @@
 	background: white;         /* required: submenus overlap parent */
 
 	font: 12px sans-serif;     /* default styling */
+	color: #2a303e;
 	width: 200px;
-	border: 1px solid #999;
-	box-shadow: 3px 3px 3px #999;
+	border: 1px solid #ccc;
+	box-shadow: 2px 2px 2px #666;
 }
 
 .menu-tr {
@@ -38,7 +39,7 @@ td.menu-title-td {
 
 .menu-tr:hover > td {
 	color: white;
-	background-color: #333;
+	background-color: #2a303e;
 	cursor: default;
 }
 

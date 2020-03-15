@@ -4,7 +4,9 @@
 <link rel="stylesheet" type="text/css" href="grid.css">
 <link rel="stylesheet" type="text/css" href="menu.css">
 <link rel="stylesheet" type="text/css" href="button.css">
+<link rel="stylesheet" type="text/css" href="calendar.css">
 <link rel="stylesheet" type="text/css" href="fontawesome.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inconsolata&display=swap">
 <script src="jquery.js"></script>
 <script src="glue.js"></script>
 <script src="divs.js"></script>
@@ -12,10 +14,15 @@
 <script src="grid.js"></script>
 <script src="menu.js"></script>
 <script src="button.js"></script>
+<script src="calendar.js"></script>
 <div id=div1></div>
 <div id=div2></div>
 <div id=div0></div>
 <script>
+
+var c = calendar({
+	parent: div0,
+})
 
 function act(a) { print(a.title) }
 var m = menu({
@@ -45,6 +52,7 @@ var b = button({
 	click: function() { m.popup(0, 30, b.button) },
 })
 
+/*
 var data = {
 	fields: [
 		{name: 'id', type: 'number', align: 'right', editable: false, w: 50, min_w: 30},
@@ -87,7 +95,7 @@ var g2 = grid({
 	row_h: 40,
 	//order_by: 'parent_id, name desc',
 })
-
+*/
 </script>
 </body>
 </html>
