@@ -1,0 +1,22 @@
+
+.dropdown {
+	display: inline-block;
+	box-sizing: border-box;
+	border: 1px solid #999;
+	border-radius: 2px;
+	font-size: 14px;
+	font-family: sans-serif;
+	line-height: 20px;
+	padding-left: .25em;
+	padding-right: .25em;
+	cursor: default;
+}
+
+.dropdown-value {
+	white-space: nowrap;
+	min-width: 1em;
+}
+
+.dropdown-button {
+
+}
