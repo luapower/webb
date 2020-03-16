@@ -3,49 +3,93 @@
 	font-size: 12px;
 	font-family: sans-serif;
 	display: inline-block;
+	padding: 1.5em;
+}
+
+.calendar.popup {
 	color: white;
 	background-color: #2a303e;
-	padding: 1.5em;
 	box-shadow: 5px 5px 5px #999;
 }
 
-.calendar-weekview-table {
-}
-
-.calendar-day-th {
+.calendar .weekday {
 	color: #999;
 	font-weight: normal;
 }
 
-.calendar-day-td {
-	text-align: right;
+.calendar .day,
+.calendar .weekday {
 	padding: .2em;
+}
+
+.calendar .weekview:focus {
+	outline: none;
+}
+
+.calendar .weekview:focus .day.selected {
+	box-shadow: 0 0 1px 1px #99f;
+}
+
+.calendar .day,
+.calendar .weekday {
+	text-align: right;
 	padding-left: .6em;
 	padding-right: .6em;
 }
 
-.calendar-day-td                { color: #999; cursor: default; }
-.calendar-day-td:hover          { background-color: #3e4452; }
-.calendar-day-td.current-month  { color: white; }
-.calendar-day-td.today          { background-color: #3e4452; }
-.calendar-day-td:hover.today    { background-color: #3e4452; }
-.calendar-day-td.selected       { background-color: #f00; }
-.calendar-day-td:hover.selected { background-color: #f33; }
+.calendar .weekday {
+	padding-left: 0;
+}
 
-.calendar-header-table {
+.calendar .day                     { cursor: default; }
+.calendar .day:not(.current-month) { color: #999; }
+.calendar .day:hover               { background-color: #ddd; }
+.calendar .day.today               { background-color: #f33; color: white; }
+.calendar .day.today:hover         { background-color: #f66; }
+.calendar .day.selected            { background-color: #246; color: white; }
+.calendar .day.selected:hover      { background-color: #47a; color: white; }
+
+.calendar.popup .day.today         { background-color: #3e4452; }
+.calendar.popup .day.today:hover   { background-color: #3e4452; }
+.calendar.popup .day:hover         { background-color: #3e4452; }
+.calendar.popup .day.selected      { background-color: #f00; }
+.calendar.popup .day.selected:hover{ background-color: #f33; }
+
+.calendar .header {
+	display: flex;
+	flex-direction: row;
 	width: 100%;
 }
 
-.calendar-day {
+.calendar .sel-day {
 	font-size: 300%;
-	width: 1px;
 }
-.calendar-day-suffix {
+
+.calendar .sel-day-suffix {
 	font-size: 150%;
-	width: 1px;
+	padding-top: .25em;
+	padding-left: .1em;
 	vertical-align: top;
+	width: 100%;
 }
-.calendar-month {
+
+.calendar .sel-month,
+.calendar .sel-year {
+	align-self: center;
+}
+
+.calendar .sel-month .input {
+	width: 80px;
+	font-size: 120%;
+	text-align: center;
+	border: 0;
+}
+
+.calendar .sel-year .input {
+	width: 50px;
 	font-size: 120%;
 	text-align: right;
+	margin-right: .6em;
+	border: 0;
 }
+

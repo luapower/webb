@@ -231,7 +231,9 @@ function week(t, offset) {
 	d.setSeconds(0)
 	d.setMinutes(0)
 	d.setHours(0)
-	d.setDate(d.getDate() - d.getDay() + (offset || 0) * 7)
+	let days = -d.getDay() + week_start_offset()
+	if (days > 0) days -= 7
+	d.setDate(d.getDate() + days + (offset || 0) * 7)
 	return d.valueOf()
 }
 
@@ -241,6 +243,23 @@ function days(dt) {
 
 function year_of (t) { return (new Date(t)).getFullYear() }
 function month_of(t) { return (new Date(t)).getMonth() }
+
+locale = navigator.language
+
+function weekday_name(t, how) {
+	let d = new Date(t)
+	return d.toLocaleDateString(locale, {weekday: how || 'short'})
+}
+
+function month_name(t, how) {
+	let d = new Date(t)
+	return d.toLocaleDateString(locale, {month: how || 'short'})
+}
+
+// no way to get OS locale in JS in 2020. I hate the web.
+function week_start_offset() {
+	return locale.startsWith('en') ? 0 : 1
+}
 
 // serialization -------------------------------------------------------------
 

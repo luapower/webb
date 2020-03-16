@@ -1,3 +1,8 @@
+/*
+	Button Widget.
+	Written by Cosmin Apreutesei. Public Domain.
+
+*/
 
 function button(...options) {
 

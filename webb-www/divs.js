@@ -91,7 +91,9 @@ method(Element, 'set1', function(ce) {
 
 function H(tag, attrs, ...children) {
 	let e = document.createElement(tag)
-	if (attrs)
+	if (typeof(attrs) == 'string') {
+		e.attr('class', attrs)
+	} else if (attrs)
 		e.attrs(attrs)
 	if (children)
 		e.add(...children)
