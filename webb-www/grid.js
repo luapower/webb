@@ -21,9 +21,9 @@ function strict_sign(x) {
 	return 1/x == 1/-0 ? -1 : (x >= 0 ? 1 : -1)
 }
 
-function grid(...options) {
+grid = component('x-grid', function(g, ...options) {
 
-	let g = {
+	let defaults = {
 		// geometry
 		w: 500,
 		h: 400,
@@ -41,16 +41,17 @@ function grid(...options) {
 	}
 
 	let d
-	let fields
+	let fields, dropdown_field
 
 	function init() {
-		update(g, ...options)
-		d = g.dataset
+		update(g, defaults, ...options)
+		d = g.rowset
 		init_fields()
 		init_order_by()
-		reload()
-		hook_unhook_events(true)
+		create_view()
 	}
+
+	// model ------------------------------------------------------------------
 
 	function init_fields() {
 		fields = []
@@ -63,25 +64,33 @@ function grid(...options) {
 				if (!field.hidden)
 					fields.push(field)
 		}
+		if (g.dropdown_field)
+			dropdown_field = d.field(g.dropdown_field)
 	}
 
-	function hook_unhook_events(on) {
-		document.onoff('keydown'  , keydown  , on)
-		document.onoff('keypress' , keypress , on)
-		document.onoff('mousedown', mousedown, on)
-		document.onoff('mouseup'  , mouseup  , on)
-		document.onoff('mousemove', mousemove, on)
-		d.onoff('reload'       , reload       , on)
-		d.onoff('value_changed', value_changed, on)
-		d.onoff('row_added'    , row_added    , on)
-		d.onoff('row_removed'  , row_removed  , on)
+	function create_row(row) {
+		return {row: row}
 	}
 
-	g.free = function() {
-		hook_unhook_events(false)
+	function create_rows() {
+		g.rows = []
+		for (let i = 0; i < d.rows.length; i++)
+			if (!d.rows[i].removed)
+				g.rows.push(create_row(d.rows[i]))
 	}
 
-	// virtual grid geometry --------------------------------------------------
+	function row_index(row) {
+		for (let i = 0; i < g.rows.length; i++)
+			if (g.rows[i].row == row)
+				return i
+	}
+
+	function row_field_at(cell) {
+		let [ri, fi] = cell
+		return [ri != null ? g.rows[ri] : null, fi != null ? fields[fi] : null]
+	}
+
+	// rendering / geometry ---------------------------------------------------
 
 	function scroll_y(sy) {
 		return clamp(sy, 0, max(0, g.rows_h - g.rows_view_h))
@@ -128,32 +137,6 @@ function grid(...options) {
 		update_input_geometry()
 	}
 
-	// model ------------------------------------------------------------------
-
-	function create_row(row) {
-		return {row: row}
-	}
-
-	function create_rows() {
-		g.rows = []
-		for (let i = 0; i < d.rows.length; i++)
-			if (!d.rows[i].removed)
-				g.rows.push(create_row(d.rows[i]))
-	}
-
-	function row_index(row) {
-		for (let i = 0; i < g.rows.length; i++)
-			if (g.rows[i].row == row)
-				return i
-	}
-
-	function row_field_at(cell) {
-		let [ri, fi] = cell
-		return [ri != null ? g.rows[ri] : null, fi != null ? fields[fi] : null]
-	}
-
-	// rendering --------------------------------------------------------------
-
 	function tr_at(ri) {
 		let sy = g.scroll_y
 		let i0 = first_visible_row(sy)
@@ -167,37 +150,7 @@ function grid(...options) {
 		return [tr, tr && fi != null ? tr.at[fi] : null]
 	}
 
-	function update_row(tr, ri) {
-		let row = g.rows[ri]
-		tr.row = row
-		tr.row_index = ri
-		for (let fi = 0; fi < fields.length; fi++) {
-			let field = fields[fi]
-			let td = tr.at[fi]
-			td.field = field
-			td.field_index = fi
-			if (row) {
-				td.innerHTML = d.value(row.row, field)
-				td.class('read-only', !d.can_change_value(row.row, field))
-				td.class('not-focusable', !d.can_be_focused(row.row, field))
-				td.style.display = null
-			} else {
-				td.innerHTML = ''
-				td.style.display = 'none'
-			}
-		}
-	}
-
-	function update_rows() {
-		let sy = g.scroll_y
-		let i0 = first_visible_row(sy)
-		g.rows_table.y = rows_y_offset(sy)
-		let n = g.visible_row_count
-		for (let i = 0; i < n; i++) {
-			let tr = g.rows_table.at[i]
-			update_row(tr, i0 + i)
-		}
-	}
+	// rendering --------------------------------------------------------------
 
 	function create_view() {
 
@@ -206,12 +159,12 @@ function grid(...options) {
 		g.rows_table = H.table({class: 'grid-rows-table'})
 		g.rows_div = H.div({class: 'grid-rows-div'}, g.rows_table)
 		g.rows_view_div = H.div({class: 'grid-rows-view-div'}, g.rows_div)
-		g.grid_div = H.div({class: 'grid-div', tabindex: '0'},
+		g.view = H.div({class: 'grid-div', tabindex: '0'},
 			g.header_table,
 			g.rows_view_div)
-		g.grid_div.on('mousemove', grid_div_mousemove)
-		g.grid_div.on('focusin', grid_div_focusin)
-		g.grid_div.on('blur', grid_div_blur)
+		g.view.on('mousemove', view_mousemove)
+		g.view.on('focusin', view_focusin)
+		g.view.on('blur', view_blur)
 
 		for (let field of fields) {
 
@@ -242,11 +195,14 @@ function grid(...options) {
 		}
 		g.header_table.add(g.header_tr)
 
-		g.parent.set1(g.grid_div)
+		if (g.parent)
+			g.parent.add(g.view)
+
+		g.view.w = g.w
+
+		// --------------------------------------------------------------------
 
 		update_heights()
-
-		g.grid_div.w = g.w
 
 		for (let i = 0; i < g.visible_row_count; i++) {
 
@@ -269,6 +225,38 @@ function grid(...options) {
 		g.rows_view_div.on('scroll', update_view)
 
 		sort()
+	}
+
+	function update_row(tr, ri) {
+		let row = g.rows[ri]
+		tr.row = row
+		tr.row_index = ri
+		for (let fi = 0; fi < fields.length; fi++) {
+			let field = fields[fi]
+			let td = tr.at[fi]
+			td.field = field
+			td.field_index = fi
+			if (row) {
+				td.innerHTML = d.display_value(row.row, field)
+				td.class('read-only', !d.can_change_value(row.row, field))
+				td.class('not-focusable', !d.can_be_focused(row.row, field))
+				td.style.display = null
+			} else {
+				td.innerHTML = ''
+				td.style.display = 'none'
+			}
+		}
+	}
+
+	function update_rows() {
+		let sy = g.scroll_y
+		let i0 = first_visible_row(sy)
+		g.rows_table.y = rows_y_offset(sy)
+		let n = g.visible_row_count
+		for (let i = 0; i < n; i++) {
+			let tr = g.rows_table.at[i]
+			update_row(tr, i0 + i)
+		}
 	}
 
 	function update_sort_icons() {
@@ -350,7 +338,7 @@ function grid(...options) {
 		g.input = null
 		g.rows_div.removeChild(input)
 		if (td)
-			td.innerHTML = d.value(row.row, field)
+			td.innerHTML = d.display_value(row.row, field)
 	}
 
 	function reload() {
@@ -358,6 +346,27 @@ function grid(...options) {
 		create_rows()
 		create_view()
 		g.focus_cell()
+	}
+
+	function hook_unhook_events(on) {
+		document.onoff('keydown'  , keydown  , on)
+		document.onoff('keypress' , keypress , on)
+		document.onoff('mousedown', mousedown, on)
+		document.onoff('mouseup'  , mouseup  , on)
+		document.onoff('mousemove', mousemove, on)
+		d.onoff('reload'       , reload       , on)
+		d.onoff('value_changed', value_changed, on)
+		d.onoff('row_added'    , row_added    , on)
+		d.onoff('row_removed'  , row_removed  , on)
+	}
+
+	g.attach = function(parent) {
+		hook_unhook_events(true)
+		reload()
+	}
+
+	g.detach = function() {
+		hook_unhook_events(false)
 	}
 
 	// make columns resizeable ------------------------------------------------
@@ -369,16 +378,16 @@ function grid(...options) {
 			return
 		focus()
 		window.grid_col_resizing = true
-		g.grid_div.class('col-resizing', true)
+		g.view.class('col-resizing', true)
 		e.preventDefault()
 	}
 
 	function mouseup(e) {
 		window.grid_col_resizing = false
-		g.grid_div.class('col-resizing', false)
+		g.view.class('col-resizing', false)
 	}
 
-	function grid_div_mousemove(e) {
+	function view_mousemove(e) {
 		if (window.grid_col_resizing)
 			return
 		hit_th = null
@@ -389,11 +398,11 @@ function grid(...options) {
 				break
 			}
 		}
-		g.grid_div.class('col-resize', hit_th != null)
+		g.view.class('col-resize', hit_th != null)
 	}
 
 	function mousemove(e) {
-		if (!g.grid_div.hasclass('col-resizing'))
+		if (!g.view.hasclass('col-resizing'))
 			return
 		let field = fields[hit_th.index]
 		let w = e.clientX - (g.header_table.offsetLeft + hit_th.offsetLeft + hit_x)
@@ -409,32 +418,26 @@ function grid(...options) {
 
 	function is_focused() {
 		let e = document.activeElement
-		return e == g.grid_div || e == g.input
+		return e == g.view || e == g.input
 	}
 
-	function focus() {
-		g.grid_div.focus()
+	function view_focusin() {
+		g.view.class('focused', true)
 	}
 
-	function grid_div_focusin() {
-		print('grid_div_focusin')
-		g.grid_div.class('focused', true)
-	}
-
-	function grid_div_blur() {
-		print('grid_div_blur')
-		g.grid_div.class('focused', false)
+	function view_blur() {
+		g.view.class('focused', false)
 	}
 
 	function input_focus() {
 		print('input_focus')
-		//grid_div_focus()
+		//view_focus()
 	}
 
 	function input_blur() {
 		print('input_blur')
 		//g.exit_edit()
-		//grid_div_blur()
+		//view_blur()
 	}
 
 	g.focused_cell = [null, null]
@@ -753,7 +756,7 @@ function grid(...options) {
 		return true
 	}
 
-	// updating from dataset changes ------------------------------------------
+	// updating from rowset changes ------------------------------------------
 
 	function value_changed(row, field, val, source) {
 		let ri = row_index(row)
@@ -804,7 +807,7 @@ function grid(...options) {
 	// mouse boundings --------------------------------------------------------
 
 	function header_cell_mousedown(e) {
-		if (g.grid_div.hasclass('col-resize'))
+		if (g.view.hasclass('col-resize'))
 			return
 		if (e.which == 3)  // right-click
 			g.clear_order()
@@ -814,7 +817,7 @@ function grid(...options) {
 	}
 
 	function cell_mousedown(e) {
-		if (g.grid_div.hasclass('col-resize'))
+		if (g.view.hasclass('col-resize'))
 			return
 		let ri = this.parent.row_index
 		let fi = this.field_index
@@ -1039,7 +1042,7 @@ function grid(...options) {
 			s.push('var v2 = !(r2.fields && r2.fields['+i+'].modified)')
 			s.push('if (v1 < v2) return -1')
 			s.push('if (v1 > v2) return  1')
-			// compare values using the dataset comparator
+			// compare values using the rowset comparator
 			s.push('var cmp = cmps['+i+']')
 			s.push('var r = cmp(r1.row, r2.row, '+i+')')
 			s.push('if (r) return r * '+r)
@@ -1060,8 +1063,14 @@ function grid(...options) {
 
 	}
 
+	// dropdown protocol
+
+	property(g, 'display_value', {get: function() {
+		let [row] = row_field_at(g.focused_cell)
+		return row ? d.display_value(row.row, dropdown_field) : ''
+	}})
+
 	init()
 
-	return g
-}
+})
 

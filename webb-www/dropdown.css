@@ -1,7 +1,7 @@
 
-.dropdown {
+.x-dropdown {
 	display: inline-block;
-	box-sizing: border-box;
+	vertical-align: baseline;
 	border: 1px solid #999;
 	border-radius: 2px;
 	font-size: 14px;
@@ -10,13 +10,29 @@
 	padding-left: .25em;
 	padding-right: .25em;
 	cursor: default;
+	position: relative;
+	overflow: visible;
 }
 
-.dropdown-value {
+.x-dropdown.open {
+	background-color: #ffc;
+}
+
+.x-dropdown-value {
+	display: inline-block;
 	white-space: nowrap;
 	min-width: 1em;
 }
 
-.dropdown-button {
+.x-dropdown-button {
+	display: inline-block;
+	margin-left: .25em;
+}
 
+.x-dropdown-picker {
+	position: absolute;
+	border: 1px solid #999;
+	background-color: white;
+	box-shadow: 5px 5px 5px #999;
+	z-index: 1;
 }

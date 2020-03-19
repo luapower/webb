@@ -4,50 +4,44 @@
 
 */
 
-function input(...options) {
-
-	let e = {}
+input = component('x-input', function(e, ...options) {
 
 	function init() {
+		create_view()
 		update(e, ...options)
+	}
 
-		e.tooltip = H.span({class: 'input-error'})
+	function get_value() {
+		return this.input.value
+	}
+
+	function set_value(v) {
+		this.input.value = v
+	}
+
+	property(e, 'value', {get: get_value, set: set_value})
+
+	// view
+
+	function create_view() {
+		e.class('x-input', true)
+		e.tooltip = H.span({class: 'x-input-error'})
 		e.input = H.input({
-			class: 'input',
+			class: 'x-input-input',
 		})
-		e.view = H.div({class: 'input-view '+(e.class || '')}, e.input, e.tooltip)
-
-		init_value()
-
-		if (e.parent)
-			e.parent.add(e.view)
-
 		e.input.on('input', value_changed)
+		e.add(e.input, e.tooltip)
 	}
 
-	function init_value() {
-		function get_value() {
-			return this.input.value
-		}
-		function set_value(v) {
-			this.input.value = v
-		}
-		let v = e.value
-		delete e.value
-		property(e, 'value', {get: get_value, set: set_value})
-		if (v !== undefined)
-			e.value = v
-	}
-
-	function value_changed(event) {
+	function value_changed() {
 		let err = e.validate(e.value)
 		e.invalid = err != true
-		e.input.class('invalid', e.invalid)
+		e.input.class('x-input-invalid', e.invalid)
 		e.error = e.invalid && err || ''
 		e.tooltip.innerHTML = e.error
 		e.tooltip.style.display = e.error ? 'inherit' : 'none'
 		if (e.invalid)
-			event.stopImmediatePropagation()
+			return false
 	}
 
 	e.validate = function(v) {
@@ -56,6 +50,18 @@ function input(...options) {
 
 	init()
 
-	return e
-}
+})
 
+spin_input = component('x-spin-input', input, function(e) {
+	e.class('x-spin-input', true)
+
+	function init() {
+		e.spin_up   = H.div({class: 'x-spin-input-button'}, H.div({class: 'fa fa-caret-up'}))
+		e.spin_down = H.div({class: 'x-spin-input-button'}, H.div({class: 'fa fa-caret-down'}))
+		e.spin_div = H.span({class: 'x-spin-input-button-div'}, e.spin_up, e.spin_down)
+		e.add(e.spin_div)
+	}
+
+	init()
+
+})

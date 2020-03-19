@@ -6,71 +6,141 @@
 
 */
 
-function dropdown(...options) {
-
-	let e = {}
+dropdown = component('x-dropdown', function(e, ...options) {
 
 	function init() {
 		update(e, ...options)
-
-		e.value_td = H.td({class: 'dropdown-value'})
-		e.view = H.table({
-				class: 'dropdown '+(e.class || '')
-			},
-			H.tr({},
-				e.value_td,
-				H.td({
-					class: 'dropdown-button fa fa-caret-down',
-					valign: 'middle',
-					width: 0,
-				}, e.button)))
-
-		init_value()
-
-		if (e.picker)
-			e.picker.on('pick_value', value_picked)
-
-		e.view.on('click', view_click)
-
-		if (e.parent)
-			e.parent.add(e.view)
-
+		create_view()
 	}
 
-	function init_value() {
-		let value
-		function get_value() {
-			return value
+	// model
+
+	function get_value() {
+		return e.picker.value
+	}
+
+	function set_value(v) {
+		e.picker.pick_value(v)
+	}
+
+	property(e, 'value', {get: get_value, set: set_value})
+
+	// view
+
+	function create_view() {
+		e.class('x-dropdown', true)
+		e.attr('tabindex', 0)
+		e.value_div = H.span({class: 'x-dropdown-value'})
+		e.button = H.span({class: 'x-dropdown-button fa fa-caret-down'})
+		e.add(e.value_div, e.button)
+		e.picker.on('value_changed', value_changed)
+		e.picker.on('value_picked', value_picked)
+		e.on('mousedown', view_mousedown)
+		e.on('keydown', view_keydown)
+		e.on('wheel', view_wheel)
+	}
+
+	function update_view() {
+		if (!e.isConnected)
+			return
+		let v = e.picker.display_value
+		if (typeof(v) == 'string')
+			e.value_div.innerHTML = v
+		else
+			e.value_div.replace(0, v)
+	}
+
+	e.attach = function(parent) {
+		update_view()
+		document.on('mousedown', document_mousedown)
+	}
+
+	e.detach = function() {
+		document.off('mousedown', document_mousedown)
+	}
+
+	// picker protocol
+
+	function value_changed(v) {
+		update_view()
+	}
+
+	function value_picked() {
+		e.close_picker()
+		if (e.rowset) {
+			let err = e.rowset.set_value(e.value)
+			// TODO: show error
 		}
-		function set_value(v) {
-			value = v
-			e.value_td.innerHTML = v
-			if (e.dataset) {
-				let err = e.dataset.set_value(v)
-			}
-		}
-		let v = e.value
-		delete e.value
-		property(e, 'value', {get: get_value, set: set_value})
-		if (v !== undefined)
-			e.value = v
 	}
 
-	function value_picked(v) {
-		e.value = v
-	}
+	// controller
+
+	class_property(e, 'open')
 
 	e.open_picker = function() {
-		if (!e.picker)
-			return
-		e.view.add(e.picker.view)
+		if (e.open) return
+		e.open = true
+		e.old_value = e.value
+		e.picker.class('x-dropdown-picker', true)
+		e.picker.y = e.clientHeight
+		e.picker.x = -e.clientLeft
+		e.add(e.picker)
+		e.picker.focus()
 	}
 
-	function view_click() {
-		e.open_picker()
+	e.close_picker = function() {
+		if (!e.open) return
+		e.open = false
+		e.old_value = undefined
+		e.picker.remove()
+		e.focus()
+	}
+
+	e.toggle_picker = function() {
+		if (e.open)
+			e.close_picker()
+		else
+			e.open_picker()
+	}
+
+	// kb & mouse binding
+
+	function view_mousedown(ev) {
+		if (!e.picker.contains(ev.target)) {
+			e.toggle_picker()
+			ev.preventDefault() // prevent focusing back this element.
+		}
+	}
+
+	function view_keydown(key) {
+		if (key == 'Enter') {
+			e.toggle_picker()
+			return false
+		}
+		if (key == 'Escape') {
+			e.value = e.old_value
+			return false
+		}
+		if (key == 'ArrowDown' || key == 'ArrowUp') {
+			if (!e.open) {
+				e.picker.pick_near_value(key == 'ArrowDown' ? 1 : -1)
+				return false
+			}
+		}
+	}
+
+	function view_wheel(dy) {
+		if (!e.open) {
+			e.picker.pick_near_value(dy / 100)
+			return false
+		}
+	}
+
+	function document_mousedown(ev) {
+		if (!e.contains(ev.target))
+			e.close_picker()
 	}
 
 	init()
 
-	return e
-}
+})

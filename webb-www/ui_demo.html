@@ -2,6 +2,7 @@
 <html>
 <body>
 <link rel="stylesheet" type="text/css" href="fontawesome.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inconsolata&display=swap">
 <link rel="stylesheet" type="text/css" href="grid.css">
 <link rel="stylesheet" type="text/css" href="menu.css">
 <link rel="stylesheet" type="text/css" href="button.css">
@@ -9,21 +10,21 @@
 <link rel="stylesheet" type="text/css" href="input.css">
 <link rel="stylesheet" type="text/css" href="tooltip.css">
 <link rel="stylesheet" type="text/css" href="dropdown.css">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inconsolata&display=swap">
-<script src="jquery.js"></script>
 <script src="glue.js"></script>
 <script src="divs.js"></script>
-<script src="dataset.js"></script>
+<script src="rowset.js"></script>
 <script src="grid.js"></script>
 <script src="menu.js"></script>
 <script src="button.js"></script>
 <script src="calendar.js"></script>
 <script src="input.js"></script>
 <script src="dropdown.js"></script>
-<div id=div1></div>
-<div id=div2></div>
-<div id=div0></div>
-<div id=div_input></div>
+<div>
+	<div id=div1></div>
+	<div id=div2></div>
+	<div id=div0></div>
+	Hello <span id=dd1></span> embedded <span id=dd2></span> dropdowns.
+</div>
 <script>
 
 /*
@@ -61,10 +62,36 @@ var b = button({
 */
 
 var d = dropdown({
-	parent: div_input,
-	value: 'hello hello',
 	picker: calendar(),
 })
+d.value = 0
+
+var i = input({value: ''})
+var si //= spin_input({xx: 1})
+
+dd1.add(d, i, si)
+
+/*
+var d = dropdown({
+	parent: dd2,
+	value: 'hello hello',
+	picker: grid({
+		dropdown_field: 'name',
+		rowset: rowset({
+			fields: [
+				{name: 'id', type: 'number'},
+				{name: 'name'},
+				{name: 'date', type: 'date'},
+			],
+			rows: [
+				{values: [1, 'Hey Dude', now()    ]},
+				{values: [2, 'Wasup', utctime()]},
+				{values: [3, '', 0]},
+			],
+		}),
+	}),
+})
+*/
 
 /*
 var data = {
@@ -90,10 +117,10 @@ for (var i = 0; i < 20; i++) {
 	data.rows.push({focusable: i % 2 == 0, values: [i, 'record '+i, floor((random() * i))]})
 }
 
-var d = dataset(data)
+var d = rowset(data)
 
 var g1 = grid({
-	dataset: d,
+	rowset: d,
 	parent: div1,
 	h: 100,
 	row_border_h: 1,
@@ -103,7 +130,7 @@ var g1 = grid({
 })
 
 var g2 = grid({
-	dataset: d,
+	rowset: d,
 	parent: div2,
 	h: 200,
 	row_h: 40,

@@ -116,6 +116,9 @@ method(String, 'format', function(...args) {
 	return s
 })
 
+alias(String, 'starts', 'startsWith')
+
+
 // arrays --------------------------------------------------------------------
 
 isarray = Array.isArray
@@ -148,12 +151,18 @@ function keys(o, cmp) {
 	return t
 }
 
-function update(target, ...sources) {
-	for (let o of sources)
-		if (o)
-			for (let k of keys(o))
-				target[k] = o[k]
-  return target
+update = Object.assign
+
+function attr(t, k) {
+	let v = t[k]
+	if (!v) { v = {}; t[k] = v }
+	return v
+}
+
+function array_attr(t, k) {
+	let v = t[k]
+	if (!v) { v = []; t[k] = v }
+	return v
 }
 
 // events --------------------------------------------------------------------
@@ -188,78 +197,81 @@ function install_events(o) {
 now = Date.now
 utctime = Date.UTC
 
+_d = new Date() // public temporary date object.
+
 // get the time at the start of the day of a given time, plus/minus a number of days.
 function day(t, offset) {
-	let d = new Date(t)
-	d.setMilliseconds(0)
-	d.setSeconds(0)
-	d.setMinutes(0)
-	d.setHours(0)
-	d.setDate(d.getDate() + (offset || 0))
-	return d.valueOf()
+	_d.setTime(t)
+	_d.setMilliseconds(0)
+	_d.setSeconds(0)
+	_d.setMinutes(0)
+	_d.setHours(0)
+	_d.setDate(_d.getDate() + (offset || 0))
+	return _d.valueOf()
 }
 
 // get the time at the start of the month of a given time, plus/minus a number of months.
 function month(t, offset) {
-	let d = new Date(t)
-	d.setMilliseconds(0)
-	d.setSeconds(0)
-	d.setMinutes(0)
-	d.setHours(0)
-	d.setDate(1)
-	d.setMonth(d.getMonth() + (offset || 0))
-	return d.valueOf()
+	_d.setTime(t)
+	_d.setMilliseconds(0)
+	_d.setSeconds(0)
+	_d.setMinutes(0)
+	_d.setHours(0)
+	_d.setDate(1)
+	_d.setMonth(_d.getMonth() + (offset || 0))
+	return _d.valueOf()
 }
 
 // get the time at the start of the year of a given time, plus/minus a number of years.
 function year(t, offset) {
-	let d = new Date(t)
-	d.setMilliseconds(0)
-	d.setSeconds(0)
-	d.setMinutes(0)
-	d.setHours(0)
-	d.setDate(1)
-	d.setMonth(1)
-	d.setYear(d.getYear() + (offset || 0))
-	return d.valueOf()
+	_d.setTime(t)
+	_d.setMilliseconds(0)
+	_d.setSeconds(0)
+	_d.setMinutes(0)
+	_d.setHours(0)
+	_d.setDate(1)
+	_d.setMonth(1)
+	_d.setFullYear(_d.getFullYear() + (offset || 0))
+	return _d.valueOf()
 }
 
 // get the time at the start of the week of a given time, plus/minus a number of weeks.
 function week(t, offset) {
-	let d = new Date(t)
-	d.setMilliseconds(0)
-	d.setSeconds(0)
-	d.setMinutes(0)
-	d.setHours(0)
-	let days = -d.getDay() + week_start_offset()
+	_d.setTime(t)
+	_d.setMilliseconds(0)
+	_d.setSeconds(0)
+	_d.setMinutes(0)
+	_d.setHours(0)
+	let days = -_d.getDay() + week_start_offset()
 	if (days > 0) days -= 7
-	d.setDate(d.getDate() + days + (offset || 0) * 7)
-	return d.valueOf()
+	_d.setDate(_d.getDate() + days + (offset || 0) * 7)
+	return _d.valueOf()
 }
 
 function days(dt) {
 	return dt / (3600 * 24 * 1000)
 }
 
-function year_of (t) { return (new Date(t)).getFullYear() }
-function month_of(t) { return (new Date(t)).getMonth() }
+function year_of (t) { _d.setTime(t); return _d.getFullYear() }
+function month_of(t) { _d.setTime(t); return _d.getMonth() }
 
 locale = navigator.language
 
 function weekday_name(t, how) {
-	let d = new Date(t)
-	return d.toLocaleDateString(locale, {weekday: how || 'short'})
+	_d.setTime(t)
+	return _d.toLocaleDateString(locale, {weekday: how || 'short'})
 }
 
 function month_name(t, how) {
-	let d = new Date(t)
-	return d.toLocaleDateString(locale, {month: how || 'short'})
+	_d.setTime(t)
+	return _d.toLocaleDateString(locale, {month: how || 'short'})
 }
 
 // no way to get OS locale in JS in 2020. I hate the web.
 function week_start_offset() {
-	return locale.startsWith('en') ? 0 : 1
+	return locale.starts('en') ? 0 : 1
 }
+
 
 // serialization -------------------------------------------------------------
 

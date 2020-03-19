@@ -4,79 +4,35 @@
 
 */
 
-function calendar(...options) {
+calendar = component('x-calendar', function(e, ...options) {
 
-	let c = {}
+	let defaults = {
+		format: { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' },
+	}
 
 	function init() {
-		update(c, ...options)
-		install_events(c)
 		create_view()
-		init_date()
-		if (c.parent)
-			c.parent.add(c.view)
+		update(e, {value: now()}, defaults, ...options)
 	}
 
-	c.free = function() {
-		if (c.parent) {
-			c.remove()
-			c.parent = null
-		}
-	}
+	// model
 
-	let date
-	function init_date() {
-		date = c.date
-		property(c, 'date', {get: get_date, set: set_date})
-		c.date = date
-	}
+	let value
 
-	function get_date() { return date; }
+	function get_value() { return value; }
 
-	function update_weekview(d, weeks) {
-		let today = day(now())
-		let this_month = month(d)
-		d = week(this_month)
-		c.weekview.innerHTML = ''
-		for (let week = 0; week <= weeks; week++) {
-			let tr = H.tr()
-			for (let weekday = 0; weekday < 7; weekday++) {
-				if (!week) {
-					let th = H.th({class: 'weekday'}, weekday_name(day(d, weekday)))
-					tr.add(th)
-				} else {
-					let m = month(d)
-					let s = d == today ? ' today' : ''
-					s = s + (m == this_month ? ' current-month' : '')
-					s = s + (d == c.date ? ' selected' : '')
-					let td = H.td({class: 'day'+s}, floor(1 + days(d - m)))
-					td.date = d
-					td.on('click', day_click)
-					tr.add(td)
-					d = day(d, 1)
-				}
-			}
-			c.weekview.add(tr)
-		}
-	}
-
-	function set_date(t) {
-		if (t == null)
-			t = now()
-		t = day(t)
+	function set_value(t) {
+		t = day(t != null ? t : now())
 		if (t != t)
 			return
-		date = t
-		update_weekview(t, 6)
-		let y = year_of(t)
-		let n = floor(1 + days(t - month(t)))
-		c.sel_day.innerHTML = n
-		let day_suffixes = ['', 'st', 'nd', 'rd']
-		c.sel_day_suffix.innerHTML = locale.startsWith('en') ?
-			(n < 11 || n > 13) && day_suffixes[n % 10] || 'th' : ''
-		c.sel_month.value = month_name(t, 'long')
-		c.sel_year.value = y
+		value = t
+		update_view()
+		this.fire('value_changed', t) // dropdown protocol
 	}
+
+	property(e, 'value', {get: get_value, set: set_value})
+
+	// view
 
 	function validate_year(v) {
 		let y = Number(v)
@@ -84,68 +40,137 @@ function calendar(...options) {
 	}
 
 	function create_view() {
-		c.sel_day = H.div({class: 'sel-day'})
-		c.sel_day_suffix = H.div({class: 'sel-day-suffix'})
-		c.sel_month = input({class: 'sel-month'})
-		c.sel_year = input({class: 'sel-year', validate: validate_year})
-		c.sel_month.input.on('input', month_changed)
-		c.sel_year.input.on('input', year_changed)
-		c.sel_year.view.on('wheel', year_input_wheel)
-		c.header = H.div({class: 'header'},
-			c.sel_day, c.sel_day_suffix,
-			c.sel_month.view, c.sel_year.view)
-		c.weekview = H.table({class: 'weekview', tabindex: 0})
-		c.weekview.on('keydown', weekview_keydown)
-		c.weekview.on('wheel', weekview_wheel)
-		c.view = H.div({class: 'calendar'}, c.header, c.weekview)
+		e.class('x-calendar', true)
+		e.sel_day = H.div({class: 'x-calendar-sel-day'})
+		e.sel_day_suffix = H.div({class: 'x-calendar-sel-day-suffix'})
+		e.sel_month = input({classes: 'x-calendar-sel-month'})
+		e.sel_year = input({classes: 'x-calendar-sel-year', validate: validate_year})
+		e.sel_month.input.on('input', month_changed)
+		e.sel_year.input.on('input', year_changed)
+		e.sel_year.on('wheel', year_input_wheel)
+		e.header = H.div({class: 'x-calendar-header'},
+			e.sel_day, e.sel_day_suffix, e.sel_month, e.sel_year)
+		e.weekview = H.table({class: 'x-calendar-weekview', tabindex: 0})
+		e.weekview.on('keydown', weekview_keydown)
+		e.weekview.on('wheel', weekview_wheel)
+		e.add(e.header, e.weekview)
+	}
+
+	function update_view() {
+		let t = e.value
+		update_weekview(t, 6)
+		let y = year_of(t)
+		let n = floor(1 + days(t - month(t)))
+		e.sel_day.innerHTML = n
+		let day_suffixes = ['', 'st', 'nd', 'rd']
+		e.sel_day_suffix.innerHTML = locale.starts('en') ?
+			(n < 11 || n > 13) && day_suffixes[n % 10] || 'th' : ''
+		e.sel_month.value = month_name(t, 'long')
+		e.sel_year.value = y
+	}
+
+	function update_weekview(d, weeks) {
+		let today = day(now())
+		let this_month = month(d)
+		d = week(this_month)
+		e.weekview.innerHTML = ''
+		for (let week = 0; week <= weeks; week++) {
+			let tr = H.tr()
+			for (let weekday = 0; weekday < 7; weekday++) {
+				if (!week) {
+					let th = H.th({class: 'x-calendar-weekday'}, weekday_name(day(d, weekday)))
+					tr.add(th)
+				} else {
+					let m = month(d)
+					let s = d == today ? ' today' : ''
+					s = s + (m == this_month ? ' current-month' : '')
+					s = s + (d == e.value ? ' selected' : '')
+					let td = H.td({class: 'x-calendar-day'+s}, floor(1 + days(d - m)))
+					td.date = d
+					td.on('mousedown', day_mousedown)
+					tr.add(td)
+					d = day(d, 1)
+				}
+			}
+			e.weekview.add(tr)
+		}
 	}
 
 	// controller
 
-	function day_click() {
-		c.date = this.date
-		c.trigger('value_picked', c.date)
+	e.attach = function() {
+		update_view()
+	}
+
+	function day_mousedown() {
+		e.value = this.date
+		e.fire('value_picked') // dropdown protocol
+		return false // prevent bubbling to dropdown.
 	}
 
 	function month_changed() {
-		let d = new Date(c.date)
-		d.setMonth(this.value)
-		c.date = d.valueOf()
+		_d.setTime(e.value)
+		_d.setMonth(this.value)
+		e.value = _d.valueOf()
 	}
 
 	function year_changed() {
-		let d = new Date(c.date)
-		d.setYear(this.value)
-		c.date = d.valueOf()
+		_d.setTime(e.value)
+		_d.setFullYear(this.value)
+		e.value = _d.valueOf()
 	}
 
-	function year_input_wheel(e) {
-		let d = new Date(c.date)
-		d.setFullYear(d.getFullYear() + sign(e.deltaY))
-		c.date = d.valueOf()
+	function year_input_wheel(dy) {
+		_d.setTime(e.value)
+		_d.setFullYear(_d.getFullYear() + sign(dy))
+		e.value = _d.valueOf()
 	}
 
-	function weekview_wheel(e) {
-		let d = new Date(c.date)
-		d.setMonth(d.getMonth() + e.deltaY / 100)
-		c.date = d.valueOf()
+	function weekview_wheel(dy) {
+		_d.setTime(e.value)
+		//_d.setMonth(_d.getMonth() + dy / 100)
+		_d.setDate(_d.getDate() + 7 * dy / 100)
+		e.value = _d.valueOf()
 	}
 
-	function weekview_keydown(e) {
+	function weekview_keydown(key) {
 		let d
-		switch (e.key) {
+		switch (key) {
 			case 'ArrowLeft'  : d = -1; break
 			case 'ArrowRight' : d =  1; break
 			case 'ArrowUp'    : d = -7; break
 			case 'ArrowDown'  : d =  7; break
 		}
-		if (d)
-			c.date = day(c.date, d)
+		if (d) {
+			e.value = day(e.value, d)
+			return false
+		}
+		if (key == 'Enter') {
+			e.fire('value_picked') // dropdown protocol
+			return false
+		}
+	}
+
+	// dropdown protocol
+
+	e.focus = function() {
+		e.weekview.focus()
+	}
+
+	property(e, 'display_value', {get: function() {
+		_d.setTime(e.value)
+		return _d.toLocaleString(locale, e.format)
+	}})
+
+	e.pick_value = function(v) {
+		e.value = v
+		e.fire('value_picked')
+	}
+
+	e.pick_near_value = function(delta) {
+		e.value = day(e.value, delta)
+		e.fire('value_picked')
 	}
 
 	init()
-
-	return c
-
-}
-
+})

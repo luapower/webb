@@ -1,26 +1,39 @@
 
-.input {
-	border: 0;
+.x-input {
+	display: inline-flex;
 	box-sizing: border-box;
-	border-bottom: 1px solid #247;
-	width: 100%;
+	border: 1px solid #999;
+	border-radius: 2px;
+	font-size: 14px;
+	font-family: sans-serif;
+	margin: 0;
+	padding: 0;
+	position: relative;
 }
 
-.input:focus {
+.x-input-input {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	font-size: inherit;
+	font-family: inherit;
+	padding-left: .25em;
+	padding-right: .25em;
+	display: inline-flex;
+	line-height: 50px;
+}
+
+.x-input:focus {
 
 }
 
-.input.invalid {
+.x-input-invalid {
 	background-color: #f33;
 	color: white;
 }
 
-.input-view {
-	display: inline-block;
-	position: relative;
-}
-
-.input-error {
+.x-input-error {
 	display: none;
 	position: absolute;
 	width: 200px;
@@ -36,3 +49,30 @@
 }
 
 
+.x-spin-input-button-div {
+	box-sizing: border-box;
+	border: 1px solid red;
+	display: inline-flex;
+	vertical-align: middle;
+	flex-direction: column;
+	justify-content: stretch;
+	align-items: center;
+	height: 100%;
+}
+
+.x-spin-input-button {
+	font-size: 5px;
+	box-sizing: border-box;
+	border: 1px solid #999;
+	width: 20px;
+	display: flex;
+	justify-content: center;
+	align-content: bottom;
+	align-items: bottom;
+	overflow: hidden;
+}
+
+.x-spin-input-button:first-child {
+	#border-bottom: 1px solid #999;
+	align-self: bottom;
+}
