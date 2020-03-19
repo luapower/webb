@@ -1,78 +1,91 @@
 
-.x-input {
-	display: inline-flex;
+.x-input, .x-input * {
 	box-sizing: border-box;
+}
+
+.x-input {
+	display: inline-flex;    /* the only way to get variable-width inputs */
+	align-items: baseline;   /* that are baseline-aligned */
+
+	/* defaults */
+	margin: .25em;
+	padding: 0;
 	border: 1px solid #999;
 	border-radius: 2px;
 	font-size: 14px;
 	font-family: sans-serif;
-	margin: 0;
-	padding: 0;
-	position: relative;
+	width: 0;
+	min-width: 10em;
+
+	position: relative;      /* anchor the error tooltip */
 }
 
 .x-input-input {
-	box-sizing: border-box;
+	/* defaults */
 	margin: 0;
-	padding: 0;
 	border: 0;
+	padding: .25em;
 	font-size: inherit;
 	font-family: inherit;
-	padding-left: .25em;
-	padding-right: .25em;
-	display: inline-flex;
-	line-height: 50px;
+	height: 100%;            /* stretch vertically */
+	flex: auto;              /* stretch horizontally */
+	min-width: 0;            /* reset, let parent set this */
 }
 
-.x-input:focus {
-
+/* focus the outer div instead of the input */
+.x-input:focus-within {
+	box-shadow: 0 0 1px 1px #99f;
+}
+.x-input-input:focus {
+	outline: none;
+	background-color: #ffc;
 }
 
-.x-input-invalid {
+.x-input-input.x-input-invalid {
 	background-color: #f33;
 	color: white;
 }
+
+/* error message tooltip */
 
 .x-input-error {
-	display: none;
+
+	/* positioning */
 	position: absolute;
-	width: 200px;
-	left: 0;
-	bottom: 1.5em;
+	bottom: 2em;                 /* move above input */
+	left: 50%;                   /* anchor to parent's center */
+	transform: translateX(-50%); /* center tooltip */
+
+	/* sizing */
+	min-width: 300px;
+	padding: .5em;
+
+	/* styling */
 	color: white;
 	background-color: #f33;
-	padding: .5em;
 	border-radius: 5px;
 	border: 1px solid #ccc;
-	margin-bottom: 2px;
-	margin-left: -60px;
 }
 
+/* spin-input */
 
-.x-spin-input-button-div {
-	box-sizing: border-box;
-	border: 1px solid red;
-	display: inline-flex;
-	vertical-align: middle;
-	flex-direction: column;
-	justify-content: stretch;
-	align-items: center;
-	height: 100%;
+.x-spin-input .x-input-input {
+	text-align: right;
 }
 
 .x-spin-input-button {
-	font-size: 5px;
-	box-sizing: border-box;
-	border: 1px solid #999;
-	width: 20px;
-	display: flex;
-	justify-content: center;
-	align-content: bottom;
-	align-items: bottom;
-	overflow: hidden;
+	border-style: solid;
+	border-color: #999;
+	border-width: 0;
+	padding-left: .5em;
+	padding-right: .5em;
 }
 
-.x-spin-input-button:first-child {
-	#border-bottom: 1px solid #999;
-	align-self: bottom;
+.x-spin-input-button-left  { border-right-width: 1px; }
+.x-spin-input-button-right { border-left-width : 1px; }
+
+.x-spin-input-button.fa-plus,
+.x-spin-input-button.fa-minus {
+	font-size: 70%;
+	align-self: center;
 }

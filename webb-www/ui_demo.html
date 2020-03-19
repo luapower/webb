@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <body>
+<link rel="stylesheet" type="text/css" href="ionicons.css">
 <link rel="stylesheet" type="text/css" href="fontawesome.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inconsolata&display=swap">
 <link rel="stylesheet" type="text/css" href="grid.css">
@@ -23,8 +24,13 @@
 	<div id=div1></div>
 	<div id=div2></div>
 	<div id=div0></div>
-	Hello <span id=dd1></span> embedded <span id=dd2></span> dropdowns.
+	<span class=big>Hello</span> <span id=dd1></span> embedded <span id=dd2></span> dropdowns.
 </div>
+<style>
+.big {
+	font-size: 50px;
+}
+</style>
 <script>
 
 /*
@@ -64,12 +70,13 @@ var b = button({
 var d = dropdown({
 	picker: calendar(),
 })
-d.value = 0
+d.value = 42
 
 var i = input({value: ''})
-var si //= spin_input({xx: 1})
+var si = spin_input({min: -2, max: 5, step: 1.5, button_style: 'up-down'})
 
-dd1.add(d, i, si)
+function br() { return H('br') }
+dd1.add(br(), d, br(), i, br(), si)
 
 /*
 var d = dropdown({

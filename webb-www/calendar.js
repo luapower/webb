@@ -4,15 +4,12 @@
 
 */
 
-calendar = component('x-calendar', function(e, ...options) {
+calendar = component('x-calendar', function(e, t) {
 
-	let defaults = {
-		format: { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' },
-	}
+	e.format = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }
 
 	function init() {
 		create_view()
-		update(e, {value: now()}, defaults, ...options)
 	}
 
 	// model
@@ -44,10 +41,13 @@ calendar = component('x-calendar', function(e, ...options) {
 		e.sel_day = H.div({class: 'x-calendar-sel-day'})
 		e.sel_day_suffix = H.div({class: 'x-calendar-sel-day-suffix'})
 		e.sel_month = input({classes: 'x-calendar-sel-month'})
-		e.sel_year = input({classes: 'x-calendar-sel-year', validate: validate_year})
+		e.sel_year = spin_input({
+				classes: 'x-calendar-sel-year',
+				validate: validate_year,
+				button_style: 'left-right',
+		})
 		e.sel_month.input.on('input', month_changed)
 		e.sel_year.input.on('input', year_changed)
-		e.sel_year.on('wheel', year_input_wheel)
 		e.header = H.div({class: 'x-calendar-header'},
 			e.sel_day, e.sel_day_suffix, e.sel_month, e.sel_year)
 		e.weekview = H.table({class: 'x-calendar-weekview', tabindex: 0})
@@ -120,17 +120,8 @@ calendar = component('x-calendar', function(e, ...options) {
 		e.value = _d.valueOf()
 	}
 
-	function year_input_wheel(dy) {
-		_d.setTime(e.value)
-		_d.setFullYear(_d.getFullYear() + sign(dy))
-		e.value = _d.valueOf()
-	}
-
 	function weekview_wheel(dy) {
-		_d.setTime(e.value)
-		//_d.setMonth(_d.getMonth() + dy / 100)
-		_d.setDate(_d.getDate() + 7 * dy / 100)
-		e.value = _d.valueOf()
+		e.value = day(e.value, 7 * dy / 100)
 	}
 
 	function weekview_keydown(key) {

@@ -1,4 +1,8 @@
 
+.x-calendar, .x-calendar * {
+	box-sizing: border-box;    /* required: borders don't affect width */
+}
+
 .x-calendar {
 	font-size: 12px;
 	font-family: sans-serif;
@@ -58,8 +62,8 @@
 
 .x-calendar-header {
 	display: flex;
-	flex-direction: row;
-	width: 100%;
+	#justify-content: space-between;
+	align-items: center;
 }
 
 .x-calendar-sel-day {
@@ -68,29 +72,26 @@
 
 .x-calendar-sel-day-suffix {
 	font-size: 150%;
-	padding-top: .25em;
 	padding-left: .1em;
-	vertical-align: top;
-	width: 100%;
+	padding-top: .25em;
+	align-self: flex-start;
 }
 
-.x-calendar-sel-month,
-.x-calendar-sel-year {
-	align-self: center;
+.x-calendar-sel-month.x-input,
+.x-calendar-sel-year.x-input {
+	border: 0;
+}
+
+.x-input.x-calendar-sel-month {
+	flex: 1;
+	min-width: 80px;
 }
 
 .x-calendar-sel-month .x-input-input {
-	width: 80px;
-	font-size: 120%;
 	text-align: center;
-	border: 0;
 }
 
-.x-calendar-sel-year .x-input-input {
-	width: 50px;
-	font-size: 120%;
-	text-align: right;
-	margin-right: .6em;
-	border: 0;
+.x-input.x-calendar-sel-year {
+	min-width: 80px;
 }
 

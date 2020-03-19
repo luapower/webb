@@ -43,12 +43,19 @@ method(Element, 'hasclass', function(name) {
 	return this.classList.contains(name)
 })
 
+method(Element, 'replace_class', function(s1, s2, normal) {
+	this.class(s1, normal == false)
+	this.class(s2, normal != false)
+})
+
+
 property(Element, 'classes', {
 	get: function() {
 		return this.attr('class')
 	},
-	set: function(s) {
-		this.attr('class', s)
+	set: function(s) { // doesn't remove existing classes.
+		for (s of s.split(/\s+/))
+			this.class(s, true)
 	}
 })
 
@@ -82,17 +89,19 @@ function T(s) {
 	return typeof(s) == 'string' ? document.createTextNode(s) : s
 }
 
-method(Element, 'add', function(...children) {
-	for (let e of children)
+method(Element, 'add', function(...args) {
+	for (let e of args)
 		if (e != null)
 			this.append(e)
 	return this
 })
 
-method(Element, 'insert', function(i, e) {
-	if (e == null)
-		return
-	this.insertBefore(e, this.at[i])
+method(Element, 'insert', function(i0, ...args) {
+	for (let i = args.length-1; i >= 0; i--) {
+		let e = args[i]
+		if (e != null)
+			this.insertBefore(e, this.at[i0])
+	}
 	return this
 })
 
@@ -130,8 +139,10 @@ function component(...args) {
 	super_cls = super_cls.class || super_cls
 	let cls = class extends super_cls {
 		constructor(...args) {
-			super(...args)
-			cons(this, ...args)
+			super()
+			let t = update({}, ...args)
+			cons(this, t)
+			update(this, t)
 		}
 		connectedCallback() {
 			if (this.isConnected && ('attach' in this))
@@ -143,80 +154,75 @@ function component(...args) {
 		}
 	}
 	customElements.define(tag, cls, { extends: ext_tag })
-	function make(...options) {
-		return new cls(...options)
+	function make(...args) {
+		return new cls(...args)
 	}
 	make.class = cls
 	return make
 }
 
-/*
-function attribute(cls, name, type) {
-
-	if (type == 'bool')
-		property(cls, name, {
-			get: function() { return this.hasAttribute(name) }
-			set: function(v) {
-				if (v)
-					this.setAttribute(name, '')
-				else
-					this.removeAttribute(name)
-			}
-		})
-	else
-		property(cls, name, {
-			get: function() { return this.getAttribute(name) }
-			set: function(s) { this.setAttribute(name, s) }
-		})
-
-
-	cls = cls.prototype || cls
-
-	array_attr(cls, '_observedAttributes').push(name)
-
-	cls.attributeChangedCallback = function(name, v0, v1) {
-
-		switch (name) {
-    case 'value':
-      console.log(`Value changed from ${oldValue} to ${newValue}`);
-      break;
-    case 'max':
-      console.log(`You won't max-out any time soon, with ${newValue}!`);
-      break;
-  }
-}
-}
-*/
-
 // automating property creation.
 
-function class_property(cls, name) {
+function noop_setter(v) {
+	return v
+}
+
+function stored_property(cls, name, setter = noop_setter) {
+	let value
+	function get() {
+		return value
+	}
+	function set(v) {
+		value = setter.call(this, v)
+	}
+	property(cls, name, {get, set})
+}
+
+function class_property(cls, name, setter = noop_setter) {
 	function get() {
 		return this.hasclass(name)
 	}
 	function set(v) {
+		v = setter.call(this, v)
 		this.class(name, v)
 	}
 	property(cls, name, {get, set})
 }
 
-// easy custom events & event wrappers.
+function attr_property(cls, name, default_val, setter = noop_setter, type) {
+	function get() {
+		if (this.hasAttribute(name))
+			return this.getAttribute(name)
+		else
+			return default_val
+	}
+	if (type == 'bool') {
+		function set(v) {
+			v = setter.call(this, v)
+			if (v)
+				this.setAttribute(name, '')
+			else
+				this.removeAttribute(name)
+		}
+	} else {
+		function set(v) {
+			v = setter.call(this, v)
+			this.setAttribute(name, v)
+		}
+	}
+	property(cls, name.replace('-', '_'), {get, set})
+}
 
-method(Element, 'fire', function(name, ...args) {
-	let e = typeof(name) == 'string' ?
-		new CustomEvent(name, {detail: args}) : name
-	return this.dispatchEvent(e)
-})
+// easy custom events & event wrappers.
 
 {
 	let callers = {}
 
 	function passthrough_caller(e, f) {
-		return f.call(this, ...e.detail)
-	}
-
-	function noop_caller(e, f) {
-		return f.call(this, e)
+		if (typeof(e.detail) == 'object' && e.detail.args)
+			return f.call(this, ...e.detail.args)
+		else
+			return f.call(this, e)
 	}
 
 	callers.click = function(e, f) {
@@ -250,8 +256,6 @@ method(Element, 'fire', function(name, ...args) {
 		if (e.deltaY)
 			return f.call(this, e.deltaY, e)
 	}
-
-	callers.input = noop_caller
 
 	let on = function(e, f) {
 		let listener
@@ -292,6 +296,14 @@ method(Element, 'fire', function(name, ...args) {
 	}
 	method(Document, 'onoff', onoff)
 	method(Element, 'onoff', onoff)
+
+	function fire(name, ...args) {
+		let e = typeof(name) == 'string' ?
+			new CustomEvent(name, {detail: {args}}) : name
+		return this.dispatchEvent(e)
+	}
+	method(Document, 'fire', fire)
+	method(Element, 'fire', fire)
 }
 
 // geometry wrappers.
@@ -309,6 +321,29 @@ property(Element, 'max_h', { set: function(h) { this.style.maxHeight = h + 'px';
 
 alias(HTMLInputElement, 'caret', 'selectionStart')
 alias(HTMLInputElement, 'select', 'setSelectionRange')
+
+method(HTMLInputElement, 'set_input_filter', function() {
+	function filter(e) {
+		if (!this.input_filter || this.input_filter(this.value)) {
+			this._valid_val  = this.value
+			this._valid_sel1 = this.selectionStart
+			this._valid_sel2 = this.selectionEnd
+		} else {
+			if (this._valid_val != null) {
+				this.value = this._valid_val
+				this.setSelectionRange(this._valid_sel1, this._valid_sel2)
+			} else
+				this.value = ''
+			e.preventDefault()
+			e.stopPropagation()
+			e.stopImmediatePropagation()
+		}
+	}
+	let events = ['input', 'keydown', 'keyup', 'mousedown', 'mouseup',
+		'select', 'contextmenu', 'drop']
+	for (e of events)
+		this.on('raw:'+e, filter)
+})
 
 /*
 // scrolling

@@ -6,10 +6,9 @@
 
 */
 
-dropdown = component('x-dropdown', function(e, ...options) {
+dropdown = component('x-dropdown', function(e, t) {
 
 	function init() {
-		update(e, ...options)
 		create_view()
 	}
 
@@ -28,6 +27,8 @@ dropdown = component('x-dropdown', function(e, ...options) {
 	// view
 
 	function create_view() {
+		e.picker = t.picker
+		e.class('x-input', true)
 		e.class('x-dropdown', true)
 		e.attr('tabindex', 0)
 		e.value_div = H.span({class: 'x-dropdown-value'})
@@ -75,11 +76,10 @@ dropdown = component('x-dropdown', function(e, ...options) {
 
 	// controller
 
-	class_property(e, 'open')
-
 	e.open_picker = function() {
 		if (e.open) return
-		e.open = true
+		e.class('open', true)
+		e.button.replace_class('fa-caret-down', 'fa-caret-up')
 		e.old_value = e.value
 		e.picker.class('x-dropdown-picker', true)
 		e.picker.y = e.clientHeight
@@ -90,17 +90,28 @@ dropdown = component('x-dropdown', function(e, ...options) {
 
 	e.close_picker = function() {
 		if (!e.open) return
-		e.open = false
+		e.class('open', false)
+		e.button.replace_class('fa-caret-down', 'fa-caret-up', false)
 		e.old_value = undefined
 		e.picker.remove()
 		e.focus()
 	}
 
-	e.toggle_picker = function() {
-		if (e.open)
-			e.close_picker()
-		else
+	function get_open() {
+		return e.hasclass('open')
+	}
+
+	function set_open(v) {
+		if (v)
 			e.open_picker()
+		else
+			e.close_picker()
+	}
+
+	property(e, 'open', {get: get_open, set: set_open})
+
+	e.toggle_picker = function() {
+		e.open = !e.open
 	}
 
 	// kb & mouse binding
