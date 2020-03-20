@@ -5,7 +5,7 @@
 
 */
 
-// element attribute map manipulation
+// element attribute map manipulation.
 
 method(Element, 'attr', function(k, v) {
 	if (v === undefined)
@@ -29,7 +29,7 @@ property(Element, 'attrs', {
 	}
 })
 
-// element css class list manipulation
+// element css class list manipulation.
 
 method(Element, 'class', function(name, enable) {
 	if (enable !== false)
@@ -54,8 +54,9 @@ property(Element, 'classes', {
 		return this.attr('class')
 	},
 	set: function(s) { // doesn't remove existing classes.
-		for (s of s.split(/\s+/))
-			this.class(s, true)
+		if (s)
+			for (s of s.split(/\s+/))
+				this.class(s, true)
 	}
 })
 
@@ -329,6 +330,16 @@ property(Element, 'min_w', { set: function(w) { this.style.minWidth  = w + 'px';
 property(Element, 'min_h', { set: function(h) { this.style.minHeight = h + 'px'; } })
 property(Element, 'max_w', { set: function(w) { this.style.maxWidth  = w + 'px'; } })
 property(Element, 'max_h', { set: function(h) { this.style.maxHeight = h + 'px'; } })
+
+// common style wrappers.
+
+method(Element, 'show', function() {
+	this.style.display = null
+})
+
+method(Element, 'hide', function() {
+	this.style.display = 'none'
+})
 
 // text editing
 
