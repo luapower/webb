@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-
+<script src="https://pagecdn.io/lib/ace/1.4.8/ace.js"
+	crossorigin="anonymous"
+	integrity="sha256-+svOVB1WmhKhTy7N21gWvtyXn91qF0r52P2hIArRRug=">
+</script>
 <style>
 
 * { box-sizing: border-box; }
@@ -47,9 +50,8 @@ h2 {
 	border-collapse: collapse;
 }
 
-.lm {
-	border-left: 1px solid #ccc;
-}
+.lb { border-left: 1px solid #ccc; }
+.lp { padding-left: 20px; }
 
 #code_td {
 	position: relative;
@@ -59,12 +61,8 @@ h2 {
 	position: absolute;
 	width: 100%;
 	height: 100%;
-	resize: none;
-	overflow-y: scroll;
-	border: 0;
-	tab-size: 3;
-	-moz-tab-size: 3;
-	border-bottom: 1px solid #ccc;
+	border: 1px solid #ccc;
+	border-left: 0;
 }
 
 #code:focus {
@@ -136,10 +134,8 @@ h2 {
 				</button>
 			</a>
 		</td>
-		<td class=lm width=20></td>
-		<td class=main_td><h3>#main</h3></td>
-		<td class=lm width=20></td>
-		<td class=code_td>
+		<td class="main_td lb lp"><h3>#main</h3></td>
+		<td class="code_td lb">
 			<table width=100%>
 				<tr>
 					<td width=100%><h3>#code</h3></td>
@@ -148,27 +144,24 @@ h2 {
 				</tr>
 			</table>
 		</td>
-		<td class=lm width=20></td>
-		<td class=help_td><h3>#help</h3></td>
+		<td class="help_td lp lb"><h3>#help</h3></td>
 	</tr>
 	<tr>
 		<td valign=top width=160>
 			<ul id=demo_list></ul>
 		</td>
-		<td class=lm></td>
-		<td class=main_td valign=top width=32%>
+		<td class="main_td lb lp" valign=top width=34%>
 			<div id=main></div>
 		</td>
-		<td class=lm></td>
-		<td valign=top id=code_td>
-			<textarea id=code></textarea>
+		<td valign=top class="lb" id=code_td>
+			<aceeditor id=code></aceeditor>
 		</td>
-		<td class=lm></td>
-		<td class=help_td valign=top width=20%>
+		<td class="help_td lb lp" valign=top width=20%>
 			<div id=help></div>
 		</td>
 	</tr>
 </table>
+<div id=debugDiv></div>
 
 <!----------------------------------------------------------------------></-->
 <template id=demo_buttons>
@@ -430,13 +423,24 @@ var g2 = grid({
 <script>
 
 {
-	function eval_script(s) {
-		return eval('let f = function() {\n' + s + '}; f')
-	}
 
-	function run_script(s) {
+	let editor = ace.edit(code, {
+		mode: 'ace/mode/javascript',
+		selectionStyle: 'text',
+		highlightActiveLine: false,
+		showFoldWidgets: false,
+		//showLineNumbers: false,
+		showGutter: false,
+		printMargin: false,
+		displayIndentGuides: false,
+		tabSize: 3,
+	})
+
+	function run_script() {
+		let s = editor.getSession().getValue()
 		main.innerHTML = ''
-		eval_script(s)()
+		let f = eval('let f = function() {\n' + s + '}; f')
+		f()
 	}
 
 	let demos = {}
@@ -452,20 +456,24 @@ var g2 = grid({
 			if (sel_li) sel_li.class('selected', false)
 			li.class('selected', true)
 			sel_li = li
-			code.value = s
-			code.initial_value = s
-			run_script(s)
+			editor.getSession().setValue(s)
+			editor.initial_script = s
+			run_script()
 			help.innerHTML = h
 		})
 	})
+
 	run_button.on('click', function() {
-		run_script(code.value)
+		run_script()
 	})
+
 	reload_button.on('click', function() {
-		code.value = code.initial_value
-		run_script(code.value)
+		editor.getSession().setValue(editor.initial_script)
+		run_script()
 	})
+
 	demo_list.first.fire(new MouseEvent('mousedown'))
+
 }
 
 </script>
