@@ -6,7 +6,8 @@
 
 button = component('x-button', HTMLButtonElement, 'button', function(e, t) {
 
-	e.class('x-button', true)
+	e.class('x-widget')
+	e.class('x-button')
 
 	function get_text() {
 		return e.innerHTML

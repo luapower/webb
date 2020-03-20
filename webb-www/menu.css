@@ -1,51 +1,51 @@
 
-.menu-table {
+.x-menu-table {
+
+	/* layouting */
 	display: inline-block;     /* required: don't expand to fit parent width */
-	overflow: hidden;          /* required: hide header trail */
-	border-collapse: collapse; /* required: separators are done with borders */
 	position: absolute;        /* required: submenus are positioned manually */
-	overflow: visible;         /* required: submenus are positioned outside */
-	background: white;         /* required: submenus overlap parent */
+	overflow: visible;         /* required: submenus are outside clipping area */
+	border-collapse: collapse; /* required: separators are done with borders */
+	background: white;         /* required: submenus overlap their parent */
 
 	/* styling */
-	font-size: 100%;
-	font-family: sans-serif;
 	color: #2a303e;
 	width: 200px;
 	border: 1px solid #ccc;
 	box-shadow: 2px 2px 2px #666;
 }
 
-.menu-tr {
+.x-menu-tr {
 	position: relative;        /* required: submenus are anchored to item trs */
 }
 
-.menu-tr > td {
+tr.x-menu-tr > td {
 	padding: .4em;
 	padding-left: .5em;
 	padding-right: .5em;
 }
 
-.menu-separator-tr > td {
+tr.x-menu-separator-tr > td {
 	height: 1em;
 }
-.menu-separator-tr hr {
+
+tr.x-menu-separator-tr > td > hr {
 	border: 0;
 	border-top: 1px solid #ccc;
 }
 
-td.menu-title-td {
+td.x-menu-title-td {
 	width: 100%;
 	padding-left: 0;
 }
 
-.menu-tr:hover > td {
+.x-menu-tr:hover > td {
 	color: white;
 	background-color: #2a303e;
 	cursor: default;
 }
 
-.menu-tr:not(.enabled) > td {
+.x-menu-tr:not(.enabled) > td {
 	color: #999;
 }
 

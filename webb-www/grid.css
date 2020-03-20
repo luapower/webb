@@ -1,8 +1,6 @@
 
 .grid-div {
 	display: inline-block;     /* required: don't expand to fit parent width */
-	font-size: 14x;
-	font-family: WebbJS, sans-serif;
 	overflow: hidden;          /* required: hide header trail */
 }
 

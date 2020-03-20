@@ -4,6 +4,8 @@
 
 <style>
 
+* { box-sizing: border-box; }
+
 @font-face {
 	font-family: "widget";
 	src: url("/OpenSans-Regular.ttf");
@@ -15,14 +17,21 @@
 	font-weight: bold;
 }
 
-* {
-	box-sizing: border-box;
-}
-
 body {
 	font-family: widget, sans-serif;
 	font-size: 13px;
 	padding: 1em;
+}
+
+button {
+	white-space: nowrap;
+}
+
+a > button {
+	font-family: widget, sans-serif;
+	font-size: 100%;
+	text-decoration: none;
+	color: black;
 }
 
 h2 {
@@ -33,26 +42,33 @@ h2 {
 /* main layout */
 
 #layout {
-	border: 1px solid #ccc;
+	border-top: 1px solid #ccc;
+	border-bottom: 1px solid #ccc;
 	border-collapse: collapse;
 }
 
-#layout > tbody > tr > td {
-	border-right: 1px solid #ccc;
-	padding: 0;
+.lm {
+	border-left: 1px solid #ccc;
 }
 
-#main {
-	padding: 1em;
+#code_td {
+	position: relative;
 }
 
 #code {
+	position: absolute;
 	width: 100%;
 	height: 100%;
 	resize: none;
+	overflow-y: scroll;
 	border: 0;
-	border-bottom: 1px solid #999;
-	tab-size :3;
+	tab-size: 3;
+	-moz-tab-size: 3;
+	border-bottom: 1px solid #ccc;
+}
+
+#code:focus {
+	outline: none;
 }
 
 /* demo list */
@@ -66,9 +82,10 @@ h2 {
 
 #demo_list li {
 	margin: 0;
-	padding: .25em;
+	padding: .2em;
 	padding-left: 1em;
 	padding-right: 1em;
+	margin-right: 1em;
 }
 
 #demo_list li:hover {
@@ -110,24 +127,45 @@ h2 {
 <body>
 
 <h2>WEBB.JS WIDGETS DEMO</h2>
-<table id=layout width=100% height=500 cellspacing=0>
+<table id=layout width=100% height=600 cellspacing=0>
 	<tr>
-		<td valign=top width=160><ul id=demo_list></ul></td>
-		<td valign=top>
-			<div id=main>
-				<quote>"Some web developers graduate to programmer. Most don't."</quote>
-					-- Albert fucking Einstein.
-			</div>
+		<td height=1>
+			<a href="https://github.com/luapower/webb/tree/master/webb-www" target=_blank>
+				<button>
+					<span class="fa fa-code-branch"></span> Code
+				</button>
+			</a>
 		</td>
-		<td valign=top width=50%>
-			<textarea id=code></textarea>
+		<td class=lm width=20></td>
+		<td class=main_td><h3>#main</h3></td>
+		<td class=lm width=20></td>
+		<td class=code_td>
+			<table width=100%>
+				<tr>
+					<td width=100%><h3>#code</h3></td>
+					<td><button id=run_button>Run Code</button></td>
+					<td><button id=reload_button>Reload</button></td>
+				</tr>
+			</table>
 		</td>
+		<td class=lm width=20></td>
+		<td class=help_td><h3>#help</h3></td>
 	</tr>
 	<tr>
-		<td></td>
-		<td></td>
-		<td height=1>
-			<button>Run</button>
+		<td valign=top width=160>
+			<ul id=demo_list></ul>
+		</td>
+		<td class=lm></td>
+		<td class=main_td valign=top width=32%>
+			<div id=main></div>
+		</td>
+		<td class=lm></td>
+		<td valign=top id=code_td>
+			<textarea id=code></textarea>
+		</td>
+		<td class=lm></td>
+		<td class=help_td valign=top width=20%>
+			<div id=help></div>
 		</td>
 	</tr>
 </table>
@@ -276,21 +314,30 @@ main.add(H.div({style: 'line-height: 2'},
 
 <!----------------------------------------------------------------------></-->
 <template id=demo_pagelist>
-<div>
+<help>
 
-</div>
+	<div>HEI</div>
+
+</help>
 <script>
+
+pages = H.div()
+pages.console = H.div({}, 'Console page contents.')
+pages.source = H.div({}, 'Source page contents.')
 
 main.add(pagelist({
 	items: [
 		'Elements',
-		'Console',
-		'Sources',
+		{text: 'Console', page: pages.console},
+		{text: 'Sources', page: pages.source},
 		'Network',
 		'Performance',
 	],
 	selected: 3,
+	page_container: pages,
 }))
+
+main.add(pages)
 
 </script>
 </template>
@@ -383,6 +430,15 @@ var g2 = grid({
 <script>
 
 {
+	function eval_script(s) {
+		return eval('let f = function() {\n' + s + '}; f')
+	}
+
+	function run_script(s) {
+		main.innerHTML = ''
+		eval_script(s)()
+	}
+
 	let demos = {}
 	let sel_li
 	$('template').forEach(function(e) {
@@ -390,18 +446,26 @@ var g2 = grid({
 		let li = H('li', {}, name)
 		demo_list.add(li)
 		let t = window['demo_'+name].content
-		let help = t.$('help')[0]
-		let script = t.$('script')[0].innerHTML.trim()
-		let demo = eval('let f = function() {\n' + script + '}; f')
+		let h = t.$('help')[0]; h = h && h.innerHTML || ''
+		let s = t.$('script')[0]; s = s && s.innerHTML.trim() || ''
 		li.on('mousedown', function() {
 			if (sel_li) sel_li.class('selected', false)
 			li.class('selected', true)
 			sel_li = li
-			main.innerHTML = ''
-			code.innerHTML = script
-			demo()
+			code.value = s
+			code.initial_value = s
+			run_script(s)
+			help.innerHTML = h
 		})
 	})
+	run_button.on('click', function() {
+		run_script(code.value)
+	})
+	reload_button.on('click', function() {
+		code.value = code.initial_value
+		run_script(code.value)
+	})
+	demo_list.first.fire(new MouseEvent('mousedown'))
 }
 
 </script>

@@ -37,7 +37,8 @@ calendar = component('x-calendar', function(e, t) {
 	}
 
 	function create_view() {
-		e.class('x-calendar', true)
+		e.class('x-widget')
+		e.class('x-calendar')
 		e.sel_day = H.div({class: 'x-calendar-sel-day'})
 		e.sel_day_suffix = H.div({class: 'x-calendar-sel-day-suffix'})
 		e.sel_month = input({classes: 'x-calendar-sel-month'})

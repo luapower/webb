@@ -29,14 +29,15 @@ input = component('x-input', function(e, t) {
 	// view
 
 	function create_view() {
-		e.class('x-input', true)
-		e.tooltip = H.span({class: 'x-input-error'})
+		e.class('x-widget')
+		e.class('x-input')
+		e.tooltip = H.div({class: 'x-input-error-ct'}, H.div({class: 'x-input-error'}))
 		e.tooltip.style.display = 'none'
-		e.input = H.input({
-			class: 'x-input-input',
-		})
+		e.input = H.input({class: 'x-input-input'})
 		e.input.set_input_filter() // must be set as first event handler!
 		e.input.on('input', input_input)
+		e.input.on('focus', input_focus)
+		e.input.on('blur', input_blur)
 		e.add(e.input, e.tooltip)
 	}
 
@@ -46,10 +47,18 @@ input = component('x-input', function(e, t) {
 		e.invalid = err != true
 		e.input.class('x-input-invalid', e.invalid)
 		e.error = e.invalid && err || ''
-		e.tooltip.innerHTML = e.error
+		e.tooltip.at[0].innerHTML = e.error
 		e.tooltip.style.display = e.error ? null : 'none'
 		if (e.invalid)
 			return false
+	}
+
+	function input_focus() {
+		e.tooltip.style.display = e.error ? null : 'none'
+	}
+
+	function input_blur() {
+		e.tooltip.style.display = 'none'
 	}
 
 	e.validate = function(v) {
@@ -81,7 +90,8 @@ spin_input = component('x-spin-input', input, function(e, t) {
 	attr_property(e, 'button-style', 'plus-minus')
 	attr_property(e, 'button-placement', 'auto')
 
-	e.class('x-spin-input', true)
+	e.classes = 'x-spin-input'
+
 	let bs = t.button_style || e.button_style
 	let bp = t.button_placement || e.button_placement; bp = bp != 'auto' && bp
 	if (bs == 'plus-minus') {

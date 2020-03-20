@@ -28,8 +28,8 @@ dropdown = component('x-dropdown', function(e, t) {
 
 	function create_view() {
 		e.picker = t.picker
-		e.class('x-input', true)
-		e.class('x-dropdown', true)
+		e.class('x-input')
+		e.class('x-dropdown')
 		e.attr('tabindex', 0)
 		e.value_div = H.span({class: 'x-dropdown-value'})
 		e.button = H.span({class: 'x-dropdown-button fa fa-caret-down'})

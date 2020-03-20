@@ -4,29 +4,23 @@
 
 */
 
-function menu(...options) {
-
-	let m = {}
-
-	function init() {
-		update(m, ...options)
-	}
+menu = component('x-menu', function(e, t) {
 
 	function create_item(a) {
-		let check_div = H.div({class: 'menu-check-div fa fa-check'})
-		let icon_div  = H.div({class: 'menu-icon-div '+(a.icon_class || '')})
-		let check_td  = H.td ({class: 'menu-check-td'}, check_div, icon_div)
-		let title_td  = H.td ({class: 'menu-title-td'}, a.text)
-		let key_td    = H.td ({class: 'menu-key-td'}, a.key)
-		let sub_div   = H.div({class: 'menu-sub-div fa fa-caret-right'})
-		let sub_td    = H.td ({class: 'menu-sub-td'}, sub_div)
+		let check_div = H.div({class: 'x-menu-check-div fa fa-check'})
+		let icon_div  = H.div({class: 'x-menu-icon-div '+(a.icon_class || '')})
+		let check_td  = H.td ({class: 'x-menu-check-td'}, check_div, icon_div)
+		let title_td  = H.td ({class: 'x-menu-title-td'}, a.text)
+		let key_td    = H.td ({class: 'x-menu-key-td'}, a.key)
+		let sub_div   = H.div({class: 'x-menu-sub-div fa fa-caret-right'})
+		let sub_td    = H.td ({class: 'x-menu-sub-td'}, sub_div)
 		sub_div.style.visibility = a.actions ? null : 'hidden'
-		let tr = H.tr({class: 'menu-tr'}, check_td, title_td, key_td, sub_td)
+		let tr = H.tr({class: 'x-menu-tr'}, check_td, title_td, key_td, sub_td)
 		tr.class('enabled', a.enabled != false)
 		tr.action = a
 		tr.check_div = check_div
 		update_check(tr)
-		tr.on('mousedown', item_mousedown)
+		tr.on('mousedown' , item_mousedown)
 		tr.on('mouseenter', item_mouseenter)
 		tr.on('mouseleave', item_mouseleave)
 		return tr
@@ -34,12 +28,12 @@ function menu(...options) {
 
 	function create_separator() {
 		let td = H.td({colspan: 5}, H.hr())
-		let tr = H.tr({class: 'menu-separator-tr'}, td)
+		let tr = H.tr({class: 'x-menu-separator-tr'}, td)
 		return tr
 	}
 
 	function create_menu(actions) {
-		let table = H.table({class: 'menu-table'})
+		let table = H.table({class: 'x-menu-table'})
 		for (let i = 0; i < actions.length; i++) {
 			let a = actions[i]
 			table.add(create_item(a))
@@ -51,14 +45,14 @@ function menu(...options) {
 		return table
 	}
 
-	function show_menu(x, y, offset_parent) {
-		offset_parent = offset_parent || document.body
-		let table = create_menu(m.actions)
-		table.x = offset_parent.offsetLeft + x
-		table.y = offset_parent.offsetTop + y
+	function show_menu(x, y, pe) {
+		pe = pe || document.body
+		let table = create_menu(e.actions)
+		table.x = pe.offsetLeft + x
+		table.y = pe.offsetTop + pe.offsetHeight + y
 		document.body.add(table)
 		table.document_mousedown = function() {
-			m.close()
+			e.close()
 		}
 		document.on('mousedown', table.document_mousedown)
 		return table
@@ -96,7 +90,7 @@ function menu(...options) {
 		tr.check_div.style.visibility = tr.action.checked ? null : 'hidden'
 	}
 
-	function item_mousedown(e) {
+	function item_mousedown() {
 		let a = this.action
 		if ((a.click || a.checked != null) && this.hasclass('enabled')) {
 			if (a.checked != null) {
@@ -104,10 +98,9 @@ function menu(...options) {
 				update_check(this)
 			}
 			if (!a.click || a.click(a) != false)
-				m.close()
+				e.close()
 		}
-		e.preventDefault()
-		e.stopPropagation()
+		return false
 	}
 
 	function menu_mouseenter() {
@@ -131,21 +124,17 @@ function menu(...options) {
 		tr.parent.selected_item_tr = null
 	}
 
-	m.popup = function(x, y, offset_parent) {
-		if (m.table)
+	e.popup = function(x, y, offset_parent) {
+		if (e.table)
 			return
-		m.table = show_menu(x, y, offset_parent)
+		e.table = show_menu(x, y, offset_parent)
 	}
 
-	m.close = function() {
-		if (!m.table)
+	e.close = function() {
+		if (!e.table)
 			return
-		hide_menu(m.table)
-		m.table = null
+		hide_menu(e.table)
+		e.table = null
 	}
 
-	init()
-
-	return m
-
-}
+})

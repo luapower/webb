@@ -19,7 +19,6 @@
 	border: 1px solid #999;
 	border-radius: .2em;
 	font-size: 100%;
-	font-family: WebbJS, sans-serif;
 }
 
 .x-input-input {
@@ -50,16 +49,26 @@
 
 /* error message tooltip */
 
-.x-input-error {
+.x-input-error-ct {
 
 	/* positioning */
 	position: absolute;
-	bottom: 2.5em;               /* move above input */
-	left: 50%;                   /* anchor to parent's center */
-	transform: translateX(-50%); /* center tooltip */
+	z-index: 1;
+	bottom: 2.5em;                /* move above input */
+	left: 50%;                    /* anchor to parent's center */
+	transform: translateX(-50%);  /* center tooltip */
 
 	/* sizing */
-	min-width: 300px;
+	width: 400px;
+	text-align: center;
+}
+
+.x-input-error {
+
+	/* layouting */
+	display: inline-block;
+
+	/* sizing */
 	padding: .5em;
 
 	/* styling */

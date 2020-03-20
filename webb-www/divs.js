@@ -78,20 +78,24 @@ alias(Element, 'last'   , 'lastElementChild')
 alias(Element, 'next'   , 'nextElementSibling')
 alias(Element, 'prev'   , 'previousElementSibling')
 
+{
 let indexOf = Array.prototype.indexOf
 property(Element, 'index', { get: function() {
 	return indexOf.call(this.parentNode.children, this)
 }})
+}
+
+// dom tree querying & element list manipulation.
 
 alias(Element, '$', 'querySelectorAll')
 alias(DocumentFragment, '$', 'querySelectorAll')
 function $(s) { return document.querySelectorAll(s) }
 
-// dom tree manipulation.
-
-function T(s) {
-	return typeof(s) == 'string' ? document.createTextNode(s) : s
+function E(s) {
+	return typeof(s) == 'string' ? document.querySelectorAll(s)[0] : s
 }
+
+// dom tree manipulation.
 
 method(Element, 'add', function(...args) {
 	for (let e of args)
@@ -119,6 +123,10 @@ method(Element, 'replace', function(i, e) {
 })
 
 // creating elements & web components.
+
+function T(s) {
+	return typeof(s) == 'string' ? document.createTextNode(s) : s
+}
 
 function H(tag, attrs, ...children) {
 	let e = document.createElement(tag)
