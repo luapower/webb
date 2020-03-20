@@ -16,6 +16,11 @@
 	z-index: 1;
 }
 
+.x-calendar.popup input {
+	background-color: inherit;
+	color: inherit;
+}
+
 .x-calendar-weekday {
 	color: #999;
 	font-weight: normal;

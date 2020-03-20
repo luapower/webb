@@ -131,24 +131,19 @@ h2 {
 </div>
 <script>
 
-main.add(button({
-	text: 'Click me!',
-	primary: true,
-	click: function() { print('clicked') },
-}))
-
-main.add(dropdown({picker: calendar()}))
-
-main.add(button({
-	text: 'Click me too!',
-	click: function() { print('clicked') },
-}))
-
-main.add(input())
+main.add(
+	button({
+		text: 'Click me!',
+		primary: true,
+		click: function() { print('clicked') },
+	}),
+	button({
+		text: 'Click me too!',
+		click: function() { print('clicked') },
+	}))
 
 </script>
 </template>
-
 
 <!----------------------------------------------------------------------></-->
 <template id=demo_menus>
@@ -206,6 +201,45 @@ main.add(H.div({}, spin_input({min: -2, max: 5, step: 1.5, button_placement: 'ri
 </template>
 
 <!----------------------------------------------------------------------></-->
+<template id=demo_dropdown>
+<div>
+
+</div>
+<script>
+
+main.add(H.p({}, 'wrap-to-fit: ', dropdown({picker: calendar(), style: 'min-width: 10em'})))
+main.add(H.p({}, 'grow-to-fit: ', dropdown({picker: calendar(), classes: 'x-dropdown-nowrap'})))
+
+</script>
+</template>
+
+<!----------------------------------------------------------------------></-->
+<template id=demo_inline>
+<div>
+
+</div>
+<script>
+
+main.add(H.div({style: 'line-height: 2'},
+	'All ',
+	input({style: 'min-width: 4em', value: 'inputs'}),
+	'are baseline-aligned',
+	spin_input({style: 'min-width: 5em', value: 42}),
+	', including dropdowns ',
+	dropdown({picker: calendar()}),
+	', which can be made to wrap-to-fit or grow-to-fit, and even',
+	button({
+		text: 'buttons.',
+		primary: true,
+		click: function() { print('clicked') },
+	}),
+	'This stays true under different fonts, font sizes and line heights.'
+))
+
+</script>
+</template>
+
+<!----------------------------------------------------------------------></-->
 <template id=demo_calendar>
 <div>
 
@@ -213,18 +247,7 @@ main.add(H.div({}, spin_input({min: -2, max: 5, step: 1.5, button_placement: 'ri
 <script>
 
 main.add(calendar())
-
-</script>
-</template>
-
-<!----------------------------------------------------------------------></-->
-<template id=demo_dropdown>
-<div>
-
-</div>
-<script>
-
-main.add(dropdown({picker: calendar()}))
+main.add(calendar({classes: 'popup'}))
 
 </script>
 </template>

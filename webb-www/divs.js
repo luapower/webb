@@ -129,7 +129,8 @@ function H(tag, attrs, ...children) {
 }
 
 ['div', 'span', 'button', 'input', 'textarea', 'table', 'thead',
-'tbody', 'tr', 'td', 'th', 'a', 'i', 'b', 'hr'].forEach(function(s) {
+'tbody', 'tr', 'td', 'th', 'a', 'i', 'b', 'hr',
+'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].forEach(function(s) {
 	H[s] = function(...a) { return H(s, ...a) }
 })
 
