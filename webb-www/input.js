@@ -4,11 +4,10 @@
 
 */
 
-input = component('x-input', function(e, ...options) {
+input = component('x-input', function(e, t) {
 
 	function init() {
 		create_view()
-		update(e, ...options)
 	}
 
 	function get_value() {
@@ -135,6 +134,7 @@ spin_input = component('x-spin-input', input, function(e, t) {
 	function increment_value() {
 		if (!increment) return
 		e.value = e.value + increment
+		e.input.select(0, -1)
 	}
 	let increment_timer
 	function start_incrementing() {
@@ -144,6 +144,7 @@ spin_input = component('x-spin-input', input, function(e, t) {
 	let start_incrementing_timer
 	function add_events(button, sign) {
 		button.on('mousedown', function() {
+			e.input.focus()
 			increment = e.step * sign
 			increment_value()
 			start_incrementing_timer = setTimeout(start_incrementing, 500)

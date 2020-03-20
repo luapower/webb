@@ -83,6 +83,10 @@ property(Element, 'index', { get: function() {
 	return indexOf.call(this.parentNode.children, this)
 }})
 
+alias(Element, '$', 'querySelectorAll')
+alias(DocumentFragment, '$', 'querySelectorAll')
+function $(s) { return document.querySelectorAll(s) }
+
 // dom tree manipulation.
 
 function T(s) {

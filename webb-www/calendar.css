@@ -4,8 +4,7 @@
 }
 
 .x-calendar {
-	font-size: 12px;
-	font-family: sans-serif;
+	font-family: WebbJS, sans-serif;
 	display: inline-block;
 	padding: 1.5em;
 }

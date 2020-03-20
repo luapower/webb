@@ -4,26 +4,23 @@
 
 */
 
-function button(...options) {
+button = component('x-button', HTMLButtonElement, 'button', function(e, t) {
 
-	let b = {}
+	e.class('x-button', true)
 
-	function init() {
-		update(b, ...options)
-		create()
+	function get_text() {
+		return e.innerHTML
 	}
 
-	function create() {
-		b.button = H.button({class: 'button'}, b.title)
-		if (b.parent)
-			b.parent.add(b.button)
-		b.button.class('primary', b.primary == true)
-		b.button.on('click', b.click)
+	function set_text(s) {
+		e.innerHTML = s
 	}
 
-	init()
+	property(e, 'text', {get: get_text, set: set_text})
 
-	return b
+	class_property(e, 'primary')
 
-}
+	e.on('click', t.click)
+
+})
 

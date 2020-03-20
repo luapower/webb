@@ -14,7 +14,7 @@ calendar = component('x-calendar', function(e, t) {
 
 	// model
 
-	let value
+	let value = now()
 
 	function get_value() { return value; }
 

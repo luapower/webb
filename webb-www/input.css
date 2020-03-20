@@ -4,20 +4,22 @@
 }
 
 .x-input {
+	/* layouting */
 	display: inline-flex;    /* the only way to get variable-width inputs */
 	align-items: baseline;   /* that are baseline-aligned */
+	position: relative;      /* anchor the error tooltip */
 
-	/* defaults */
+	/* sizing */
+	width: 0;                /* don't set this, set min-width */
+	min-width: 10em;
+
+	/* sizing for inline use */
 	margin: .25em;
 	padding: 0;
 	border: 1px solid #999;
-	border-radius: 2px;
-	font-size: 14px;
-	font-family: sans-serif;
-	width: 0;
-	min-width: 10em;
-
-	position: relative;      /* anchor the error tooltip */
+	border-radius: .2em;
+	font-size: 100%;
+	font-family: WebbJS, sans-serif;
 }
 
 .x-input-input {
@@ -52,7 +54,7 @@
 
 	/* positioning */
 	position: absolute;
-	bottom: 2em;                 /* move above input */
+	bottom: 2.5em;               /* move above input */
 	left: 50%;                   /* anchor to parent's center */
 	transform: translateX(-50%); /* center tooltip */
 

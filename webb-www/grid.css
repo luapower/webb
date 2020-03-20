@@ -1,7 +1,8 @@
 
 .grid-div {
 	display: inline-block;     /* required: don't expand to fit parent width */
-	font: 14px sans-serif;     /* default: font */
+	font-size: 14x;
+	font-family: WebbJS, sans-serif;
 	overflow: hidden;          /* required: hide header trail */
 }
 
@@ -103,7 +104,8 @@
 .grid-input {
 	position: absolute;
 	border: 0;
-	font: inherit;
+	font-size: inherit;
+	font-family: inherit;
 	cursor: initial;
 	color: inherit;
 	background: parent;

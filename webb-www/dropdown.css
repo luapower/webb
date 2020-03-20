@@ -1,8 +1,14 @@
 
-.x-dropdown {               /* note: x-input class applied before this. */
-	padding: .25em;          /* align with x-input */
-	cursor: default;
+/* note: x-input class applied before this. */
+.x-dropdown {
+	/* layouting */
 	align-items: stretch;
+
+	/* sizing for inline use */
+	padding: .25em;
+
+	/* styling */
+	cursor: default;
 }
 
 /* use the inline class for inline variable-width dropdowns. */
@@ -31,6 +37,7 @@
 }
 
 .x-dropdown-button {
+	align-self: center;
 	padding-left : .35em;
 	padding-right: .25em;
 	border-left-style: inherit;

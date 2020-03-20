@@ -1,9 +1,89 @@
 <!DOCTYPE html>
 <html>
-<body>
-<link rel="stylesheet" type="text/css" href="ionicons.css">
+<head>
+
+<style>
+
+@font-face {
+	font-family: "WebbJS";
+	src: url("/OpenSans-Regular.ttf");
+}
+
+@font-face {
+	font-family: "WebbJS";
+	src: url("/OpenSans-SemiBold.ttf");
+	font-weight: bold;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	font-family: WebbJS, sans-serif;
+	font-size: 13px;
+	padding: 1em;
+}
+
+h2 {
+	font-weight: normal;
+	margin-bottom: -4px;
+}
+
+/* main layout */
+
+#layout {
+	border: 1px solid #999;
+	border-collapse: collapse;
+}
+
+#layout > tbody > tr > td {
+	border-right: 1px solid #999;
+	padding: 0;
+}
+
+#main {
+	padding: 1em;
+}
+
+#code {
+	width: 100%;
+	height: 100%;
+	resize: none;
+	border: 0;
+	border-bottom: 1px solid #999;
+	tab-size :3;
+}
+
+/* demo list */
+
+#demo_list {
+	list-style-type: none;
+	margin: 0;
+	padding: 0;
+	cursor: default;
+}
+
+#demo_list li {
+	margin: 0;
+	padding: .25em;
+	padding-left: 1em;
+	padding-right: 1em;
+}
+
+#demo_list li:hover {
+	background-color: #666;
+	color: white;
+}
+
+#demo_list li.selected {
+	background-color: black;
+	color: white;
+}
+
+</style>
+
 <link rel="stylesheet" type="text/css" href="fontawesome.css">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inconsolata&display=swap">
 <link rel="stylesheet" type="text/css" href="grid.css">
 <link rel="stylesheet" type="text/css" href="menu.css">
 <link rel="stylesheet" type="text/css" href="button.css">
@@ -11,6 +91,7 @@
 <link rel="stylesheet" type="text/css" href="input.css">
 <link rel="stylesheet" type="text/css" href="tooltip.css">
 <link rel="stylesheet" type="text/css" href="dropdown.css">
+
 <script src="glue.js"></script>
 <script src="divs.js"></script>
 <script src="rowset.js"></script>
@@ -20,63 +101,166 @@
 <script src="calendar.js"></script>
 <script src="input.js"></script>
 <script src="dropdown.js"></script>
+
+</head>
+
+<body>
+
+<h2>WEBB.JS WIDGETS DEMO</h2>
+<table id=layout width=100% height=500 cellspacing=0>
+	<tr>
+		<td valign=top width=160><ul id=demo_list></ul></td>
+		<td valign=top><div id=main></div></td>
+		<td valign=top width=50%>
+			<textarea id=code></textarea>
+		</td>
+	</tr>
+	<tr>
+		<td></td>
+		<td></td>
+		<td height=1>
+			<button>Run</button>
+		</td>
+	</tr>
+</table>
+
+<!----------------------------------------------------------------------></-->
+<template id=demo_buttons>
 <div>
-	<div id=div1></div>
-	<div id=div2></div>
-	<div id=div0></div>
-	<span class=big>Hello</span> <span id=dd1></span> embedded <span id=dd2></span> dropdowns.
+
 </div>
-<style>
-.big {
-	font-size: 50px;
-}
-</style>
 <script>
 
-/*
-var c = calendar({
-	parent: div0,
-})
+main.add(button({
+	text: 'Click me!',
+	primary: true,
+	click: function() { print('clicked') },
+}))
+
+main.add(dropdown({picker: calendar()}))
+
+main.add(button({
+	text: 'Click me too!',
+	click: function() { print('clicked') },
+}))
+
+main.add(input())
+
+</script>
+</template>
+
+
+<!----------------------------------------------------------------------></-->
+<template id=demo_menus>
+<div>
+
+</div>
+<script>
 
 function act(a) { print(a.title) }
 var m = menu({
 	actions: [
-		{title: 'Open', click: act, key: 'Ctrl+B', icon_class: 'fa fa-folder-open'},
-		{title: 'Close', enabled: false, icon_class: 'fa fa-window-close', click: act, separator: true},
-		{title: 'More', actions: [
-			{title: 'Check', checked: true},
-			{title: 'Check No Close', checked: true,
+		{text: 'Open', click: act, key: 'Ctrl+B', icon_class: 'fa fa-folder-open'},
+		{text: 'Close', enabled: false, icon_class: 'fa fa-window-close', click: act, separator: true},
+		{text: 'More', actions: [
+			{text: 'Check', checked: true},
+			{text: 'Check No Close', checked: true,
 				click: function(a) { print(a.checked); return false } },
-			{title: 'More Stuff', actions: [
-				{title: 'More Stuff 1 this is a very long item text'},
-				{title: 'More Stuff 2', click: act},
+			{text: 'More Stuff', actions: [
+				{text: 'More Stuff 1 this is a very long item text'},
+				{text: 'More Stuff 2', click: act},
 			]},
 		]},
-		{title: 'Even More', actions: [
-			{title: 'Even More Stuff 1'},
-			{title: 'Even More Stuff 2'},
+		{text: 'Even More', actions: [
+			{text: 'Even More Stuff 1'},
+			{text: 'Even More Stuff 2'},
 		]},
 	],
 })
 
 var b = button({
-	parent: div0,
-	title: 'Click for menu',
+	text: 'Click for menu',
 	primary: true,
 	click: function() { m.popup(0, 30, b.button) },
 })
-*/
 
-var d = dropdown({
-	picker: calendar(),
-})
-d.value = 42
+main.add(b)
 
-var i = input({value: ''})
-var si = spin_input({min: -2, max: 5, step: 1.5, button_style: 'up-down'})
+</script>
+</template>
 
-function br() { return H('br') }
-dd1.add(br(), d, br(), i, br(), si)
+<!----------------------------------------------------------------------></-->
+<template id=demo_editboxes>
+<div>
+
+</div>
+<script>
+
+main.add(H.div({}, input({value: ''})))
+main.add(H.div({}, spin_input({value: 42})))
+main.add(H.div({}, spin_input({value: 42, button_style: 'up-down'})))
+main.add(H.div({}, spin_input({value: 42, button_style: 'left-right'})))
+main.add(H.div({}, spin_input({min: -2, max: 5, step: 1.5, button_placement: 'right'})))
+
+</script>
+</template>
+
+<!----------------------------------------------------------------------></-->
+<template id=demo_calendar>
+<div>
+
+</div>
+<script>
+
+main.add(calendar())
+
+</script>
+</template>
+
+<!----------------------------------------------------------------------></-->
+<template id=demo_dropdown>
+<div>
+
+</div>
+<script>
+
+main.add(dropdown({picker: calendar()}))
+
+</script>
+</template>
+
+<!----------------------------------------------------------------------></-->
+<template id=demo_grid>
+<script>
+
+</script>
+</template>
+
+<!----------------------------------------------------------------------></-->
+
+<script>
+
+{
+	let demos = {}
+	let sel_li
+	$('template').forEach(function(e) {
+		let name = e.attr('id').slice(('demo_').length)
+		let li = H('li', {}, name)
+		demo_list.add(li)
+		let t = window['demo_'+name].content
+		let help = t.$('help')[0]
+		let script = t.$('script')[0].innerHTML.trim()
+		let demo = eval('let f = function() {\n' + script + '}; f')
+		li.on('mousedown', function() {
+			if (sel_li) sel_li.class('selected', false)
+			li.class('selected', true)
+			sel_li = li
+			main.innerHTML = ''
+			code.innerHTML = script
+			demo()
+		})
+	})
+}
 
 /*
 var d = dropdown({

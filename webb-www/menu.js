@@ -16,7 +16,7 @@ function menu(...options) {
 		let check_div = H.div({class: 'menu-check-div fa fa-check'})
 		let icon_div  = H.div({class: 'menu-icon-div '+(a.icon_class || '')})
 		let check_td  = H.td ({class: 'menu-check-td'}, check_div, icon_div)
-		let title_td  = H.td ({class: 'menu-title-td'}, a.title)
+		let title_td  = H.td ({class: 'menu-title-td'}, a.text)
 		let key_td    = H.td ({class: 'menu-key-td'}, a.key)
 		let sub_div   = H.div({class: 'menu-sub-div fa fa-caret-right'})
 		let sub_td    = H.td ({class: 'menu-sub-td'}, sub_div)
