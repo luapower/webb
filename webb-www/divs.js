@@ -130,6 +130,11 @@ method(Element, 'clear', function() {
 	return this
 })
 
+method(Element, 'html', function(s) {
+	this.innerHTML = s
+	return this
+})
+
 // creating html elements ----------------------------------------------------
 
 function T(s) {
@@ -307,15 +312,12 @@ method(HTMLInputElement, 'set_input_filter', function() {
 		this.on('raw:'+e, filter)
 })
 
-/*
 // scrolling -----------------------------------------------------------------
 
-method(Element, 'scrollintoview', function() {
-	let r = this.getBoundingClientRect()
-	if (r.top < 0 || r.left < 0 || r.bottom > window.innerHeight || r.right > window.innerWidth)
-		this.scrollIntoView(r.top < 0)
+method(Element, 'make_visible', function() {
+	// TODO: this algorithm is garbage. take the one from x-grid.
+	this.scrollIntoView()
 })
-*/
 
 // element resize observer ---------------------------------------------------
 
