@@ -5,7 +5,9 @@
 
 */
 
-// element attribute map manipulation.
+// element attribute map manipulation ----------------------------------------
+
+alias(Element, 'hasattr', 'hasAttribute')
 
 method(Element, 'attr', function(k, v) {
 	if (v === undefined)
@@ -29,7 +31,7 @@ property(Element, 'attrs', {
 	}
 })
 
-// element css class list manipulation.
+// element css class list manipulation ---------------------------------------
 
 method(Element, 'class', function(name, enable) {
 	if (enable !== false)
@@ -70,7 +72,7 @@ function css(classname, prop) {
 }
 */
 
-// dom tree navigation for elements, skipping text nodes.
+// dom tree navigation for elements, skipping text nodes ---------------------
 
 alias(Element, 'at'     , 'children')
 alias(Element, 'parent' , 'parentNode')
@@ -86,7 +88,7 @@ property(Element, 'index', { get: function() {
 }})
 }
 
-// dom tree querying & element list manipulation.
+// dom tree querying & element list manipulation -----------------------------
 
 alias(Element, '$', 'querySelectorAll')
 alias(DocumentFragment, '$', 'querySelectorAll')
@@ -96,7 +98,7 @@ function E(s) {
 	return typeof(s) == 'string' ? document.querySelectorAll(s)[0] : s
 }
 
-// dom tree manipulation.
+// dom tree manipulation -----------------------------------------------------
 
 method(Element, 'add', function(...args) {
 	for (let e of args)
@@ -123,7 +125,12 @@ method(Element, 'replace', function(i, e) {
 	return this
 })
 
-// creating elements & web components.
+method(Element, 'clear', function() {
+	this.innerHTML = ''
+	return this
+})
+
+// creating html elements ----------------------------------------------------
 
 function T(s) {
 	return typeof(s) == 'string' ? document.createTextNode(s) : s
@@ -143,184 +150,115 @@ function H(tag, attrs, ...children) {
 	H[s] = function(...a) { return H(s, ...a) }
 })
 
-function component(...args) {
-	let tag, super_cls, ext_tag, cons
-	super_cls = HTMLElement
-	if (typeof(args[0]) == 'string') { tag = args.shift(); }
-	if (typeof(args[0]) == 'function' && args[1]) { super_cls = args.shift(); }
-	if (typeof(args[0]) == 'string') { ext_tag = args.shift(); }
-	cons = args.shift()
-	super_cls = super_cls.class || super_cls
-	let cls = class extends super_cls {
-		constructor(...args) {
-			super()
-			let t = update({}, ...args)
-			cons(this, t)
-			update(this, t)
-		}
-		connectedCallback() {
-			if (this.isConnected && ('attach' in this))
-				this.attach()
-		}
-		disconnectedCallback() {
-			if ('detach' in this)
-				this.detach()
-		}
-	}
-	customElements.define(tag, cls, { extends: ext_tag })
-	function make(...args) {
-		return new cls(...args)
-	}
-	make.class = cls
-	return make
-}
-
-// automating property creation.
-
-function noop_setter(v) {
-	return v
-}
-
-function stored_property(cls, name, setter = noop_setter) {
-	let value
-	function get() {
-		return value
-	}
-	function set(v) {
-		value = setter.call(this, v)
-	}
-	property(cls, name, {get, set})
-}
-
-function class_property(cls, name, setter = noop_setter) {
-	function get() {
-		return this.hasclass(name)
-	}
-	function set(v) {
-		v = setter.call(this, v)
-		this.class(name, v)
-	}
-	property(cls, name, {get, set})
-}
-
-function attr_property(cls, name, default_val, setter = noop_setter, type) {
-	function get() {
-		if (this.hasAttribute(name))
-			return this.getAttribute(name)
-		else
-			return default_val
-	}
-	if (type == 'bool') {
-		function set(v) {
-			v = setter.call(this, v)
-			if (v)
-				this.setAttribute(name, '')
-			else
-				this.removeAttribute(name)
-		}
-	} else {
-		function set(v) {
-			v = setter.call(this, v)
-			this.setAttribute(name, v)
-		}
-	}
-	property(cls, name.replace('-', '_'), {get, set})
-}
-
-// easy custom events & event wrappers.
+// easy custom events & event wrappers ---------------------------------------
 
 {
-	let callers = {}
+let callers = {}
 
-	function passthrough_caller(e, f) {
-		if (typeof(e.detail) == 'object' && e.detail.args)
-			return f.call(this, ...e.detail.args)
-		else
-			return f.call(this, e)
-	}
-
-	callers.click = function(e, f) {
-		if (e.which == 1)
-			return f.call(this, e)
-		else if (e.which == 3)
-			return this.fire('rightclick', e)
-	}
-
-	callers.mousedown = function(e, f) {
-		if (e.which == 1)
-			return f.call(this, e)
-		else if (e.which == 3)
-			return this.fire('rightmousedown', e)
-	}
-
-	callers.mouseup = function(e, f) {
-		if (e.which == 1)
-			return f.call(this, e)
-		else if (e.which == 3)
-			return this.fire('rightmouseup', e)
-	}
-
-	callers.keydown = function(e, f) {
-		return f.call(this, e.key, e.shiftKey, e.ctrKey, e.altKey, e)
-	}
-	callers.keyup    = callers.keydown
-	callers.keypress = callers.keydown
-
-	callers.wheel = function(e, f) {
-		if (e.deltaY)
-			return f.call(this, e.deltaY, e)
-	}
-
-	let on = function(e, f) {
-		let listener
-		if (e.starts('raw:')) { // raw handler
-			e = e.slice(4)
-			listener = f
-		} else {
-			let caller = callers[e] || passthrough_caller
-			listener = function(e) {
-				let ret = caller.call(this, e, f)
-				if (ret === false) { // like jquery
-					e.preventDefault()
-					e.stopPropagation()
-					e.stopImmediatePropagation()
-				}
-			}
-			f.listener = listener
-		}
-		this.addEventListener(e, listener)
-		return this
-	}
-	method(Document, 'on', on)
-	method(Element, 'on', on)
-
-	let off = function(e, f) {
-		this.removeEventListener(e, f.listener || f)
-		return this
-	}
-	method(Document, 'off', off)
-	method(Element, 'off', off)
-
-	let onoff = function(e, f, enable) {
-		if (enable)
-			this.on(e, f)
-		else
-			this.off(e, f)
-		return this
-	}
-	method(Document, 'onoff', onoff)
-	method(Element, 'onoff', onoff)
-
-	function fire(name, ...args) {
-		let e = typeof(name) == 'string' ?
-			new CustomEvent(name, {detail: {args}}) : name
-		return this.dispatchEvent(e)
-	}
-	method(Document, 'fire', fire)
-	method(Element, 'fire', fire)
+function passthrough_caller(e, f) {
+	if (typeof(e.detail) == 'object' && e.detail.args)
+		return f.call(this, ...e.detail.args)
+	else
+		return f.call(this, e)
 }
 
-// geometry wrappers.
+callers.click = function(e, f) {
+	if (e.which == 1)
+		return f.call(this, e)
+	else if (e.which == 3)
+		return this.fire('rightclick', e)
+}
+
+callers.mousedown = function(e, f) {
+	if (e.which == 1)
+		return f.call(this, e)
+	else if (e.which == 3)
+		return this.fire('rightmousedown', e)
+}
+
+callers.mouseup = function(e, f) {
+	if (e.which == 1)
+		return f.call(this, e)
+	else if (e.which == 3)
+		return this.fire('rightmouseup', e)
+}
+
+callers.keydown = function(e, f) {
+	return f.call(this, e.key, e.shiftKey, e.ctrKey, e.altKey, e)
+}
+callers.keyup    = callers.keydown
+callers.keypress = callers.keydown
+
+callers.wheel = function(e, f) {
+	if (e.deltaY)
+		return f.call(this, e.deltaY, e)
+}
+
+let installers = {}
+
+installers.resize = function(e) {
+	let obs = e.__resize_observer
+	if (!obs) {
+		obs = new MutationObserver(function() {
+			e.fire('resize')
+		})
+		obs.observe(e, {attributes: true})
+		e.__resize_observer = obs
+	}
+}
+
+let on = function(e, f) {
+	let install = installers[e]
+	if (install)
+		install(e)
+	if (e.starts('raw:')) { // raw handler
+		e = e.slice(4)
+		listener = f
+	} else {
+		let caller = callers[e] || passthrough_caller
+		listener = function(e) {
+			let ret = caller.call(this, e, f)
+			if (ret === false) { // like jquery
+				e.preventDefault()
+				e.stopPropagation()
+				e.stopImmediatePropagation()
+			}
+		}
+		f.listener = listener
+	}
+	this.addEventListener(e, listener)
+	return this
+}
+method(Document, 'on', on)
+method(Element, 'on', on)
+
+let off = function(e, f) {
+	this.removeEventListener(e, f.listener || f)
+	return this
+}
+method(Document, 'off', off)
+method(Element, 'off', off)
+
+let onoff = function(e, f, enable) {
+	if (enable)
+		this.on(e, f)
+	else
+		this.off(e, f)
+	return this
+}
+method(Document, 'onoff', onoff)
+method(Element, 'onoff', onoff)
+
+function fire(name, ...args) {
+	let e = typeof(name) == 'string' ?
+		new CustomEvent(name, {detail: {args}}) : name
+	return this.dispatchEvent(e)
+}
+method(Document, 'fire', fire)
+method(Element, 'fire', fire)
+}
+
+// geometry wrappers ---------------------------------------------------------
 
 property(Element, 'x'    , { set: function(x) { this.style.left      = x + 'px'; } })
 property(Element, 'y'    , { set: function(y) { this.style.top       = y + 'px'; } })
@@ -331,7 +269,7 @@ property(Element, 'min_h', { set: function(h) { this.style.minHeight = h + 'px';
 property(Element, 'max_w', { set: function(w) { this.style.maxWidth  = w + 'px'; } })
 property(Element, 'max_h', { set: function(h) { this.style.maxHeight = h + 'px'; } })
 
-// common style wrappers.
+// common style wrappers -----------------------------------------------------
 
 method(Element, 'show', function() {
 	this.style.display = null
@@ -341,7 +279,7 @@ method(Element, 'hide', function() {
 	this.style.display = 'none'
 })
 
-// text editing
+// text editing --------------------------------------------------------------
 
 alias(HTMLInputElement, 'caret', 'selectionStart')
 alias(HTMLInputElement, 'select', 'setSelectionRange')
@@ -370,7 +308,7 @@ method(HTMLInputElement, 'set_input_filter', function() {
 })
 
 /*
-// scrolling
+// scrolling -----------------------------------------------------------------
 
 method(Element, 'scrollintoview', function() {
 	let r = this.getBoundingClientRect()
@@ -379,73 +317,144 @@ method(Element, 'scrollintoview', function() {
 })
 */
 
-// element resize event hack -------------------------------------------------
+// element resize observer ---------------------------------------------------
 
-/*
-(function(){
-  var attachEvent = document.attachEvent;
-  var isIE = navigator.userAgent.match(/Trident/);
-  console.log(isIE);
-  var requestFrame = (function(){
-    var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame ||
-        function(fn){ return window.setTimeout(fn, 20); };
-    return function(fn){ return raf(fn); };
-  })();
+// setting a default value for an attribute if one wasn't set in html.
+method(Element, 'attrval', function(k, v) {
+	if (!this.hasAttribute(k))
+		this.setAttribute(k, v)
+})
 
-  var cancelFrame = (function(){
-    var cancel = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame ||
-           window.clearTimeout;
-    return function(id){ return cancel(id); };
-  })();
+// creating & setting up web components --------------------------------------
 
-  function resizeListener(e){
-    var win = e.target || e.srcElement;
-    if (win.__resizeRAF__) cancelFrame(win.__resizeRAF__);
-    win.__resizeRAF__ = requestFrame(function(){
-      var trigger = win.__resizeTrigger__;
-      trigger.__resizeListeners__.forEach(function(fn){
-        fn.call(trigger, e);
-      });
-    });
-  }
+// NOTE: the only reason for using this web components "technology" instead
+// of creating normal elements is because of connectedCallback and
+// disconnectedCallback for which there are no events in built-in elements.
 
-  function objectLoad(e){
-    this.contentDocument.defaultView.__resizeTrigger__ = this.__resizeElement__;
-    this.contentDocument.defaultView.addEventListener('resize', resizeListener);
-  }
+HTMLElement.prototype.attach = noop
+HTMLElement.prototype.detach = noop
+HTMLElement.prototype.init   = noop
 
-  window.addResizeListener = function(element, fn){
-    if (!element.__resizeListeners__) {
-      element.__resizeListeners__ = [];
-      if (attachEvent) {
-        element.__resizeTrigger__ = element;
-        element.attachEvent('onresize', resizeListener);
-      }
-      else {
-        if (getComputedStyle(element).position == 'static') element.style.position = 'relative';
-        var obj = element.__resizeTrigger__ = document.createElement('object');
-        obj.setAttribute('style', 'display: block; position: absolute; top: 0; left: 0; height: 100%; width: 100%; overflow: hidden; pointer-events: none; z-index: -1;');
-        obj.__resizeElement__ = element;
-        obj.onload = objectLoad;
-        obj.type = 'text/html';
-        if (isIE) element.appendChild(obj);
-        obj.data = 'about:blank';
-        if (!isIE) element.appendChild(obj);
-      }
-    }
-    element.__resizeListeners__.push(fn);
-  };
+// component([[[tag], super_cls], super_tag], cons) -> create({option: value}) -> element.
+function component(...args) {
 
-  window.removeResizeListener = function(element, fn){
-    element.__resizeListeners__.splice(element.__resizeListeners__.indexOf(fn), 1);
-    if (!element.__resizeListeners__.length) {
-      if (attachEvent) element.detachEvent('onresize', resizeListener);
-      else {
-        element.__resizeTrigger__.contentDocument.defaultView.removeEventListener('resize', resizeListener);
-        element.__resizeTrigger__ = !element.removeChild(element.__resizeTrigger__);
-      }
-    }
-  }
-})();
+	let tag, super_cls, super_tag, cons
+	super_cls = HTMLElement
+	if (typeof(args[0]) == 'string') { tag = args.shift(); }
+	if (typeof(args[0]) == 'function' && args[1]) { super_cls = args.shift(); }
+	if (typeof(args[0]) == 'string') { super_tag = args.shift(); }
+	cons = args.shift()
+	super_cls = super_cls.class || super_cls
 
-*/
+	let cls = class extends super_cls {
+
+		constructor(...args) {
+			super()
+			cons(this)
+
+			// add user options, overriding any defaults and stub methods.
+			// NOTE: this also calls any property setters, but some setters are
+			// not able to work on a partially configured object, so we defer
+			// setting these properties to after init() runs (which is the
+			// only reason for having a separate init() method at all).
+			let init_later = {}
+			this.__init_later = init_later
+			update(this, ...args)
+
+			// finish configuring the object, now that user options are in.
+			this.init.call(this)
+
+			// call the setters again, this time without the barrier.
+			delete this.__init_later
+			for (let k in init_later)
+				this[k] = init_later[k]
+		}
+
+		connectedCallback() {
+			if (this.isConnected)
+				this.attach()
+		}
+
+		disconnectedCallback() {
+			this.detach()
+		}
+	}
+
+	customElements.define(tag, cls, { extends: super_tag })
+
+	function make(...args) {
+		return new cls(...args)
+	}
+	make.class = cls
+	return make
+}
+
+method(HTMLElement, 'property', function(prop, getter, setter) {
+	property(this, prop, {get: getter, set: setter})
+})
+
+// create a property which is guaranteed not to be set until after init() runs.
+// NOTE: idelly, all properties should work on partially configured objects,
+// IOW all properties that can be given to the constructor should be able to be
+// set after construction.
+method(HTMLElement, 'late_property', function(prop, getter, setter) {
+	setter_wrapper = setter && function(v) {
+		let init_later = this.__init_later
+		if (init_later)
+			init_later[prop] = v // defer calling the actual setter.
+		else
+			setter.call(this, v)
+	}
+	property(this, prop, {get: getter, set: setter_wrapper})
+})
+
+function noop_setter(v) {
+	return v
+}
+
+// create a boolean property that sets or removes a css class.
+method(HTMLElement, 'css_property', function(name, setter = noop_setter) {
+	function get() {
+		return this.hasclass(name)
+	}
+	function set(v) {
+		if (!!v == this.hasclass(name))
+			return
+		setter.call(this, v)
+		this.class(name, v)
+	}
+	this.late_property(name, get, set)
+})
+
+// create a property that represents a html attribute.
+// NOTE: a property `foo_bar` is created for an attribute `foo-bar`.
+// NOTE: attr properties are not late properties so that their value
+// can be available to init()!
+method(HTMLElement, 'attr_property', function(name, default_val, setter = noop_setter, type) {
+	function get() {
+		if (this.hasAttribute(name))
+			return this.getAttribute(name)
+		else
+			return default_val
+	}
+	if (type == 'bool') {
+		function set(v) {
+			setter.call(this, v)
+			if (v)
+				this.setAttribute(name, '')
+			else
+				this.removeAttribute(name)
+		}
+	} else {
+		function set(v) {
+			v = setter.call(this, v)
+			this.setAttribute(name, v)
+		}
+	}
+	this.property(name.replace('-', '_'), get, set)
+})
+
+method(HTMLElement, 'bool_attr_property', function(name, default_val, setter) {
+	this.attr_property(name, default_val, setter, 'bool')
+})
+

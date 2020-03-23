@@ -53,14 +53,17 @@ function assert(ret, err, ...args) {
 
 // objects -------------------------------------------------------------------
 
-// extend an object with a property, checking for name clashes.
+// extend an object with a property, checking for upstream name clashes.
 function property(cls, prop, descriptor) {
 	let proto = cls.prototype || cls
 	assert(!(prop in proto), '{0}.{1} already exists', cls.name, prop)
 	Object.defineProperty(proto, prop, descriptor)
 }
 
-// extend an object with a method, checking for name clashes.
+// extend an object with a method, checking for upstream name clashes.
+// NOTE: does not actually create methods but "data properties" which happen
+// to have their "value" be a function object. These can be called like
+// methods but come before methods in the look-up chain!
 function method(cls, meth, func) {
 	property(cls, meth, {
 		value: func,
@@ -89,9 +92,10 @@ method(Object, 'getPropertyDescriptor', function(key) {
 })
 
 function alias(cls, new_name, old_name) {
-	let d = cls.prototype.getPropertyDescriptor(old_name)
+	let proto = cls.prototype || cls
+	let d = proto.getPropertyDescriptor(old_name)
 	assert(d, '{0}.{1} does not exist', cls.name, old_name)
-	Object.defineProperty(cls.prototype, new_name, d)
+	Object.defineProperty(proto, new_name, d)
 }
 
 // strings -------------------------------------------------------------------
