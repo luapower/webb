@@ -188,6 +188,10 @@ callers.mouseup = function(e, f) {
 		return this.fire('rightmouseup', e)
 }
 
+callers.mousemove = function(e, f) {
+	return f.call(this, e.clientX, e.clientY, e)
+}
+
 callers.keydown = function(e, f) {
 	return f.call(this, e.key, e.shiftKey, e.ctrKey, e.altKey, e)
 }
@@ -314,9 +318,35 @@ method(HTMLInputElement, 'set_input_filter', function() {
 
 // scrolling -----------------------------------------------------------------
 
+// box scroll-to-view box. from box2d.lua.
+function scroll_to_view_rect(x, y, w, h, pw, ph, sx, sy) {
+	let min_sx = -x
+	let min_sy = -y
+	let max_sx = -(x + w - pw)
+	let max_sy = -(y + h - ph)
+	return [
+		min(max(sx, min_sx), max_sx),
+		min(max(sy, min_sy), max_sy)
+	]
+}
+
+// scroll to make inside rectangle invisible.
+method(Element, 'scroll_to_view_rect', function(x, y, w, h) {
+	let pw  = this.clientWidth
+	let ph  = this.clientHeight
+	let sx0 = this.scrollLeft
+	let sy0 = this.scrollTop
+	let [sx, sy] = scroll_to_view_rect(x, y, w, h, pw, ph, -sx0, -sy0)
+	this.scroll(-sx, -sy)
+})
+
+// scroll parent to make this visible.
 method(Element, 'make_visible', function() {
-	// TODO: this algorithm is garbage. take the one from x-grid.
-	this.scrollIntoView()
+	let x = this.offsetLeft
+	let y = this.offsetTop
+	let w = this.offsetWidth
+	let h = this.offsetHeight
+	this.parent.scroll_to_view_rect(x, y, w, h)
 })
 
 // element resize observer ---------------------------------------------------
@@ -367,7 +397,7 @@ function component(...args) {
 			this.init.call(this)
 
 			// call the setters again, this time without the barrier.
-			delete this.__init_later
+			this.__init_later = null
 			for (let k in init_later)
 				this[k] = init_later[k]
 		}
