@@ -280,13 +280,8 @@ property(Element, 'max_h', { set: function(h) { this.style.maxHeight = h + 'px';
 
 // common style wrappers -----------------------------------------------------
 
-method(Element, 'show', function() {
-	this.style.display = null
-})
-
-method(Element, 'hide', function() {
-	this.style.display = 'none'
-})
+method(Element, 'show', function() { this.style.display = null })
+method(Element, 'hide', function() { this.style.display = 'none' })
 
 // text editing --------------------------------------------------------------
 

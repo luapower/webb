@@ -187,7 +187,7 @@ function install_events(o) {
 		else
 			o.off(topic, handler)
 	}
-	o.trigger = function(topic, ...args) {
+	o.fire = function(topic, ...args) {
 		var a = obs.get(topic)
 		if (!a) return
 		for (f of a)
@@ -234,7 +234,7 @@ function year(t, offset) {
 	_d.setMinutes(0)
 	_d.setHours(0)
 	_d.setDate(1)
-	_d.setMonth(1)
+	_d.setMonth(0)
 	_d.setFullYear(_d.getFullYear() + (offset || 0))
 	return _d.valueOf()
 }
