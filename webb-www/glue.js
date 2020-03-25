@@ -256,8 +256,9 @@ function days(dt) {
 	return dt / (3600 * 24 * 1000)
 }
 
-function year_of (t) { _d.setTime(t); return _d.getFullYear() }
-function month_of(t) { _d.setTime(t); return _d.getMonth() }
+function year_of      (t) { _d.setTime(t); return _d.getFullYear() }
+function month_of     (t) { _d.setTime(t); return _d.getMonth() }
+function month_day_of (t) { _d.setTime(t); return _d.getDay() }
 
 locale = navigator.language
 
