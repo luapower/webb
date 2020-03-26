@@ -31,6 +31,12 @@ property(Element, 'attrs', {
 	}
 })
 
+// setting a default value for an attribute if one wasn't set in html.
+method(Element, 'attrval', function(k, v) {
+	if (!this.hasAttribute(k))
+		this.setAttribute(k, v)
+})
+
 // element css class list manipulation ---------------------------------------
 
 method(Element, 'class', function(name, enable) {
@@ -283,6 +289,12 @@ property(Element, 'max_h', { set: function(h) { this.style.maxHeight = h + 'px';
 method(Element, 'show', function() { this.style.display = null })
 method(Element, 'hide', function() { this.style.display = 'none' })
 
+// common state wrappers -----------------------------------------------------
+
+method(Element, 'hasfocus', function() {
+	return this.contains(document.activeElement)
+})
+
 // text editing --------------------------------------------------------------
 
 alias(HTMLInputElement, 'caret', 'selectionStart')
@@ -342,14 +354,6 @@ method(Element, 'make_visible', function() {
 	let w = this.offsetWidth
 	let h = this.offsetHeight
 	this.parent.scroll_to_view_rect(x, y, w, h)
-})
-
-// element resize observer ---------------------------------------------------
-
-// setting a default value for an attribute if one wasn't set in html.
-method(Element, 'attrval', function(k, v) {
-	if (!this.hasAttribute(k))
-		this.setAttribute(k, v)
 })
 
 // creating & setting up web components --------------------------------------
