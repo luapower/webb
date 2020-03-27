@@ -388,8 +388,8 @@ function component(...args) {
 			cons(this)
 
 			// add user options, overriding any defaults and stub methods.
-			// NOTE: this also calls any property setters, but some setters are
-			// not able to work on a partially configured object, so we defer
+			// NOTE: this also calls any property setters, but some setters
+			// cannot work on a partially configured object, so we defer
 			// setting these properties to after init() runs (which is the
 			// only reason for having a separate init() method at all).
 			let init_later = {}
@@ -429,9 +429,6 @@ method(HTMLElement, 'property', function(prop, getter, setter) {
 })
 
 // create a property which is guaranteed not to be set until after init() runs.
-// NOTE: idelly, all properties should work on partially configured objects,
-// IOW all properties that can be given to the constructor should be able to be
-// set after construction.
 method(HTMLElement, 'late_property', function(prop, getter, setter) {
 	setter_wrapper = setter && function(v) {
 		let init_later = this.__init_later
