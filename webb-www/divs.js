@@ -175,27 +175,27 @@ function passthrough_caller(e, f) {
 
 callers.click = function(e, f) {
 	if (e.which == 1)
-		return f.call(this, e)
+		return f.call(this, e.shiftKey, e.ctrKey, e.altKey, e)
 	else if (e.which == 3)
-		return this.fire('rightclick', e)
+		return this.fire('rightclick', e.shiftKey, e.ctrKey, e.altKey, e)
 }
 
 callers.mousedown = function(e, f) {
 	if (e.which == 1)
-		return f.call(this, e)
+		return f.call(this, e.shiftKey, e.ctrKey, e.altKey, e)
 	else if (e.which == 3)
-		return this.fire('rightmousedown', e)
+		return this.fire('rightmousedown', e.shiftKey, e.ctrKey, e.altKey, e)
 }
 
 callers.mouseup = function(e, f) {
 	if (e.which == 1)
-		return f.call(this, e)
+		return f.call(this, e.shiftKey, e.ctrKey, e.altKey, e)
 	else if (e.which == 3)
-		return this.fire('rightmouseup', e)
+		return this.fire('rightmouseup', e.shiftKey, e.ctrKey, e.altKey, e)
 }
 
 callers.mousemove = function(e, f) {
-	return f.call(this, e.clientX, e.clientY, e)
+	return f.call(this, e.clientX, e.clientY, e.shiftKey, e.ctrKey, e.altKey, e)
 }
 
 callers.keydown = function(e, f) {
