@@ -168,7 +168,7 @@ let callers = {}
 
 function passthrough_caller(e, f) {
 	if (typeof(e.detail) == 'object' && e.detail.args)
-		return f.call(this, ...e.detail.args)
+		return f.call(this, ...e.detail.args, e)
 	else
 		return f.call(this, e)
 }
@@ -237,6 +237,8 @@ let on = function(e, f) {
 				e.preventDefault()
 				e.stopPropagation()
 				e.stopImmediatePropagation()
+				// notify document of stopped events.
+				document.fire('stopped_event', e)
 			}
 		}
 		f.listener = listener
