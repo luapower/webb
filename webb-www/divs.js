@@ -275,14 +275,14 @@ method(Element, 'fire', fire)
 
 // geometry wrappers ---------------------------------------------------------
 
-property(Element, 'x'    , { set: function(x) { this.style.left      = x + 'px'; } })
-property(Element, 'y'    , { set: function(y) { this.style.top       = y + 'px'; } })
-property(Element, 'w'    , { set: function(w) { this.style.width     = w + 'px'; } })
-property(Element, 'h'    , { set: function(h) { this.style.height    = h + 'px'; } })
-property(Element, 'min_w', { set: function(w) { this.style.minWidth  = w + 'px'; } })
-property(Element, 'min_h', { set: function(h) { this.style.minHeight = h + 'px'; } })
-property(Element, 'max_w', { set: function(w) { this.style.maxWidth  = w + 'px'; } })
-property(Element, 'max_h', { set: function(h) { this.style.maxHeight = h + 'px'; } })
+property(Element, 'x'    , { set: function(x) { this.style.left          = x + 'px'; } })
+property(Element, 'y'    , { set: function(y) { this.style.top           = y + 'px'; } })
+property(Element, 'w'    , { set: function(w) { this.style.width         = w + 'px'; } })
+property(Element, 'h'    , { set: function(h) { this.style.height        = h + 'px'; } })
+property(Element, 'min_w', { set: function(w) { this.style['min-width' ] = w + 'px'; } })
+property(Element, 'min_h', { set: function(h) { this.style['min-height'] = h + 'px'; } })
+property(Element, 'max_w', { set: function(w) { this.style['max-width' ] = w + 'px'; } })
+property(Element, 'max_h', { set: function(h) { this.style['max-height'] = h + 'px'; } })
 
 // common style wrappers -----------------------------------------------------
 
@@ -290,6 +290,10 @@ method(Element, 'show', function() { this.style.display = null })
 method(Element, 'hide', function() { this.style.display = 'none' })
 
 // common state wrappers -----------------------------------------------------
+
+property(Element, 'focused', {get: function() {
+	return document.activeElement == this
+}})
 
 method(Element, 'hasfocus', function() {
 	return this.contains(document.activeElement)
@@ -478,7 +482,7 @@ method(HTMLElement, 'attr_property', function(name, default_val, setter = noop_s
 		}
 	} else {
 		function set(v) {
-			v = setter.call(this, v)
+			setter.call(this, v)
 			this.setAttribute(name, v)
 		}
 	}
