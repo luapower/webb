@@ -448,6 +448,7 @@ function noop_setter(v) {
 
 // create a boolean property that sets or removes a css class.
 method(HTMLElement, 'css_property', function(name, setter = noop_setter) {
+	name = name.replace('_', '-')
 	function get() {
 		return this.hasclass(name)
 	}
@@ -457,7 +458,7 @@ method(HTMLElement, 'css_property', function(name, setter = noop_setter) {
 		setter.call(this, v)
 		this.class(name, v)
 	}
-	this.late_property(name, get, set)
+	this.late_property(name.replace('-', '_'), get, set)
 })
 
 // create a property that represents a html attribute.
@@ -465,6 +466,7 @@ method(HTMLElement, 'css_property', function(name, setter = noop_setter) {
 // NOTE: attr properties are not late properties so that their value
 // can be available to init()!
 method(HTMLElement, 'attr_property', function(name, default_val, setter = noop_setter, type) {
+	name = name.replace('_', '-')
 	function get() {
 		if (this.hasAttribute(name))
 			return this.getAttribute(name)
