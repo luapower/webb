@@ -34,6 +34,16 @@ function sign(x) {
 	return x >= 0 ? 1 : -1
 }
 
+// logic ---------------------------------------------------------------------
+
+// `||` operator that considers `0` and `''` to be truth values.
+function or(x, z) { return x != null ? x : z }
+
+// `&&` operator that considers `0` and `''` to be truth values.
+function and(x, z) { return x != null ? z : null }
+
+//function tonull(x, v) { return x == v ? null : x }
+
 // callbacks -----------------------------------------------------------------
 
 function noop() {}

@@ -132,22 +132,31 @@ method(Element, 'replace', function(i, e) {
 })
 
 method(Element, 'clear', function() {
-	this.innerHTML = ''
+	this.innerHTML = null
 	return this
 })
 
-method(Element, 'html', function(s) {
-	this.innerHTML = s
-	return this
-})
+alias(Element, 'html', 'innerHTML')
 
 // creating html elements ----------------------------------------------------
 
+// create a text node from a string, quoting it automatically.
 function T(s) {
 	return typeof(s) == 'string' ? document.createTextNode(s) : s
 }
 
-function H(tag, attrs, ...children) {
+// create a html element from a html string.
+// if the string contains more than one element or text node, wrap them in a span.
+function H(s) {
+	if (typeof(s) != 'string') // pass-through nulls and elements
+		return s
+	var span = H.span(0)
+	span.html = s.trim()
+	return span.childNodes.length > 1 ? span : span.firstChild
+}
+
+// create a HTML element from an attribute map and a list of child elements or text.
+function tag(tag, attrs, ...children) {
 	let e = document.createElement(tag)
 	e.attrs = attrs
 	if (children)
@@ -158,7 +167,7 @@ function H(tag, attrs, ...children) {
 ['div', 'span', 'button', 'input', 'textarea', 'table', 'thead',
 'tbody', 'tr', 'td', 'th', 'a', 'i', 'b', 'hr',
 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].forEach(function(s) {
-	H[s] = function(...a) { return H(s, ...a) }
+	H[s] = function(...a) { return tag(s, ...a) }
 })
 
 // easy custom events & event wrappers ---------------------------------------
@@ -199,7 +208,7 @@ callers.mousemove = function(e, f) {
 }
 
 callers.keydown = function(e, f) {
-	return f.call(this, e.key, e.shiftKey, e.ctrKey, e.altKey, e)
+	return f.call(this, e.key, e.shiftKey, e.ctrlKey, e.altKey, e)
 }
 callers.keyup    = callers.keydown
 callers.keypress = callers.keydown
@@ -303,7 +312,6 @@ method(Element, 'hasfocus', function() {
 
 // text editing --------------------------------------------------------------
 
-alias(HTMLInputElement, 'caret', 'selectionStart')
 alias(HTMLInputElement, 'select', 'setSelectionRange')
 
 method(HTMLInputElement, 'set_input_filter', function() {
@@ -442,6 +450,8 @@ method(HTMLElement, 'late_property', function(prop, getter, setter) {
 	property(this, prop, {get: getter, set: setter_wrapper})
 })
 
+/*
+
 function noop_setter(v) {
 	return v
 }
@@ -494,3 +504,4 @@ method(HTMLElement, 'bool_attr_property', function(name, default_val, setter) {
 	this.attr_property(name, default_val, setter, 'bool')
 })
 
+*/
