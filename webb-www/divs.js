@@ -353,7 +353,7 @@ method(Element, 'scroll_to_view_rect', function(x, y, w, h) {
 	this.scroll(-sx, -sy)
 })
 
-// scroll parent to make this visible.
+// scroll parent to make self visible.
 method(Element, 'make_visible', function() {
 	let x = this.offsetLeft
 	let y = this.offsetTop
