@@ -351,23 +351,31 @@ function scroll_to_view_rect(x, y, w, h, pw, ph, sx, sy) {
 	]
 }
 
-// scroll to make inside rectangle invisible.
-method(Element, 'scroll_to_view_rect', function(x, y, w, h) {
+method(Element, 'scroll_to_view_rect_offset', function(sx0, sy0, x, y, w, h) {
 	let pw  = this.clientWidth
 	let ph  = this.clientHeight
-	let sx0 = this.scrollLeft
-	let sy0 = this.scrollTop
+	sx0 = or(sx0, this.scrollLeft)
+	sy0 = or(sy0, this.scrollTop )
 	let [sx, sy] = scroll_to_view_rect(x, y, w, h, pw, ph, -sx0, -sy0)
-	this.scroll(-sx, -sy)
+	return [-sx, -sy]
 })
 
-// scroll parent to make self visible.
-method(Element, 'make_visible', function() {
+// scroll to make inside rectangle invisible.
+method(Element, 'scroll_to_view_rect', function(sx0, sy0, x, y, w, h) {
+	this.scroll(...this.scroll_to_view_rect_offset(sx0, sy0, x, y, w, h))
+})
+
+method(Element, 'make_visible_scroll_offset', function(sx0, sy0) {
 	let x = this.offsetLeft
 	let y = this.offsetTop
 	let w = this.offsetWidth
 	let h = this.offsetHeight
-	this.parent.scroll_to_view_rect(x, y, w, h)
+	return this.parent.scroll_to_view_rect_offset(sx0, sy0, x, y, w, h)
+})
+
+// scroll parent to make self visible.
+method(Element, 'make_visible', function() {
+	this.parent.scroll(...this.make_visible_scroll_offset())
 })
 
 // creating & setting up web components --------------------------------------
