@@ -21,6 +21,7 @@
 
 floor = Math.floor
 ceil = Math.ceil
+round = Math.round
 abs = Math.abs
 min = Math.min
 max = Math.max

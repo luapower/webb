@@ -255,15 +255,11 @@ let on = function(e, f) {
 	this.addEventListener(e, listener)
 	return this
 }
-method(Document, 'on', on)
-method(Element, 'on', on)
 
 let off = function(e, f) {
 	this.removeEventListener(e, f.listener || f)
 	return this
 }
-method(Document, 'off', off)
-method(Element, 'off', off)
 
 let onoff = function(e, f, enable) {
 	if (enable)
@@ -272,16 +268,20 @@ let onoff = function(e, f, enable) {
 		this.off(e, f)
 	return this
 }
-method(Document, 'onoff', onoff)
-method(Element, 'onoff', onoff)
 
-function fire(name, ...args) {
+let fire = function(name, ...args) {
 	let e = typeof(name) == 'string' ?
 		new CustomEvent(name, {detail: {args}}) : name
 	return this.dispatchEvent(e)
 }
-method(Document, 'fire', fire)
-method(Element, 'fire', fire)
+
+for (let e of [Window, Document, Element]) {
+	method(e, 'on'   , on)
+	method(e, 'off'  , off)
+	method(e, 'onoff', onoff)
+	method(e, 'fire' , fire)
+}
+
 }
 
 // geometry wrappers ---------------------------------------------------------
