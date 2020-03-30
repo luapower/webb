@@ -132,6 +132,7 @@ method(String, 'format', function(...args) {
 })
 
 alias(String, 'starts', 'startsWith')
+alias(String, 'ends'  , 'endsWith')
 
 
 // arrays --------------------------------------------------------------------

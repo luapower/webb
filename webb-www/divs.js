@@ -295,6 +295,14 @@ property(Element, 'min_h', { set: function(h) { this.style['min-height'] = h + '
 property(Element, 'max_w', { set: function(w) { this.style['max-width' ] = w + 'px'; } })
 property(Element, 'max_h', { set: function(h) { this.style['max-height'] = h + 'px'; } })
 
+alias(Element, 'client_rect', 'getBoundingClientRect')
+
+method(DOMRect, 'contains', function(x, y) {
+	return (
+		(x >= this.left && x <= this.right) &&
+		(y >= this.top  && y <= this.bottom))
+})
+
 // common style wrappers -----------------------------------------------------
 
 method(Element, 'show', function() { this.style.display = null })
