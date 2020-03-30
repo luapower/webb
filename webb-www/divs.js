@@ -234,7 +234,7 @@ installers.resize = function(e) {
 let on = function(e, f) {
 	let install = installers[e]
 	if (install)
-		install(e)
+		install(this)
 	if (e.starts('raw:')) { // raw handler
 		e = e.slice(4)
 		listener = f
