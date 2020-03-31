@@ -31,8 +31,13 @@ function clamp(x, x0, x1) {
 	return min(max(x, x0), x1)
 }
 
-function sign(x) {
-	return x >= 0 ? 1 : -1
+// sign() that only returns -1 or 1, never 0, and returns -1 for -0.
+function strict_sign(x) {
+	return 1/x == 1/-0 ? -1 : (x >= 0 ? 1 : -1)
+}
+
+function lerp(x, x0, x1, y0, y1) {
+	return y0 + (x-x0) * ((y1-y0) / (x1 - x0))
 }
 
 // logic ---------------------------------------------------------------------

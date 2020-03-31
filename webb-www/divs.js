@@ -318,6 +318,10 @@ method(Element, 'hasfocus', function() {
 	return this.contains(document.activeElement)
 })
 
+method(Element, 'focusables', function() {
+	return this.$('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+})
+
 // text editing --------------------------------------------------------------
 
 alias(HTMLInputElement, 'select', 'setSelectionRange')
@@ -418,8 +422,7 @@ function component(...args) {
 			// cannot work on a partially configured object, so we defer
 			// setting these properties to after init() runs (which is the
 			// only reason for having a separate init() method at all).
-			let init_later = {}
-			this.__init_later = init_later
+			let init_later = attr(this, '__init_later')
 			update(this, ...args)
 
 			// finish configuring the object, now that user options are in.
@@ -455,7 +458,7 @@ method(HTMLElement, 'property', function(prop, getter, setter) {
 })
 
 // create a property which is guaranteed not to be set until after init() runs.
-method(HTMLElement, 'late_property', function(prop, getter, setter) {
+method(HTMLElement, 'late_property', function(prop, getter, setter, default_value) {
 	setter_wrapper = setter && function(v) {
 		let init_later = this.__init_later
 		if (init_later)
@@ -464,6 +467,8 @@ method(HTMLElement, 'late_property', function(prop, getter, setter) {
 			setter.call(this, v)
 	}
 	property(this, prop, {get: getter, set: setter_wrapper})
+	if (default_value !== undefined)
+		attr(this, '__init_later')[prop] = default_value
 })
 
 /*
