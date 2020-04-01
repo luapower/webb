@@ -89,9 +89,9 @@ FILESYSTEM
 
 MUSTACHE TEMPLATES
 
-	render_string(s[, env]) -> s            render a template from a string
-	render_file(file[, env]) -> s           render a template from a file
-	mustache_wrap(s) -> s                   wrap a template in <script> tag
+	render_string(s, [env], [part]) -> s    render a template from a string
+	render_file(file, [env], [part]) -> s   render a template from a file
+	mustache_wrap(s, name) -> s             wrap a template in <script> tag
 	template(name) -> s                     get template contents
 	template.name <- s|f(name)              set template contents or handler
 	render(name[, env]) -> s                render template
@@ -130,7 +130,7 @@ true, then clear the cache (either for the entire function or for arg `k`).
 
 	env([t]) -> t
 
-Per-request shared environment. Scripts run with `render()`,
+Per-request shared environment. Inherits _G. Scripts run with `render()`,
 `include()`, `run()` run in this environment by default. If the `t` argument
 is given, an inherited environment is created.
 
