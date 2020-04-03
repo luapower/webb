@@ -40,6 +40,7 @@ ARG PARSING
 	str_arg(s) -> s | nil                   validate/trim non-empty string arg
 	enum_arg(s, values...) -> s | nil       validate enum arg
 	list_arg(s[, arg_f]) -> t               validate comma-separated list arg
+	checkbox_arg(s) -> 'checked' | nil      validate checkbox value from html form
 
 OUTPUT
 
@@ -130,9 +131,9 @@ true, then clear the cache (either for the entire function or for arg `k`).
 
 	env([t]) -> t
 
-Per-request shared environment. Inherits _G. Scripts run with `render()`,
-`include()`, `run()` run in this environment by default. If the `t` argument
-is given, an inherited environment is created.
+Per-request shared environment. Inherits _G. Scripts run with `include()`
+and `run()` run in this environment by default. If the `t` argument is given,
+an inherited environment is created.
 
 
 ]==]
@@ -357,6 +358,10 @@ function list_arg(s, arg_f)
 		table.insert(t, arg_f(s))
 	end
 	return t
+end
+
+function checkbox_arg(s)
+	return s == 'on' and 'checked' or nil
 end
 
 --output API -----------------------------------------------------------------
@@ -694,7 +699,7 @@ end
 local mustache = require'mustache'
 
 function render_string(s, data, partials)
-	return (mustache.render(s, data or env(), partials))
+	return (mustache.render(s, data, partials))
 end
 
 function render_file(file, data, partials)
