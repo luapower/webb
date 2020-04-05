@@ -220,14 +220,14 @@ callers.wheel = function(e, f) {
 
 let installers = {}
 
-installers.resize = function(e) {
-	let obs = e.__resize_observer
+installers.attr_changed = function(e) {
+	let obs = e.__attr_observer
 	if (!obs) {
 		obs = new MutationObserver(function() {
-			e.fire('resize')
+			e.fire('attr_changed')
 		})
 		obs.observe(e, {attributes: true})
-		e.__resize_observer = obs
+		e.__attr_observer = obs
 	}
 }
 
@@ -390,6 +390,69 @@ method(Element, 'make_visible', function() {
 	this.parent.scroll(...this.make_visible_scroll_offset())
 })
 
+// popup pattern -------------------------------------------------------------
+
+method(Element, 'popup', function(target, side, align, x, y) {
+
+	let e = this
+
+	if (e.__close_popup)
+		e.__close_popup() // break all the ties to the old target.
+
+	if (!target)
+		return
+	target = E(target)
+
+	function update() {
+
+		if (!target.isConnected) {
+			e.remove()
+			return
+		}
+
+		if (!e.parent)
+			document.body.add(e)
+
+		let tr = target.client_rect()
+		let er = e.client_rect()
+
+		let x0, y0
+		if (side == 'right')
+			[x0, y0] = [tr.right, tr.top]
+		else if (side == 'left')
+			[x0, y0] = [tr.left - er.width, tr.top]
+		else if (side == 'bottom')
+			[x0, y0] = [tr.left, tr.bottom]
+		else if (side == 'top')
+			[x0, y0] = [tr.left, tr.top - er.height]
+
+		if (align == 'center' && (side == 'top' || side == 'bottom'))
+			x0 = x0 - tr.width / 2
+
+		e.x = window.scrollX + x0 + (x || 0)
+		e.y = window.scrollY + y0 + (y || 0)
+	}
+
+	// TODO: are we ever going to stop fixing things with timers
+	// on this fucking platform?
+	setInterval(update, 100)
+
+	target.on('attr_changed', update)
+	target.on('attach', update) // only works on x-widget targets!
+	target.on('detach', update) // only works on x-widget targets!
+
+	e.__close_popup = function() {
+		target.off('attr_changed', update)
+		target.off('attach', update)
+		target.off('detach', update)
+		e.remove()
+		e.__close_popup = null
+	}
+
+	update()
+
+})
+
 // creating & setting up web components --------------------------------------
 
 // NOTE: the only reason for using this web components "technology" instead
@@ -435,12 +498,15 @@ function component(...args) {
 		}
 
 		connectedCallback() {
-			if (this.isConnected)
-				this.attach()
+			if (!this.isConnected)
+				return
+			this.attach()
+			this.fire('attach')
 		}
 
 		disconnectedCallback() {
 			this.detach()
+			this.fire('detach')
 		}
 	}
 
