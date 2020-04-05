@@ -101,7 +101,7 @@ alias(DocumentFragment, '$', 'querySelectorAll')
 function $(s) { return document.querySelectorAll(s) }
 
 function E(s) {
-	return typeof(s) == 'string' ? document.querySelectorAll(s)[0] : s
+	return typeof(s) == 'string' ? document.querySelector(s) : s
 }
 
 // dom tree manipulation -----------------------------------------------------
@@ -310,13 +310,17 @@ method(Element, 'hide', function() { this.style.display = 'none' })
 
 // common state wrappers -----------------------------------------------------
 
+property(Element, 'hovered', {get: function() {
+	return this.matches(':hover')
+}})
+
 property(Element, 'focused', {get: function() {
 	return document.activeElement == this
 }})
 
-method(Element, 'hasfocus', function() {
+property(Element, 'hasfocus', {get: function() {
 	return this.contains(document.activeElement)
-})
+}})
 
 method(Element, 'focusables', function() {
 	return this.$('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
@@ -392,7 +396,7 @@ method(Element, 'make_visible', function() {
 
 // popup pattern -------------------------------------------------------------
 
-method(Element, 'popup', function(target, side, align, x, y) {
+method(Element, 'popup', function(target, side, align, on_update, x, y) {
 
 	let e = this
 
@@ -401,7 +405,7 @@ method(Element, 'popup', function(target, side, align, x, y) {
 
 	if (!target)
 		return
-	target = E(target)
+	target = E(target || document.body)
 
 	function update() {
 
@@ -413,6 +417,9 @@ method(Element, 'popup', function(target, side, align, x, y) {
 		if (!e.parent)
 			document.body.add(e)
 
+		if (on_update)
+			on_update(target, e)
+
 		let tr = target.client_rect()
 		let er = e.client_rect()
 
@@ -421,13 +428,21 @@ method(Element, 'popup', function(target, side, align, x, y) {
 			[x0, y0] = [tr.right, tr.top]
 		else if (side == 'left')
 			[x0, y0] = [tr.left - er.width, tr.top]
-		else if (side == 'bottom')
-			[x0, y0] = [tr.left, tr.bottom]
 		else if (side == 'top')
 			[x0, y0] = [tr.left, tr.top - er.height]
+		else {
+			side = 'bottom'; // default
+			[x0, y0] = [tr.left, tr.bottom]
+		}
 
 		if (align == 'center' && (side == 'top' || side == 'bottom'))
-			x0 = x0 - tr.width / 2
+			x0 = x0 - er.width / 2 + tr.width / 2
+		else if (align == 'center' && (side == 'left' || side == 'right'))
+			y0 = y0 - er.height / 2 + tr.height / 2
+		else if (align == 'end' && (side == 'top' || side == 'bottom'))
+			x0 = x0 - er.width + tr.width
+		else if (align == 'end' && (side == 'left' || side == 'right'))
+			y0 = y0 - er.height + tr.height
 
 		e.x = window.scrollX + x0 + (x || 0)
 		e.y = window.scrollY + y0 + (y || 0)
@@ -435,16 +450,22 @@ method(Element, 'popup', function(target, side, align, x, y) {
 
 	// TODO: are we ever going to stop fixing things with timers
 	// on this fucking platform?
-	setInterval(update, 100)
+	// setInterval(update, 250)
 
-	target.on('attr_changed', update)
-	target.on('attach', update) // only works on x-widget targets!
-	target.on('detach', update) // only works on x-widget targets!
+	function onoff(on) {
+		target.onoff('attr_changed', update, on)
+		target.onoff('attach'      , update, on) // only works on x-widget targets!
+		target.onoff('detach'      , update, on) // only works on x-widget targets!
+		target.onoff('mouseenter'  , update, on)
+		target.onoff('mouseleave'  , update, on)
+		target.onoff('focusin'     , update, on)
+		target.onoff('focusout'    , update, on)
+	}
+
+	onoff(true)
 
 	e.__close_popup = function() {
-		target.off('attr_changed', update)
-		target.off('attach', update)
-		target.off('detach', update)
+		onoff(off)
 		e.remove()
 		e.__close_popup = null
 	}
@@ -537,12 +558,11 @@ method(HTMLElement, 'late_property', function(prop, getter, setter, default_valu
 		attr(this, '__init_later')[prop] = default_value
 })
 
-/*
-
 function noop_setter(v) {
 	return v
 }
 
+/*
 // create a boolean property that sets or removes a css class.
 method(HTMLElement, 'css_property', function(name, setter = noop_setter) {
 	name = name.replace('_', '-')
@@ -557,38 +577,36 @@ method(HTMLElement, 'css_property', function(name, setter = noop_setter) {
 	}
 	this.late_property(name.replace('-', '_'), get, set)
 })
+*/
 
 // create a property that represents a html attribute.
 // NOTE: a property `foo_bar` is created for an attribute `foo-bar`.
 // NOTE: attr properties are not late properties so that their value
 // can be available to init()!
-method(HTMLElement, 'attr_property', function(name, default_val, setter = noop_setter, type) {
+// NOTE: you need to call `e.setattr(<name>, <default_val>)` on your
+// constructor or else you won't be able to do css based on the attribute!
+method(HTMLElement, 'attr_property', function(name, setter = noop_setter, type) {
 	name = name.replace('_', '-')
 	function get() {
-		if (this.hasAttribute(name))
-			return this.getAttribute(name)
-		else
-			return default_val
+		return this.getAttribute(name)
 	}
 	if (type == 'bool') {
 		function set(v) {
-			setter.call(this, v)
 			if (v)
 				this.setAttribute(name, '')
 			else
 				this.removeAttribute(name)
+			setter.call(this, v)
 		}
 	} else {
 		function set(v) {
-			setter.call(this, v)
 			this.setAttribute(name, v)
+			setter.call(this, v)
 		}
 	}
 	this.property(name.replace('-', '_'), get, set)
 })
 
-method(HTMLElement, 'bool_attr_property', function(name, default_val, setter) {
-	this.attr_property(name, default_val, setter, 'bool')
+method(HTMLElement, 'bool_attr_property', function(name, setter) {
+	this.attr_property(name, setter, 'bool')
 })
-
-*/
