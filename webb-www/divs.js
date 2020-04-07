@@ -314,6 +314,10 @@ property(Element, 'hovered', {get: function() {
 	return this.matches(':hover')
 }})
 
+property(Element, 'focused_element', {get: function() {
+	return this.querySelector(':focus')
+}})
+
 property(Element, 'focused', {get: function() {
 	return document.activeElement == this
 }})
@@ -394,86 +398,6 @@ method(Element, 'make_visible', function() {
 	this.parent.scroll(...this.make_visible_scroll_offset())
 })
 
-// popup pattern -------------------------------------------------------------
-
-method(Element, 'popup', function(target, side, align, on_update, x, y) {
-
-	let e = this
-
-	if (e.__close_popup)
-		e.__close_popup() // break all the ties to the old target.
-
-	if (!target)
-		return
-	target = E(target || document.body)
-
-	function update() {
-
-		if (!target.isConnected) {
-			e.remove()
-			return
-		}
-
-		if (!e.parent)
-			document.body.add(e)
-
-		if (on_update)
-			on_update(target, e)
-
-		let tr = target.client_rect()
-		let er = e.client_rect()
-
-		let x0, y0
-		if (side == 'right')
-			[x0, y0] = [tr.right, tr.top]
-		else if (side == 'left')
-			[x0, y0] = [tr.left - er.width, tr.top]
-		else if (side == 'top')
-			[x0, y0] = [tr.left, tr.top - er.height]
-		else {
-			side = 'bottom'; // default
-			[x0, y0] = [tr.left, tr.bottom]
-		}
-
-		if (align == 'center' && (side == 'top' || side == 'bottom'))
-			x0 = x0 - er.width / 2 + tr.width / 2
-		else if (align == 'center' && (side == 'left' || side == 'right'))
-			y0 = y0 - er.height / 2 + tr.height / 2
-		else if (align == 'end' && (side == 'top' || side == 'bottom'))
-			x0 = x0 - er.width + tr.width
-		else if (align == 'end' && (side == 'left' || side == 'right'))
-			y0 = y0 - er.height + tr.height
-
-		e.x = window.scrollX + x0 + (x || 0)
-		e.y = window.scrollY + y0 + (y || 0)
-	}
-
-	// TODO: are we ever going to stop fixing things with timers
-	// on this fucking platform?
-	// setInterval(update, 250)
-
-	function onoff(on) {
-		target.onoff('attr_changed', update, on)
-		target.onoff('attach'      , update, on) // only works on x-widget targets!
-		target.onoff('detach'      , update, on) // only works on x-widget targets!
-		target.onoff('mouseenter'  , update, on)
-		target.onoff('mouseleave'  , update, on)
-		target.onoff('focusin'     , update, on)
-		target.onoff('focusout'    , update, on)
-	}
-
-	onoff(true)
-
-	e.__close_popup = function() {
-		onoff(off)
-		e.remove()
-		e.__close_popup = null
-	}
-
-	update()
-
-})
-
 // creating & setting up web components --------------------------------------
 
 // NOTE: the only reason for using this web components "technology" instead
@@ -510,7 +434,8 @@ function component(...args) {
 			update(this, ...args)
 
 			// finish configuring the object, now that user options are in.
-			this.init.call(this)
+			this.init()
+			this.fire('init')
 
 			// call the setters again, this time without the barrier.
 			this.__init_later = null
@@ -539,6 +464,10 @@ function component(...args) {
 	make.class = cls
 	return make
 }
+
+method(HTMLElement, 'override', function(method, func) {
+	override(this, method, func)
+})
 
 method(HTMLElement, 'property', function(prop, getter, setter) {
 	property(this, prop, {get: getter, set: setter})
@@ -610,3 +539,148 @@ method(HTMLElement, 'attr_property', function(name, setter = noop_setter, type) 
 method(HTMLElement, 'bool_attr_property', function(name, setter) {
 	this.attr_property(name, setter, 'bool')
 })
+
+// popup pattern -------------------------------------------------------------
+
+// NOTE: why is this so complicated? because the forever almost-there-but-
+// just-not-quite model of the web doesn't have the notion of a global z-index
+// (they'd have to keep two parallel trees, one for painting and one for
+// layouting and they just don't wanna I suppose) so we can't have relatively
+// positioned popups that are also painted last i.e. on top of everything,
+// so we have to choose between popups that are well-positioned but possibly
+// clipped or obscured by other elements, or popups that stay on top but
+// have to be manually positioned and kept in sync with the position of their
+// target. We chose the latter and try to auto-update the popup position the
+// best we can, but there will be cases where you'll have to call popup()
+// to update the popup's position manually. We simply don't have an observer
+// for tracking changes to an element's position relative to another element
+// (or to document.body, which would be enough for our case here).
+
+// `popup_target_changed` event allows changing/animating popup's visibility
+// based on target's hover state or focused state.
+
+function popup_state(e) {
+
+	let s = {}
+
+	let target, side, align, x, y
+
+	s.update = function(target1, side1, align1, x1, y1) {
+		[side, align, x, y] = [side1, align1, x1, y1]
+		if (target1 != target) {
+			if (target)
+				free()
+			target = target1 && E(target1)
+			if (target)
+				init()
+		}
+		update()
+	}
+
+	function init() {
+		target.on('attach', target_attached)
+		target.on('detach', target_detached)
+		if (target.isConnected)
+			target_attached()
+	}
+
+	function free() {
+		if (target)
+			target_detached()
+		target.off('attach', target_attached)
+		target.off('detach', target_detached)
+	}
+
+	function events(on) {
+		window.onoff('resize', update, on)
+
+		// NOTE: this detects target element size changes but there's no
+		// observer that can monitor position changes relative to document.body.
+		target.onoff('attr_changed', update, on)
+
+		// allow popup_update() to change popup visibility on hover.
+		target.onoff('mouseenter', update, on)
+		target.onoff('mouseleave', update, on)
+
+		// allow popup_update() to change popup visibility on focus.
+		target.onoff('focusin' , update, on)
+		target.onoff('focusout', update, on)
+
+		// TODO: add events for other things that could cause popups to misalign:
+		// * scrolling on any of the target's parents.
+		// * moving the split widget.
+		// * any layouting changes due to changes in content.
+
+	}
+
+	let timer_id
+
+	function target_attached() {
+		if (e.popup_target_attached)
+			e.popup_target_attached(target)
+		e.fire('popup_target_attached')
+		update()
+		document.body.add(e)
+		e.style.position = 'absolute'
+		events(true)
+		timer_id = setInterval(update, 250)
+	}
+
+	function target_detached() {
+		e.remove()
+		clearInterval(timer_id)
+		events(false)
+		if (e.popup_target_detached)
+			e.popup_target_detached(target)
+		e.fire('popup_target_detached')
+		target_changed()
+	}
+
+	function target_changed() {
+		if (e.popup_target_changed)
+			e.popup_target_changed(target)
+		e.fire('popup_target_changed', target)
+	}
+
+	function update() {
+		if (!target || !target.isConnected)
+			return
+
+		let tr = target.client_rect()
+		let er = e.client_rect()
+
+		let x0, y0
+		if (side == 'right')
+			[x0, y0] = [tr.right, tr.top]
+		else if (side == 'left')
+			[x0, y0] = [tr.left - er.width, tr.top]
+		else if (side == 'top')
+			[x0, y0] = [tr.left, tr.top - er.height]
+		else {
+			side = 'bottom'; // default
+			[x0, y0] = [tr.left, tr.bottom]
+		}
+
+		if (align == 'center' && (side == 'top' || side == 'bottom'))
+			x0 = x0 - er.width / 2 + tr.width / 2
+		else if (align == 'center' && (side == 'left' || side == 'right'))
+			y0 = y0 - er.height / 2 + tr.height / 2
+		else if (align == 'end' && (side == 'top' || side == 'bottom'))
+			x0 = x0 - er.width + tr.width
+		else if (align == 'end' && (side == 'left' || side == 'right'))
+			y0 = y0 - er.height + tr.height
+
+		e.x = window.scrollX + x0 + (x || 0)
+		e.y = window.scrollY + y0 + (y || 0)
+
+		target_changed()
+	}
+
+	return s
+}
+
+method(HTMLElement, 'popup', function(target, side, align, x, y) {
+	this.__popup_state = this.__popup_state || popup_state(this)
+	this.__popup_state.update(target, side, align, x, y)
+})
+

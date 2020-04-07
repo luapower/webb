@@ -88,12 +88,13 @@ function method(cls, meth, func) {
 }
 
 function override(cls, meth, func) {
-	let inherited = cls.prototype[meth] || noop
-	function wrapper(inherited, ...args) {
-		return meth.apply(this, inherited, args)
+	let proto = cls.prototype || cls
+	let inherited = proto[meth] || noop
+	function wrapper(...args) {
+		return func.call(this, inherited, ...args)
 	}
-	Object.defineProperty(cls.prototype, wrapper, {
-		value: func,
+	Object.defineProperty(proto, meth, {
+		value: wrapper,
 		enumerable: false,
 	})
 }
