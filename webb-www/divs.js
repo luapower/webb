@@ -164,7 +164,7 @@ function tag(tag, attrs, ...children) {
 	return e
 }
 
-['div', 'span', 'button', 'input', 'textarea', 'table', 'thead',
+['div', 'span', 'button', 'input', 'textarea', 'label', 'table', 'thead',
 'tbody', 'tr', 'td', 'th', 'a', 'i', 'b', 'hr',
 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].forEach(function(s) {
 	H[s] = function(...a) { return tag(s, ...a) }
@@ -408,18 +408,10 @@ HTMLElement.prototype.attach = noop
 HTMLElement.prototype.detach = noop
 HTMLElement.prototype.init   = noop
 
-// component([[[tag], super_cls], super_tag], cons) -> create({option: value}) -> element.
-function component(...args) {
+// component(tag, cons) -> create({option: value}) -> element.
+function component(tag, cons) {
 
-	let tag, super_cls, super_tag, cons
-	super_cls = HTMLElement
-	if (typeof(args[0]) == 'string') { tag = args.shift(); }
-	if (typeof(args[0]) == 'function' && args[1]) { super_cls = args.shift(); }
-	if (typeof(args[0]) == 'string') { super_tag = args.shift(); }
-	cons = args.shift()
-	super_cls = super_cls.class || super_cls
-
-	let cls = class extends super_cls {
+	let cls = class extends HTMLElement {
 
 		constructor(...args) {
 			super()
@@ -435,7 +427,6 @@ function component(...args) {
 
 			// finish configuring the object, now that user options are in.
 			this.init()
-			this.fire('init')
 
 			// call the setters again, this time without the barrier.
 			this.__init_later = null
@@ -456,12 +447,13 @@ function component(...args) {
 		}
 	}
 
-	customElements.define(tag, cls, { extends: super_tag })
+	customElements.define(tag, cls)
 
 	function make(...args) {
 		return new cls(...args)
 	}
 	make.class = cls
+	make.construct = cons
 	return make
 }
 
