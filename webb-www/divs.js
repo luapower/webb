@@ -305,7 +305,7 @@ method(DOMRect, 'contains', function(x, y) {
 
 // common style wrappers -----------------------------------------------------
 
-method(Element, 'show', function() { this.style.display = null })
+method(Element, 'show', function(v) { this.style.display = (v === undefined || v) ? null : 'none' })
 method(Element, 'hide', function() { this.style.display = 'none' })
 
 // common state wrappers -----------------------------------------------------
