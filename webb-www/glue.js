@@ -192,12 +192,17 @@ function array_attr(t, k) {
 function install_events(o) {
 	let obs = new Map()
 	o.on = function(topic, handler) {
-		if (!obs.has(topic))
-			obs.set(topic, [])
-		obs.get(topic).push(handler)
+		let handlers = obs.get(topic)
+		if (!handlers) {
+			handlers = []
+			obs.set(topic, handlers)
+		}
+		handlers.push(handler)
 	}
 	o.off = function(topic, handler) {
-		obs.get(topic).remove_value(handler)
+		let handlers = obs.get(topic)
+		if (handlers)
+			handlers.remove_value(handler)
 	}
 	o.onoff = function(topic, handler, enable) {
 		if (enable)
@@ -208,8 +213,11 @@ function install_events(o) {
 	o.fire = function(topic, ...args) {
 		var a = obs.get(topic)
 		if (!a) return
-		for (f of a)
-			f.call(o, ...args)
+		for (f of a) {
+			let ret = f.call(o, ...args)
+			if (ret !== undefined)
+				return ret
+		}
 	}
 	return o
 }

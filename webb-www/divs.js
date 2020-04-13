@@ -51,7 +51,7 @@ method(Element, 'hasclass', function(name) {
 	return this.classList.contains(name)
 })
 
-method(Element, 'replace_class', function(s1, s2, normal) {
+method(Element, 'switch_class', function(s1, s2, normal) {
 	this.class(s1, normal == false)
 	this.class(s2, normal != false)
 })
@@ -438,12 +438,12 @@ function component(tag, cons) {
 			if (!this.isConnected)
 				return
 			this.attach()
-			this.fire('attach')
+			this.fire('attach') // for popup()
 		}
 
 		disconnectedCallback() {
 			this.detach()
-			this.fire('detach')
+			this.fire('detach') // for popup()
 		}
 	}
 
