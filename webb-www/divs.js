@@ -438,12 +438,12 @@ function component(tag, cons) {
 			if (!this.isConnected)
 				return
 			this.attach()
-			this.fire('attach') // for popup()
+			this.fire('attach') // for popup() and setting rowset.owner.
 		}
 
 		disconnectedCallback() {
 			this.detach()
-			this.fire('detach') // for popup()
+			this.fire('detach') // for popup() and setting rowset.owner.
 		}
 	}
 

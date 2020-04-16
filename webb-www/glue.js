@@ -140,6 +140,10 @@ method(String, 'format', function(...args) {
 alias(String, 'starts', 'startsWith')
 alias(String, 'ends'  , 'endsWith')
 
+// stub for getting message strings that can be translated multiple languages.
+if (!S)
+	function S(label, msg)
+		{ return msg }
 
 // arrays --------------------------------------------------------------------
 
@@ -189,7 +193,7 @@ function array_attr(t, k) {
 
 // events --------------------------------------------------------------------
 
-function install_events(o) {
+function events_mixin(o) {
 	let obs = new Map()
 	o.on = function(topic, handler) {
 		let handlers = obs.get(topic)
