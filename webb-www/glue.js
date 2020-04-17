@@ -139,6 +139,8 @@ method(String, 'format', function(...args) {
 
 alias(String, 'starts', 'startsWith')
 alias(String, 'ends'  , 'endsWith')
+alias(String, 'upper' , 'toUpperCase')
+alias(String, 'lower' , 'toLowerCase')
 
 // stub for getting message strings that can be translated multiple languages.
 if (!S)
