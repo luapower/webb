@@ -52,6 +52,7 @@ OUTPUT
 	out_buffering() -> t | f                check if we're buffering output
 	setheader(name, val)                    set a header (unless we're buffering)
 	setmime(ext)                            set content-type based on file extension
+	flush()                                 ngx.flush()
 	print(...)                              like Lua's print but uses out()
 
 HTML ENCODING
@@ -280,13 +281,15 @@ local _post_args = once(function()
 	if not method'post' then return end
 	ngx.req.read_body()
 	local ct = headers'Content-Type'
-	if ct:find'^application/x%-www%-form%-urlencoded' then
-		return ngx.req.get_post_args()
-	elseif ct:find'^application/json' then
-		return json(ngx.req.get_body_data())
-	else
-		return ngx.req.get_body_data()
+	if ct then
+		if ct:find'^application/x%-www%-form%-urlencoded' then
+			return ngx.req.get_post_args()
+		elseif ct:find'^application/json' then
+			local s = ngx.req.get_body_data()
+			return s and json(s)
+		end
 	end
+	return ngx.req.get_body_data()
 end)
 
 function post(v)
@@ -456,6 +459,8 @@ local function print_wrapper(print)
 		end
 	end
 end
+
+flush = ngx.flush
 
 --print functions for debugging with no output buffering and flushing.
 

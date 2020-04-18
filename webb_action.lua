@@ -307,7 +307,7 @@ local function action_call(actions, action_no_ext, ...)
 		return action_call(actions, nf_action, ...)
 	end
 	if mime then
-		setheader('content_type', mime)
+		setheader('content-type', mime)
 	end
 	local filter = mime_type_filters[mime]
 	if filter then
