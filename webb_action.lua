@@ -226,6 +226,7 @@ local function json_filter(handler, action, ...)
 	local t = handler(action, ...)
 	if type(t) == 'table' then
 		local s = json(t)
+		setheader('content-length', #s)
 		check_etag(s)
 		out(s)
 	end

@@ -11,17 +11,16 @@
 	^slow(show|hide)
 	^progress(p, loaded, [total])
 	^upload_progress(p, loaded, [total])
-	^done('success', response_object)
-	^done('fail', 'timeout'|'network'|'abort')
-	^done('fail', 'http', status, message, body_text)
-	^success(...)
-	^fail(...)
+	^success('success', response_object)
+	^fail('timeout'|'network'|'abort')
+	^fail('http', status, message, body_text)
+	^done('success' | 'fail', ...)
 
 */
 
 function ajax(req) {
 
-	req = update({slow_timeout: 5}, req)
+	req = update({slow_timeout: 4}, req)
 	events_mixin(req)
 
 	let xhr = new XMLHttpRequest()
@@ -30,8 +29,9 @@ function ajax(req) {
 
 	xhr.open(method, req.url, true, req.user, req.pass)
 
-	if (typeof(req.upload) == 'object') {
-		req.upload = json(req.upload)
+	let upload = req.upload
+	if (typeof(upload) == 'object') {
+		upload = json(upload)
 		xhr.setRequestHeader('content-type', 'application/json')
 	}
 
@@ -61,7 +61,8 @@ function ajax(req) {
 
 	req.send = function() {
 		slow_watch = setTimeout(slow_timeout, req.slow_timeout * 1000)
-		xhr.send(req.upload)
+		xhr.send(upload)
+		return req
 	}
 
 	// NOTE: only Firefox fires progress events on non-200 responses.
@@ -80,19 +81,19 @@ function ajax(req) {
 	}
 
 	xhr.ontimeout = function() {
-		req.fire('done', 'fail', 'timeout')
 		req.fire('fail', 'timeout')
+		req.fire('done', 'fail', 'timeout')
 	}
 
 	// NOTE: only fired on network errors like connection refused!
 	xhr.onerror = function() {
-		req.fire('done', 'fail', 'network')
 		req.fire('fail', 'network')
+		req.fire('done', 'fail', 'network')
 	}
 
 	xhr.onabort = function() {
-		req.fire('done', 'fail', 'abort')
 		req.fire('fail', 'abort')
+		req.fire('done', 'fail', 'abort')
 	}
 
 	xhr.onreadystatechange = function(ev) {
@@ -100,18 +101,31 @@ function ajax(req) {
 			stop_slow_watch()
 		if (xhr.readyState == 4) {
 			if (xhr.status == 200) {
-				req.fire('done', 'success', xhr.response)
-				req.fire('success', xhr.response)
+				let res = xhr.response
+				if (!xhr.responseType || xhr.responseType == 'text') {
+					if (xhr.getResponseHeader('content-type') == 'application/json')
+						res = JSON.parse(xhr.response)
+				}
+				req.fire('success', res)
+				req.fire('done', 'success', res)
 			} else if (xhr.status) { // status is 0 for network errors, incl. timeout.
-				req.fire('done', 'fail', 'http', xhr.status, xhr.statusText, xhr.responseText)
 				req.fire('fail', 'http', xhr.status, xhr.statusText, xhr.responseText)
+				req.fire('done', 'fail', 'http', xhr.status, xhr.statusText, xhr.responseText)
 			}
 		}
 	}
 
 	req.abort = function() {
 		xhr.abort()
+		return req
 	}
+
+	req.on('slow', req.slow)
+	req.on('progress', req.progress)
+	req.on('upload_progress', req.upload_progress)
+	req.on('done', req.done)
+	req.on('fail', req.fail)
+	req.on('success', req.success)
 
 	req.xhr = xhr
 	return req

@@ -555,10 +555,12 @@ function popup_state(e) {
 
 	let s = {}
 
-	let target, side, align, x, y
+	let target, side, align, margin_x, margin_y
 
-	s.update = function(target1, side1, align1, x1, y1) {
-		[side, align, x, y] = [side1, align1, x1, y1]
+	s.update = function(target1, side1, align1, margin_x1, margin_y1) {
+		[side, align, margin_x, margin_y] = [side1, align1, margin_x1, margin_y1]
+		margin_x = margin_x || 0
+		margin_y = margin_y || 0
 		if (target1 != target) {
 			if (target)
 				free()
@@ -643,11 +645,19 @@ function popup_state(e) {
 
 		let x0, y0
 		if (side == 'right')
-			[x0, y0] = [tr.right, tr.top]
+			[x0, y0] = [tr.right + margin_x, tr.top + margin_y]
 		else if (side == 'left')
-			[x0, y0] = [tr.left - er.width, tr.top]
+			[x0, y0] = [tr.left - er.width - margin_x, tr.top + margin_y]
 		else if (side == 'top')
-			[x0, y0] = [tr.left, tr.top - er.height]
+			[x0, y0] = [tr.left + margin_x, tr.top - er.height - margin_y]
+		else if (side == 'inner-right')
+			[x0, y0] = [tr.right - er.width - margin_x, tr.top + margin_y]
+		else if (side == 'inner-left')
+			[x0, y0] = [tr.left + margin_x, tr.top + margin_y]
+		else if (side == 'inner-top')
+			[x0, y0] = [tr.left + margin_x, tr.top + margin_y]
+		else if (side == 'inner-bottom')
+			[x0, y0] = [tr.left + margin_y, tr.bottom - er.height - margin_y]
 		else {
 			side = 'bottom'; // default
 			[x0, y0] = [tr.left, tr.bottom]
@@ -662,8 +672,8 @@ function popup_state(e) {
 		else if (align == 'end' && (side == 'left' || side == 'right'))
 			y0 = y0 - er.height + tr.height
 
-		e.x = window.scrollX + x0 + (x || 0)
-		e.y = window.scrollY + y0 + (y || 0)
+		e.x = window.scrollX + x0
+		e.y = window.scrollY + y0
 
 		target_changed()
 	}

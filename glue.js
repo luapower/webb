@@ -198,6 +198,8 @@ function array_attr(t, k) {
 function events_mixin(o) {
 	let obs = new Map()
 	o.on = function(topic, handler) {
+		if (!handler)
+			return
 		let handlers = obs.get(topic)
 		if (!handlers) {
 			handlers = []
@@ -208,7 +210,10 @@ function events_mixin(o) {
 	o.off = function(topic, handler) {
 		let handlers = obs.get(topic)
 		if (handlers)
-			handlers.remove_value(handler)
+			if (handler)
+				handlers.remove_value(handler)
+			else
+				handlers.clear()
 	}
 	o.onoff = function(topic, handler, enable) {
 		if (enable)

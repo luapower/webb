@@ -82,6 +82,7 @@ JSON ENCODING/DECODING
 
 	json(s) -> t                            decode json
 	json(t) -> s                            encode json
+	null                                    value to encode json `null`
 
 FILESYSTEM
 
@@ -659,8 +660,11 @@ function json(v)
 	end
 end
 
+null = cjson.null
+
 function out_json(v)
 	local s = cjson.encode(v)
+	setheader('content-length', #s)
 	setmime'json'
 	out(s)
 end
