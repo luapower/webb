@@ -415,44 +415,34 @@ local function _parse_result_set_header_packet(packet)
     return field_count, extra
 end
 
+local NOT_NULL_FLAG        = 1
+local UNSIGNED_FLAG        = 32
+local AUTO_INCREMENT_FLAG  = 512
 
 local function _parse_field_packet(data)
     local col = new_tab(0, 2)
-    local catalog, db, table, orig_table, orig_name, charsetnr, length
     local pos
-    catalog, pos = _from_length_coded_str(data, 1)
-
-    --print("catalog: ", col.catalog, ", pos:", pos)
-
-    db, pos = _from_length_coded_str(data, pos)
-    table, pos = _from_length_coded_str(data, pos)
-    orig_table, pos = _from_length_coded_str(data, pos)
+    col.catalog, pos = _from_length_coded_str(data, 1)
+    col.db, pos = _from_length_coded_str(data, pos)
+    col.table, pos = _from_length_coded_str(data, pos)
+    col.orig_table, pos = _from_length_coded_str(data, pos)
     col.name, pos = _from_length_coded_str(data, pos)
-
-    orig_name, pos = _from_length_coded_str(data, pos)
-
+    col.orig_name, pos = _from_length_coded_str(data, pos)
     pos = pos + 1 -- ignore the filler
-
-    charsetnr, pos = _get_byte2(data, pos)
-
-    length, pos = _get_byte4(data, pos)
-
+    col.charsetnr, pos = _get_byte2(data, pos)
+    col.length, pos = _get_byte4(data, pos)
     col.type = strbyte(data, pos)
-
-    --[[
     pos = pos + 1
-
     col.flags, pos = _get_byte2(data, pos)
-
+    col.allow_null     = band(col.flags, NOT_NULL_FLAG) == 0
+    col.unsigned       = band(col.flags, UNSIGNED_FLAG) == 1
+    col.auto_increment = band(col.flags, AUTO_INCREMENT_FLAG) == 1
     col.decimals = strbyte(data, pos)
     pos = pos + 1
-
     local default = sub(data, pos + 2)
     if default and default ~= "" then
         col.default = default
     end
-    --]]
-
     return col
 end
 
@@ -484,7 +474,6 @@ local function _parse_row_data_packet(data, cols, compact)
 
         if compact then
             row[i] = value
-
         else
             row[name] = value
         end
