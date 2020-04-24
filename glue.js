@@ -202,7 +202,8 @@ function array_attr(t, k) {
 function events_mixin(o) {
 	let obs = new Map()
 	o.on = function(topic, handler, enable) {
-		if (enable == false)
+		assert(enable === undefined || typeof enable == 'boolean')
+		if (enable !== undefined && enable !== true)
 			return o.off(topic, handler)
 		if (!handler)
 			return

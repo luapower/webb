@@ -232,7 +232,8 @@ installers.attr_changed = function(e) {
 }
 
 let on = function(e, f, enable) {
-	if (enable == false)
+	assert(enable === undefined || typeof enable == 'boolean')
+	if (enable !== undefined && enable !== true)
 		return this.off(e, f)
 	let install = installers[e]
 	if (install)
