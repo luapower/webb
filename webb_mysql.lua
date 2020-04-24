@@ -9,7 +9,7 @@ local strchar = string.char
 local strfind = string.find
 local format = string.format
 local strrep = string.rep
-local null = ngx.null
+local null = ngx.null --same as cjson.null
 local band = bit.band
 local bxor = bit.bxor
 local bor = bit.bor
@@ -415,9 +415,11 @@ local function _parse_result_set_header_packet(packet)
     return field_count, extra
 end
 
-local NOT_NULL_FLAG        = 1
-local UNSIGNED_FLAG        = 32
-local AUTO_INCREMENT_FLAG  = 512
+local NOT_NULL_FLAG       = 1
+local PRI_KEY_FLAG        = 2
+local UNIQUE_KEY_FLAG     = 4
+local UNSIGNED_FLAG       = 32
+local AUTO_INCREMENT_FLAG = 512
 
 local function _parse_field_packet(data)
     local col = new_tab(0, 2)
@@ -435,8 +437,10 @@ local function _parse_field_packet(data)
     pos = pos + 1
     col.flags, pos = _get_byte2(data, pos)
     col.allow_null     = band(col.flags, NOT_NULL_FLAG) == 0
-    col.unsigned       = band(col.flags, UNSIGNED_FLAG) == 1
-    col.auto_increment = band(col.flags, AUTO_INCREMENT_FLAG) == 1
+    col.pri_key        = band(col.flags, PRI_KEY_FLAG) ~= 0
+    col.unique_key     = band(col.flags, UNIQUE_KEY_FLAG) ~= 0
+    col.unsigned       = band(col.flags, UNSIGNED_FLAG) ~= 0
+    col.auto_increment = band(col.flags, AUTO_INCREMENT_FLAG) ~= 0
     col.decimals = strbyte(data, pos)
     pos = pos + 1
     local default = sub(data, pos + 2)

@@ -97,7 +97,7 @@ end
 --arg substitution -----------------------------------------------------------
 
 function quote_sql(v)
-	if v == nil then
+	if v == nil or v == null then
 		return 'null'
 	elseif v == true then
 		return 1
@@ -111,7 +111,23 @@ function quote_sql(v)
 end
 quote = quote_sql --TODO: remove this (conflicts with terra)
 
+local function set_named_params(sql, t)
+	local dt = {}
+	for k,v in pairs(t) do
+		local v, err = quote_sql(v)
+		if err then
+			error(err .. ' in query "' .. sql .. '"')
+		end
+		dt[k] = v
+	end
+	local i = 0
+	return sql:gsub('$([%w_]+)', dt), keys(dt, true)
+end
+
 local function set_params(sql, ...)
+	if type((...)) == 'table' then
+		return set_named_params(sql, ...)
+	end
 	local t = {}
 	for i = 1, select('#', ...) do
 		local arg = select(i, ...)
@@ -123,18 +139,6 @@ local function set_params(sql, ...)
 	end
 	local i = 0
 	return sql:gsub('%?', function() i = i + 1; return t[i] end)
-end
-
---result processing ----------------------------------------------------------
-
-local function remove_nulls(t)
-	for i,t in ipairs(t) do
-		for k,v in pairs(t) do
-			if v == ngx.null then
-				t[k] = nil
-			end
-		end
-	end
 end
 
 --query execution ------------------------------------------------------------
@@ -164,7 +168,6 @@ local function outdent(s)
 end
 
 local function process_result(t, cols)
-	remove_nulls(t)
 	if cols and #cols == 1 then --single column result: return it as array
 		local t0 = t
 		local name = cols[1].name
@@ -178,8 +181,8 @@ end
 
 local function run_query_on(ns, compact, sql, ...)
 	local db = connect(ns)
-	sql = preprocess(sql)
-	sql = set_params(sql, ...)
+	local sql = preprocess(sql)
+	local sql, params = set_params(sql, ...)
 	if print_queries() then
 		print(outdent(sql))
 	end
@@ -197,7 +200,7 @@ local function run_query_on(ns, compact, sql, ...)
 			t[#t+1] = t1
 		until not err
 	end
-	return t, cols
+	return t, cols, params
 end
 
 function query_on(ns, ...) --execute, iterate rows, close
@@ -211,13 +214,13 @@ end
 --query frontends ------------------------------------------------------------
 
 function query1_on(ns, ...) --query first row (or first row/column) and close
-	local t, cols = run_query_on(ns, false, ...)
+	local t, cols, params = run_query_on(ns, false, ...)
 	local row = t[1]
 	if not row then return end
 	if #cols == 1 then
-		return row --row is actually the value
+		return row, params --row is actually the value
 	end --first row/col
-	return row --first row
+	return row, params --first row
 end
 
 function query1(...)
@@ -225,7 +228,8 @@ function query1(...)
 end
 
 function iquery_on(ns, ...) --insert query: return autoincremented id
-	return run_query_on(ns, true, ...).insert_id
+	local t, cols, params = run_query_on(ns, true, ...)
+	return t.insert_id, params
 end
 
 function iquery(...)
