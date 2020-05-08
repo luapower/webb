@@ -494,12 +494,12 @@ function component(tag, cons) {
 			if (!this.isConnected)
 				return
 			this.attach()
-			this.fire(event('attach', false)) // for popup() and binding rowsets to their owners.
+			this.fire(event('attach', false)) // for popup().
 		}
 
 		disconnectedCallback() {
 			this.detach()
-			this.fire(event('detach', false)) // for popup() and binding rowsets to their owners.
+			this.fire(event('detach', false)) // for popup().
 		}
 	}
 
