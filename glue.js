@@ -3,22 +3,6 @@
 	JavaScript extended vocabulary of basic tools.
 	Written by Cosmin Apreutesei. Public domain.
 
-
-	clamp(x, x0, x1)
-	sign(x)
-
-	s.format(fmt, ...)
-
-	assert(ret, err, ...)
-
-	a.insert(i, e)
-	a.remove(i)
-
-	keys(t, [cmp]) -> t
-	update(t, [t1], ...) -> t
-
-	json(v) -> s
-
 */
 
 // math ----------------------------------------------------------------------
@@ -201,6 +185,30 @@ method(Array, 'remove_value', function(v) {
 
 property(Array, 'last', {get: function() { return this[this.length-1] } })
 
+// binary search for an insert position that keeps the array sorted.
+// using '<' gives the first insert position, while '<=' gives the last.
+// returns null for t.length.
+{
+	let cmps = {}
+	cmps['<' ] = ((a, i, v) => a[i] <  v)
+	cmps['>' ] = ((a, i, v) => a[i] >  v)
+	cmps['<='] = ((a, i, v) => a[i] <= v)
+	cmps['>='] = ((a, i, v) => a[i] >= v)
+	method(Array, 'binsearch', function(v, cmp, i1, i2) {
+		let lo = or(i1, 0) - 1
+		let hi = or(i2, this.length)
+		cmp = cmps[cmp || '<']
+		while (lo + 1 < hi) {
+			let mid = (lo + hi) >> 1
+			if (cmp(this, mid, v))
+				lo = mid
+			else
+				hi = mid
+		}
+		return hi
+	})
+}
+
 // hash maps -----------------------------------------------------------------
 
 function keys(o, cmp) {
@@ -362,9 +370,10 @@ function week_start_offset() {
 
 // timers --------------------------------------------------------------------
 
-function after(t, f) {
-	return setTimeout(f, t * 1000)
-}
+function after(t, f) { return setTimeout(f, t * 1000) }
+function every(t, f) { return setInterval(f, t * 1000) }
+
+function clock() { return performance.now() / 1000 }
 
 // serialization -------------------------------------------------------------
 
