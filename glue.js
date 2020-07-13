@@ -161,7 +161,10 @@ if (!S)
 isarray = Array.isArray
 
 method(Array, 'insert', function(i, v) {
-	this.splice(i, 0, v)
+	if (i >= this.length)
+		this[i] = v
+	else
+		this.splice(i, 0, v)
 })
 
 method(Array, 'remove', function(i) {
