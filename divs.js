@@ -254,8 +254,8 @@ method(Element, 'capture_pointer', function(e, move, up) {
 	up   = or(up  , return_false)
 	let down_mx = e.clientX
 	let down_my = e.clientY
-	function wrap_move(mx, my, e) {
-		return move.call(this, mx, my, e, down_mx, down_my)
+	function wrap_move(e, mx, my) {
+		return move.call(this, e, mx, my, down_mx, down_my)
 	}
 	function wrap_up(e, mx, my) {
 		this.off('pointermove', wrap_move)
@@ -270,16 +270,16 @@ method(Element, 'capture_pointer', function(e, move, up) {
 callers.pointerup = function(e, f) {
 	let ret
 	if (e.which == 1)
-		ret = f.call(this, e.clientX, e.clientY, e)
+		ret = f.call(this, e, e.clientX, e.clientY)
 	else if (e.which == 3)
-		ret = this.fire('rightpointerup', e.clientX, e.clientY, e)
+		ret = this.fire('rightpointerup', e, e.clientX, e.clientY)
 	if (this.hasPointerCapture(e.pointerId))
 		this.releasePointerCapture(e.pointerId)
 	return ret
 }
 
 callers.pointermove = function(e, f) {
-	return f.call(this, e.clientX, e.clientY, e)
+	return f.call(this, e, e.clientX, e.clientY)
 }
 
 callers.keydown = function(e, f) {
@@ -1077,6 +1077,7 @@ method(HTMLElement, 'prop', function(prop, opt) {
 	opt.name = prop
 	if (!this[setter])
 		this[setter] = noop
+	let convert = opt.convert || return_arg
 
 	if (opt.store == 'var') {
 		let v = opt.default
@@ -1085,6 +1086,7 @@ method(HTMLElement, 'prop', function(prop, opt) {
 		}
 		function set(v1) {
 			let v0 = v
+			v1 = convert(v1, v0)
 			if (v1 === v0)
 				return
 			v = v1
@@ -1102,8 +1104,8 @@ method(HTMLElement, 'prop', function(prop, opt) {
 				return this.hasAttribute(attr)
 			}
 			function set(v) {
-				v = !!v
 				let v0 = this.hasAttribute(attr)
+				v = !!(convert(v, v0))
 				if (v == v0)
 					return
 				if (v)
@@ -1123,6 +1125,7 @@ method(HTMLElement, 'prop', function(prop, opt) {
 			}
 			function set(v) {
 				let v0 = num(this.getAttribute(attr))
+				v = convert(v, v0)
 				if (v == v0)
 					return
 				this.setAttribute(attr, v+'')
@@ -1139,6 +1142,7 @@ method(HTMLElement, 'prop', function(prop, opt) {
 			}
 			function set(v) {
 				let v0 = this.getAttribute(attr)
+				v = convert(v, v0)
 				if (v == v0)
 					return
 				this.setAttribute(attr, v)
@@ -1159,6 +1163,7 @@ method(HTMLElement, 'prop', function(prop, opt) {
 		}
 		function set(v) {
 			let v0 = get.call(this)
+			v = convert(v, v0)
 			if (v == v0)
 				return
 			this.style[style] = format(v)
@@ -1176,6 +1181,7 @@ method(HTMLElement, 'prop', function(prop, opt) {
 		}
 		function set(v) {
 			let v0 = this[getter]()
+			v = convert(v, v0)
 			if (v === v0)
 				return
 			if (noinit && !this.initialized)
