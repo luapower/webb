@@ -933,6 +933,14 @@ function live_move_mixin(e) {
 // (a proper iterable weak hash map would be a better way to solve this but
 // alas, the web people could't get that one right either).
 
+method(HTMLElement, 'override', function(method, func) {
+	override(this, method, func)
+})
+
+method(HTMLElement, 'property', function(prop, getter, setter) {
+	property(this, prop, {get: getter, set: setter})
+})
+
 HTMLElement.prototype.init = noop
 
 // component(tag, cons) -> create({option: value}) -> element.
@@ -945,6 +953,7 @@ function component(tag, cons) {
 		constructor() {
 			super()
 			this.attached = false
+			this.initialized = false
 		}
 
 		connectedCallback() {
@@ -953,18 +962,14 @@ function component(tag, cons) {
 			if (!this.isConnected)
 				return
 			// elements created by the browser must be initialized on first
-			// attach as they aren't allowed to create children or add
+			// attach as they aren't allowed to create children or set
 			// attributes in the constructor.
-			this.initialize()
+			init(this)
 			this.attach()
 		}
 
 		disconnectedCallback() {
 			this.detach()
-		}
-
-		initialize() {
-			init(this)
 		}
 
 		attach() {
@@ -990,27 +995,135 @@ function component(tag, cons) {
 	customElements.define(tag, cls)
 
 	function init(e, ...args) {
-		e.initialize = noop
+
+		if (e.initialized)
+			return
+
 		e.typename = typename
+
+		e.props = {}
+
+		e.prop = function(prop, opt) {
+			opt = opt || {}
+			update(opt, e.props[prop]) // class overrides
+			let getter = 'get_'+prop
+			let setter = 'set_'+prop
+			let type = opt.type
+			opt.name = prop
+			let convert = opt.convert || return_arg
+			if (!e[setter])
+				e[setter] = noop
+
+			if (opt.store == 'var') {
+				let v = opt.default
+				function get() {
+					return v
+				}
+				function set(v1) {
+					let v0 = v
+					v1 = convert(v1, v0)
+					if (v1 === v0)
+						return
+					v = v1
+					e[setter](v, v0)
+					e.fire('prop_changed', prop, v, v0)
+				}
+			} else if (opt.style) {
+				let style = opt.style
+				let format = opt.style_format || return_arg
+				let parse  = opt.style_parse  || type == 'number' && num || return_arg
+				if (opt.default != null && e.style[style] == null)
+					e.style[style] = format(opt.default)
+				function get() {
+					return parse(e.style[style])
+				}
+				function set(v) {
+					let v0 = get.call(e)
+					v = convert(v, v0)
+					if (v == v0)
+						return
+					e.style[style] = format(v)
+					v = get.call(e) // take it again (browser only sets valid values)
+					if (v == v0)
+						return
+					e[setter](v, v0)
+					e.fire('prop_changed', prop, v, v0)
+				}
+			} else {
+				assert(!('default' in opt))
+				function get() {
+					return e[getter]()
+				}
+				function set(v) {
+					let v0 = e[getter]()
+					v = convert(v, v0)
+					if (v === v0)
+						return
+					e[setter](v, v0)
+					e.fire('prop_changed', prop, v, v0)
+				}
+			}
+
+			if (opt.bind) {
+				let resolve = opt.resolve || global_widget_resolver(opt.type)
+				let NAME = prop
+				let REF = repl(opt.bind, true, NAME)
+				function global_changed(te, name, last_name) {
+					// NOTE: changing the name from something to nothing
+					// will unbind dependants forever.
+					if (e[NAME] == last_name)
+						e[NAME] = name
+				}
+				function global_attached(te, name) {
+					if (e[NAME] == name)
+						e[REF] = te
+				}
+				function global_detached(te, name) {
+					if (e[REF] == te)
+						e[REF] = null
+				}
+				function bind(on) {
+					document.on('global_changed' , global_changed, on)
+					document.on('global_attached', global_attached, on)
+					document.on('global_detached', global_detached, on)
+				}
+				function attach() {
+					e[REF] = resolve(e[NAME])
+					bind(true)
+				}
+				function detach() {
+					e[REF] = null
+					bind(false)
+				}
+				function prop_changed(k, name, last_name) {
+					if (k != NAME) return
+					if (e.attached)
+						e[REF] = resolve(name)
+					if ((name != null) != (last_name != null)) {
+						e.on('attach', attach, name != null)
+						e.on('detach', detach, name != null)
+					}
+				}
+				if (e[NAME] != null)
+					prop_changed(NAME, e[NAME])
+				e.on('prop_changed', prop_changed)
+			}
+
+			e.property(prop, get, set)
+
+			if (!opt.private)
+				e.props[prop] = opt
+
+		}
+
 		cons(e)
 
-		// add user options, overriding any defaults and stub methods.
-		// NOTE: this also calls any property setters, but some setters
-		// cannot work on a partially configured object, so we defer
-		// setting these properties to after init() runs (which is the
-		// only reason for having a separate init() method at all).
-		let init_later = attr(e, '__init_later')
-		update(e, ...args)
+		let opt = update({}, ...args)
+		update(e, opt)
 
-		// finish configuring the object, now that user options are in.
-		e.init()
+		e.init(opt)
+
 		e.initialized = true
-
-		// call the setters again, this time without the barrier.
-		e.__init_later = null
-		for (let k in init_later)
-			e[k] = init_later[k]
-
 	}
 
 	function create(...args) {
@@ -1036,214 +1149,6 @@ component.create = function(t) {
 	let create = component.types[t.typename]
 	return create(t)
 }
-
-method(HTMLElement, 'override', function(method, func) {
-	override(this, method, func)
-})
-
-method(HTMLElement, 'property', function(prop, getter, setter) {
-	property(this, prop, {get: getter, set: setter})
-})
-
-// create a property which is guaranteed not to be set until after init() runs.
-method(HTMLElement, 'late_property', function(prop, getter, setter, default_value) {
-	setter_wrapper = setter && function(v) {
-		let init_later = this.__init_later
-		if (init_later)
-			init_later[prop] = v // defer calling the actual setter.
-		else
-			setter.call(this, v)
-	}
-	property(this, prop, {get: getter, set: setter_wrapper})
-	if (default_value !== undefined)
-		attr(this, '__init_later')[prop] = default_value
-})
-
-method(HTMLElement, 'prop', function(prop, opt) {
-
-	opt = opt || {}
-	let getter = 'get_'+prop
-	let setter = 'set_'+prop
-	if (!opt.type) { // infer type
-		if (opt.enum_values)
-			opt.type = 'enum'
-		if (typeof opt.default == 'boolean')
-			opt.type = 'bool'
-		else if (typeof opt.default == 'number')
-			opt.type = 'number'
-	}
-	let type = opt.type
-	let noinit = opt.noinit
-	opt.name = prop
-	if (!this[setter])
-		this[setter] = noop
-	let convert = opt.convert || return_arg
-
-	if (opt.store == 'var') {
-		let v = opt.default
-		function get() {
-			return v
-		}
-		function set(v1) {
-			let v0 = v
-			v1 = convert(v1, v0)
-			if (v1 === v0)
-				return
-			v = v1
-			if (noinit && !this.initialized)
-				return
-			this[setter](v, v0)
-			this.fire('prop_changed', prop, v, v0)
-		}
-	} else if (opt.attr) {
-		let attr = opt.attr
-		if (type == 'bool') {
-			if (!!opt.default && !this.hasAttribute(attr))
-				this.setAttribute(attr, '')
-			function get() {
-				return this.hasAttribute(attr)
-			}
-			function set(v) {
-				let v0 = this.hasAttribute(attr)
-				v = !!(convert(v, v0))
-				if (v == v0)
-					return
-				if (v)
-					this.setAttribute(attr, '')
-				else
-					this.removeAttribute(attr)
-				if (noinit && !this.initialized)
-					return
-				this[setter](v, v0)
-				this.fire('prop_changed', prop, v, v0)
-			}
-		} else if (type == 'number') {
-			if (opt.default != null && !this.hasAttribute(attr))
-				this.setAttribute(attr, opt.default+'')
-			function get() {
-				return num(this.getAttribute(attr))
-			}
-			function set(v) {
-				let v0 = num(this.getAttribute(attr))
-				v = convert(v, v0)
-				if (v == v0)
-					return
-				this.setAttribute(attr, v+'')
-				if (noinit && !this.initialized)
-					return
-				this[setter](v, v0)
-				this.fire('prop_changed', prop, v, v0)
-			}
-		} else {
-			if (opt.default != null && !this.hasAttribute(attr))
-				this.setAttribute(attr, opt.default)
-			function get() {
-				return this.getAttribute(attr)
-			}
-			function set(v) {
-				let v0 = this.getAttribute(attr)
-				v = convert(v, v0)
-				if (v == v0)
-					return
-				this.setAttribute(attr, v)
-				if (noinit && !this.initialized)
-					return
-				this[setter](v, v0)
-				this.fire('prop_changed', prop, v, v0)
-			}
-		}
-	} else if (opt.style) {
-		let style = opt.style
-		let format = opt.style_format || return_arg
-		let parse  = opt.style_parse  || type == 'number' && num || function(v) { return v }
-		if (opt.default != null && !this.style[style])
-			this.style[style] = format(opt.default)
-		function get() {
-			return parse(this.style[style])
-		}
-		function set(v) {
-			let v0 = get.call(this)
-			v = convert(v, v0)
-			if (v == v0)
-				return
-			this.style[style] = format(v)
-			if (noinit && !this.initialized)
-				return
-			v = get.call(this) // take it again (browser only sets valid values)
-			if (v == v0)
-				return
-			this[setter](v, v0)
-			this.fire('prop_changed', prop, v, v0)
-		}
-	} else {
-		function get() {
-			return this[getter]()
-		}
-		function set(v) {
-			let v0 = this[getter]()
-			v = convert(v, v0)
-			if (v === v0)
-				return
-			if (noinit && !this.initialized)
-				return
-			this[setter](v, v0)
-			this.fire('prop_changed', prop, v, v0)
-		}
-		if (opt.default !== undefined)
-			set.call(this, opt.default)
-	}
-
-	if (opt.bind) {
-		let resolve = opt.resolve || global_widget_resolver(opt.type)
-		let NAME = prop
-		let REF = repl(opt.bind, true, NAME)
-		let e = this
-		function global_changed(te, name, last_name) {
-			// NOTE: changing the name from something to nothing
-			// will unbind dependants forever.
-			if (e[NAME] == last_name)
-				e[NAME] = name
-		}
-		function global_attached(te, name) {
-			if (e[NAME] == name)
-				e[REF] = te
-		}
-		function global_detached(te, name) {
-			if (e[REF] == te)
-				e[REF] = null
-		}
-		function bind(on) {
-			document.on('global_changed' , global_changed, on)
-			document.on('global_attached', global_attached, on)
-			document.on('global_detached', global_detached, on)
-		}
-		function attach() {
-			e[REF] = resolve(e[NAME])
-			bind(true)
-		}
-		function detach() {
-			e[REF] = null
-			bind(false)
-		}
-		function prop_changed(k, name, last_name) {
-			if (k != NAME) return
-			if (e.attached)
-				e[REF] = resolve(name)
-			if ((name != null) != (last_name != null)) {
-				this.on('attach', attach, name != null)
-				this.on('detach', detach, name != null)
-			}
-		}
-		if (e[NAME] != null)
-			prop_changed(NAME, e[NAME])
-		this.on('prop_changed', prop_changed)
-	}
-
-	this.property(prop, get, set)
-
-	if (!opt.private)
-		attr(this, 'props')[prop] = opt
-})
 
 global_widget_resolver = memoize(function(type) {
 	let is_type = 'is_'+type

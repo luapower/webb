@@ -392,6 +392,22 @@ function every(t, f) { return setInterval(f, t * 1000) }
 
 function clock() { return performance.now() / 1000 }
 
+function timer(f) {
+	let timer_id
+	function wrapper() {
+		timer_id = null
+		f()
+	}
+	return function(t) {
+		if (timer_id != null) {
+			clearTimeout(timer_id)
+			timer_id = null
+		}
+		if (t != null)
+			timer_id = after(t, wrapper)
+	}
+}
+
 // serialization -------------------------------------------------------------
 
 json = JSON.stringify
