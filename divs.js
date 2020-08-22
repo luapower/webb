@@ -1028,6 +1028,25 @@ function component(tag, cons) {
 					e[setter](v, v0)
 					e.fire('prop_changed', prop, v, v0)
 				}
+			} else if (opt.store == 'attr') {  // for attr-based styling
+				let attr = prop.replace('_', '-')
+				if (opt.default != null && !e.hasAttribute(attr))
+					e.setAttribute(attr, opt.default)
+				function get() {
+					return e.getAttribute(attr)
+				}
+				function set(v1) {
+					let v0 = get()
+					v1 = convert(v1, v0)
+					if (v1 === v0)
+						return
+					if (!v1)
+						e.removeAttribute(attr)
+					else
+						e.setAttribute(attr, v1)
+					e[setter](v, v0)
+					e.fire('prop_changed', prop, v, v0)
+				}
 			} else if (opt.style) {
 				let style = opt.style
 				let format = opt.style_format || return_arg
