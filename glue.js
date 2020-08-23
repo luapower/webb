@@ -403,7 +403,7 @@ function timer(f) {
 			clearTimeout(timer_id)
 			timer_id = null
 		}
-		if (t != null)
+		if (t != null && t !== false)
 			timer_id = after(t, wrapper)
 	}
 }
