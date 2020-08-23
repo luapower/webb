@@ -1025,8 +1025,8 @@ function component(tag, cons) {
 					if (v1 === v0)
 						return
 					v = v1
-					e[setter](v, v0)
-					e.fire('prop_changed', prop, v, v0)
+					e[setter](v1, v0)
+					e.fire('prop_changed', prop, v1, v0)
 				}
 			} else if (opt.store == 'attr') {  // for attr-based styling
 				let attr = prop.replace('_', '-')
@@ -1044,8 +1044,8 @@ function component(tag, cons) {
 						e.removeAttribute(attr)
 					else
 						e.setAttribute(attr, v1)
-					e[setter](v, v0)
-					e.fire('prop_changed', prop, v, v0)
+					e[setter](v1, v0)
+					e.fire('prop_changed', prop, v1, v0)
 				}
 			} else if (opt.style) {
 				let style = opt.style
