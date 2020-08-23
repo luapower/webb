@@ -10,12 +10,15 @@
 alias(Element, 'hasattr', 'hasAttribute')
 
 method(Element, 'attr', function(k, v) {
-	if (v === undefined)
-		return this.getAttribute(k)
-	else if (v == null)
+	if (v == null || v === false)
 		this.removeAttribute(k)
 	else
-		this.setAttribute(k, v)
+		this.setAttribute(k, repl(v, true, ''))
+})
+
+// NOTE: '' is not supported, it's converted to `true`.
+method(Element, 'attrval', function(k) {
+	return repl(this.getAttribute(k), '', true)
 })
 
 property(Element, 'attrs', {
@@ -27,12 +30,6 @@ property(Element, 'attrs', {
 			for (let k in attrs)
 				this.attr(k, attrs[k])
 	}
-})
-
-// setting a default value for an attribute if one wasn't set in html.
-method(Element, 'attrval', function(k, v) {
-	if (!this.hasAttribute(k))
-		this.setAttribute(k, v)
 })
 
 // element css class list manipulation ---------------------------------------
@@ -56,7 +53,7 @@ method(Element, 'switch_class', function(s1, s2, normal) {
 
 property(Element, 'classes', {
 	get: function() {
-		return this.attr('class')
+		return this.attrval('class')
 	},
 	set: function(s) { // doesn't remove existing classes.
 		if (s)
@@ -998,9 +995,7 @@ function component(tag, cons) {
 
 		if (e.initialized)
 			return
-
 		e.typename = typename
-
 		e.props = {}
 
 		e.prop = function(prop, opt) {
@@ -1030,20 +1025,17 @@ function component(tag, cons) {
 				}
 			} else if (opt.store == 'attr') {  // for attr-based styling
 				let attr = prop.replace('_', '-')
-				if (opt.default != null && !e.hasAttribute(attr))
-					e.setAttribute(attr, opt.default)
+				if (opt.default !== undefined)
+					e.attr(attr, opt.default)
 				function get() {
-					return e.getAttribute(attr)
+					return e.attrval(attr)
 				}
 				function set(v1) {
 					let v0 = get()
 					v1 = convert(v1, v0)
 					if (v1 === v0)
 						return
-					if (!v1)
-						e.removeAttribute(attr)
-					else
-						e.setAttribute(attr, v1)
+					e.attr(attr, v1)
 					e[setter](v1, v0)
 					e.fire('prop_changed', prop, v1, v0)
 				}
@@ -1084,7 +1076,7 @@ function component(tag, cons) {
 			}
 
 			if (opt.bind) {
-				let resolve = opt.resolve || global_widget_resolver(opt.type)
+				let resolve = opt.resolve || global_widget_resolver(type)
 				let NAME = prop
 				let REF = repl(opt.bind, true, NAME)
 				function global_changed(te, name, last_name) {
@@ -1136,13 +1128,9 @@ function component(tag, cons) {
 		}
 
 		cons(e)
-
-		let opt = update({}, ...args)
-		update(e, opt)
-
-		e.init(opt)
-
+		update(e, ...args)
 		e.initialized = true
+		e.init()
 	}
 
 	function create(...args) {
