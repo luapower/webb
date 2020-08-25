@@ -943,7 +943,7 @@ HTMLElement.prototype.init = noop
 // component(tag, cons) -> create({option: value}) -> element.
 function component(tag, cons) {
 
-	let typename = tag.replace(/^[^\-]+\-/, '').replace('-', '_')
+	let typename = tag.replace(/^[^\-]+\-/, '').replace(/\-/g, '_')
 
 	let cls = class extends HTMLElement {
 
@@ -1024,7 +1024,7 @@ function component(tag, cons) {
 					e.fire('prop_changed', prop, v1, v0)
 				}
 			} else if (opt.store == 'attr') {  // for attr-based styling
-				let attr = prop.replace('_', '-')
+				let attr = prop.replace(/_/g, '-')
 				if (opt.default !== undefined)
 					e.attr(attr, opt.default)
 				function get() {
