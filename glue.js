@@ -25,7 +25,7 @@ function opt(x, z) { return x !== undefined ? x : z }
 function and(x, z) { return x != null ? z : x }
 
 // single-value filter.
-function repl(x, v, z) { return x == v ? z : x }
+function repl(x, v, z) { return x === v ? z : x }
 
 // math ----------------------------------------------------------------------
 
@@ -370,14 +370,26 @@ function month_day_of (t) { _d.setTime(t * 1000); return _d.getDay() }
 
 locale = navigator.language
 
-function weekday_name(t, how) {
-	_d.setTime(t * 1000)
-	return _d.toLocaleDateString(locale, {weekday: how || 'short'})
-}
+{
+	let wd = {short: {}, long: {}}
 
-function month_name(t, how) {
-	_d.setTime(t * 1000)
-	return _d.toLocaleDateString(locale, {month: how || 'short'})
+	for (let i = 0; i < 7; i++) {
+		_d.setTime(1000 * 3600 * 24 * (3 + i))
+		for (how of ['short', 'long'])
+			wd[how][i] = _d.toLocaleDateString(locale, {weekday: how, timeZone: 'UTC'})
+	}
+
+	function weekday_name(t, how) {
+		_d.setTime(t * 1000)
+		return wd[how || 'short'][_d.getDay()]
+	}
+
+	let month_names = {}
+
+	function month_name(t, how) {
+		_d.setTime(t * 1000)
+		return _d.toLocaleDateString(locale, {month: how || 'short'})
+	}
 }
 
 // no way to get OS locale in JS in 2020. I hate the web.

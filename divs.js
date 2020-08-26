@@ -230,7 +230,7 @@ callers.click = function(e, f) {
 	if (e.which == 1)
 		return f.call(this, e)
 	else if (e.which == 3)
-		return this.fire('rightclick', e)
+		return this.fireup('rightclick', e)
 }
 
 callers.pointerdown = function(e, f) {
@@ -238,7 +238,7 @@ callers.pointerdown = function(e, f) {
 	if (e.which == 1)
 		ret = f.call(this, e, e.clientX, e.clientY)
 	else if (e.which == 3)
-		ret = this.fire('rightpointerdown', e, e.clientX, e.clientY)
+		ret = this.fireup('rightpointerdown', e, e.clientX, e.clientY)
 	if (ret == 'capture') {
 		this.setPointerCapture(e.pointerId)
 		ret = false
@@ -269,7 +269,7 @@ callers.pointerup = function(e, f) {
 	if (e.which == 1)
 		ret = f.call(this, e, e.clientX, e.clientY)
 	else if (e.which == 3)
-		ret = this.fire('rightpointerup', e, e.clientX, e.clientY)
+		ret = this.fireup('rightpointerup', e, e.clientX, e.clientY)
 	if (this.hasPointerCapture(e.pointerId))
 		this.releasePointerCapture(e.pointerId)
 	return ret
@@ -290,26 +290,33 @@ callers.wheel = function(e, f) {
 		return f.call(this, e.deltaY, e)
 }
 
-let installers = {}
-
-installers.attr_changed = function(e) {
-	let obs = e.__attr_observer
-	if (!obs) {
-		obs = new MutationObserver(function(mutations) {
-			e.fire(event('attr_changed', false, mutations))
-		})
-		obs.observe(e, {attributes: true})
-		e.__attr_observer = obs
-	}
-}
+method(Element, 'detect_style_size_changes', function(event_name) {
+	let e = this
+	if (e.__style_change_observer)
+		return
+	let w0 = e.style.width
+	let h0 = e.style.height
+	let obs = new MutationObserver(function(mutations) {
+		if (mutations[0].attributeName == 'style') {
+			let w1 = e.style.width
+			let h1 = e.style.height
+			if (w1 != w0 || h1 != h0) {
+				w0 = w1
+				h0 = h1
+				e.fire(event_name || 'style_size_changed', w1, h1, w0, h0)
+			}
+		}
+	})
+	obs.observe(e, {attributes: true})
+	e.__style_size_change_observer = obs
+})
 
 let on = function(e, f, enable, capture) {
 	assert(enable === undefined || typeof enable == 'boolean')
-	if (enable == false)
-		return this.off(e, f)
-	let install = installers[e]
-	if (install)
-		install(this)
+	if (enable == false) {
+		this.off(e, f)
+		return
+	}
 	if (e.starts('raw:')) { // raw handler
 		e = e.slice(4)
 		listener = f
@@ -323,7 +330,7 @@ let on = function(e, f, enable, capture) {
 				e.stopImmediatePropagation()
 				// notify document of stopped events.
 				if (e.type == 'pointerdown')
-					document.fire(event('stopped_event', false, e))
+					document.fire('stopped_event', e)
 			}
 		}
 		f.listener = listener
@@ -350,15 +357,43 @@ function event(name, bubbles, ...args) {
 		: name
 }
 
+/* TODO: use this instead of fireup() or not?
+event.bubbles = {
+	rightclick: true,
+	rightpointerdown: true,
+	rightpointerup: true,
+	layout_changed: true,
+	prop_changed: true,
+	widget_tree_changed: true,
+	cell_dblclick: true,
+}
+*/
+
+var ev = {}
+var ep = {}
+let log_event = function(e) {
+	ev[e.type] = (ev[e.type] || 0) + 1
+	if (e.type == 'prop_changed')
+		ep[e.detail.args[0]] = (ep[e.detail.args[0]] || 0) + 1
+	return e
+}
+
 let fire = function(name, ...args) {
-	return this.dispatchEvent(event(name, true, ...args))
+	let e = log_event(event(name, false, ...args))
+	return this.dispatchEvent(e)
+}
+
+let fireup = function(name, ...args) {
+	let e = log_event(event(name, true, ...args))
+	return this.dispatchEvent(e)
 }
 
 for (let e of [Window, Document, Element]) {
-	method(e, 'on'   , on)
-	method(e, 'off'  , off)
-	method(e, 'once' , once)
-	method(e, 'fire' , fire)
+	method(e, 'on'     , on)
+	method(e, 'off'    , off)
+	method(e, 'once'   , once)
+	method(e, 'fire'   , fire)
+	method(e, 'fireup' , fireup)
 }
 
 }
@@ -410,7 +445,7 @@ method(Element, 'show', function(v, affects_layout) {
 		return
 	this.style.display = d1
 	if (affects_layout)
-		this.fire('layout_changed')
+		this.fireup('layout_changed')
 })
 method(Element, 'hide', function() {
 	this.show(false)
@@ -503,17 +538,29 @@ method(Element, 'scroll_to_view_rect', function(sx0, sy0, x, y, w, h) {
 	this.scroll(...this.scroll_to_view_rect_offset(sx0, sy0, x, y, w, h))
 })
 
-method(Element, 'make_visible_scroll_offset', function(sx0, sy0) {
+method(Element, 'make_visible_scroll_offset', function(sx0, sy0, parent) {
+	parent = this.parent
+	// TODO:
+	//parent = parent || this.parent
+	//let cr = this.rect()
+	//let pr = parent.rect()
+	//let x = cr.x - pr.x
+	//let y = cr.y - pr.y
 	let x = this.offsetLeft
 	let y = this.offsetTop
 	let w = this.offsetWidth
 	let h = this.offsetHeight
-	return this.parent.scroll_to_view_rect_offset(sx0, sy0, x, y, w, h)
+	return parent.scroll_to_view_rect_offset(sx0, sy0, x, y, w, h)
 })
 
 // scroll parent to make self visible.
 method(Element, 'make_visible', function() {
-	this.parent.scroll(...this.make_visible_scroll_offset())
+	let parent = this.parent
+	while (parent && parent != document) {
+		parent.scroll(...this.make_visible_scroll_offset(null, null, parent))
+		parent = parent.parent
+		break
+	}
 })
 
 // popup pattern -------------------------------------------------------------
@@ -578,7 +625,7 @@ let popup_state = function(e) {
 		align   = or(align1 , align)
 		px      = or(px1, px) || 0
 		py      = or(py1, py) || 0
-		target1 = or(repl(target1, null, target), target)
+		target1 = or(target1, target)
 		if (target1 != target) {
 			if (target)
 				free()
@@ -621,7 +668,8 @@ let popup_state = function(e) {
 	function bind_target(on) {
 
 		// this detects explicit target element size changes which is not much.
-		target.on('attr_changed', update, on)
+		target.detect_style_size_changes()
+		target.on('style_size_changed', update, on)
 
 		// allow popup_update() to change popup visibility on target hover.
 		target.on('pointerenter', update, on)
@@ -645,7 +693,6 @@ let popup_state = function(e) {
 		update()
 		if (e.popup_target_attached)
 			e.popup_target_attached(target)
-		e.fire('popup_target_attached')
 		bind_target(true)
 		popup_timer.add(update)
 	}
@@ -656,13 +703,11 @@ let popup_state = function(e) {
 		bind_target(false)
 		if (e.popup_target_detached)
 			e.popup_target_detached(target)
-		e.fire('popup_target_detached')
 	}
 
 	function target_updated() {
 		if (e.popup_target_updated)
 			e.popup_target_updated(target)
-		e.fire('popup_target_updated', target)
 	}
 
 	function force_attached(e, v) {
@@ -973,18 +1018,18 @@ function component(tag, cons) {
 			if (this.attached)
 				return
 			this.attached = true
-			this.fire(event('attach', false))
+			this.fire('attach')
 			if (this.id)
-				document.fire(event('global_attached', false, this, this.id))
+				document.fire('global_attached', this, this.id)
 		}
 
 		detach() {
 			if (!this.attached)
 				return
 			this.attached = false
-			this.fire(event('detach', false))
+			this.fire('detach')
 			if (this.id)
-				document.fire(event('global_detached', false, this, this.id))
+				document.fire('global_detached', this, this.id)
 		}
 
 	}
@@ -1006,8 +1051,10 @@ function component(tag, cons) {
 			let type = opt.type
 			opt.name = prop
 			let convert = opt.convert || return_arg
+			let priv = opt.private
 			if (!e[setter])
 				e[setter] = noop
+			let chev = true // TODO: disable those when editing mode not allowed app-wide.
 
 			if (opt.store == 'var') {
 				let v = opt.default
@@ -1021,7 +1068,8 @@ function component(tag, cons) {
 						return
 					v = v1
 					e[setter](v1, v0)
-					e.fire('prop_changed', prop, v1, v0)
+					if (!priv && chev)
+						e.fireup('prop_changed', prop, v1, v0)
 				}
 			} else if (opt.store == 'attr') {  // for attr-based styling
 				let attr = prop.replace(/_/g, '-')
@@ -1037,7 +1085,8 @@ function component(tag, cons) {
 						return
 					e.attr(attr, v1)
 					e[setter](v1, v0)
-					e.fire('prop_changed', prop, v1, v0)
+					if (!priv && chev)
+						e.fireup('prop_changed', prop, v1, v0)
 				}
 			} else if (opt.style) {
 				let style = opt.style
@@ -1058,7 +1107,8 @@ function component(tag, cons) {
 					if (v == v0)
 						return
 					e[setter](v, v0)
-					e.fire('prop_changed', prop, v, v0)
+					if (!priv && chev)
+						e.fireup('prop_changed', prop, v, v0)
 				}
 			} else {
 				assert(!('default' in opt))
@@ -1071,7 +1121,8 @@ function component(tag, cons) {
 					if (v === v0)
 						return
 					e[setter](v, v0)
-					e.fire('prop_changed', prop, v, v0)
+					if (!priv && chev)
+						e.fireup('prop_changed', prop, v, v0)
 				}
 			}
 
@@ -1122,7 +1173,7 @@ function component(tag, cons) {
 
 			e.property(prop, get, set)
 
-			if (!opt.private)
+			if (!priv)
 				e.props[prop] = opt
 
 		}
