@@ -311,44 +311,81 @@ method(Element, 'detect_style_size_changes', function(event_name) {
 	e.__style_size_change_observer = obs
 })
 
+etrack = new Map()
+
+let log_add_event = function(target, name, f, capture) {
+	if (target.initialized === null)
+		return
+	capture = !!capture
+	let ft = map_attr(map_attr(map_attr(etrack, name), target), capture)
+	if (!ft.has(f))
+		ft.set(f, stacktrace())
+	else
+		print('on duplicate', name, capture)
+}
+
+let log_remove_event = function(target, name, f, capture) {
+	capture = !!capture
+	let t = etrack.get(name)
+	let tt = t && t.get(target)
+	let ft = tt && tt.get(capture)
+	if (ft && ft.has(f)) {
+		ft.delete(f)
+		if (!ft.size) {
+			tt.delete(target)
+			if (!tt.size)
+				t.delete(name)
+		}
+	} else {
+		print('off without on', name, capture)
+	}
+}
+
 let on = function(e, f, enable, capture) {
 	assert(enable === undefined || typeof enable == 'boolean')
 	if (enable == false) {
-		this.off(e, f)
+		this.off(e, f, capture)
 		return
 	}
+	let listener
 	if (e.starts('raw:')) { // raw handler
 		e = e.slice(4)
 		listener = f
 	} else {
-		let caller = callers[e] || passthrough_caller
-		listener = function(e) {
-			let ret = caller.call(this, e, f)
-			if (ret === false) { // like jquery
-				e.preventDefault()
-				e.stopPropagation()
-				e.stopImmediatePropagation()
-				// notify document of stopped events.
-				if (e.type == 'pointerdown')
-					document.fire('stopped_event', e)
+		listener = f.listener
+		if (!listener) {
+			let caller = callers[e] || passthrough_caller
+			listener = function(e) {
+				let ret = caller.call(this, e, f)
+				if (ret === false) { // like jquery
+					e.preventDefault()
+					e.stopPropagation()
+					e.stopImmediatePropagation()
+					// notify document of stopped events.
+					if (e.type == 'pointerdown')
+						document.fire('stopped_event', e)
+				}
 			}
+			f.listener = listener
 		}
-		f.listener = listener
 	}
+	log_add_event(this, e, listener, capture)
 	this.addEventListener(e, listener, capture)
 }
 
-let off = function(e, f) {
-	this.removeEventListener(e, f.listener || f)
+let off = function(e, f, capture) {
+	let listener = f.listener || f
+	log_remove_event(this, e, listener, capture)
+	this.removeEventListener(e, listener, capture)
 }
 
-let once = function(e, f) {
+let once = function(e, f, capture) {
 	let wrapper = function(...args) {
 		let ret = f(...args)
-		e.off(wrapper)
+		e.off(wrapper, capture)
 		return ret
 	}
-	e.on(wrapper)
+	e.on(wrapper, true, capture)
 }
 
 function event(name, bubbles, ...args) {
@@ -371,7 +408,7 @@ event.bubbles = {
 
 var ev = {}
 var ep = {}
-let log_event = function(e) {
+let log_fire = function(e) {
 	ev[e.type] = (ev[e.type] || 0) + 1
 	if (e.type == 'prop_changed')
 		ep[e.detail.args[0]] = (ep[e.detail.args[0]] || 0) + 1
@@ -379,12 +416,12 @@ let log_event = function(e) {
 }
 
 let fire = function(name, ...args) {
-	let e = log_event(event(name, false, ...args))
+	let e = log_fire(event(name, false, ...args))
 	return this.dispatchEvent(e)
 }
 
 let fireup = function(name, ...args) {
-	let e = log_event(event(name, true, ...args))
+	let e = log_fire(event(name, true, ...args))
 	return this.dispatchEvent(e)
 }
 
@@ -995,7 +1032,7 @@ function component(tag, cons) {
 		constructor() {
 			super()
 			this.attached = false
-			this.initialized = false
+			this.initialized = null
 		}
 
 		connectedCallback() {
@@ -1179,6 +1216,7 @@ function component(tag, cons) {
 		}
 
 		cons(e)
+		e.initialized = false
 		update(e, ...args)
 		e.initialized = true
 		e.init()

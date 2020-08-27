@@ -85,6 +85,14 @@ function assert(ret, err, ...args) {
 	return ret
 }
 
+function stacktrace() {
+	try {
+		throw new Error()
+	} catch(e) {
+		return e.stack
+	}
+}
+
 // extending built-in objects ------------------------------------------------
 
 // extend an object with a property, checking for upstream name clashes.
@@ -243,6 +251,12 @@ function attr(t, k) {
 function array_attr(t, k) {
 	let v = t[k]
 	if (!v) { v = []; t[k] = v }
+	return v
+}
+
+function map_attr(t, k) {
+	let v = t.get(k)
+	if (!v) { v = new Map(); t.set(k, v) }
 	return v
 }
 
