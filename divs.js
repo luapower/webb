@@ -292,7 +292,7 @@ callers.wheel = function(e, f) {
 
 method(Element, 'detect_style_size_changes', function(event_name) {
 	let e = this
-	if (e.__style_change_observer)
+	if (e.__style_size_change_observer)
 		return
 	let w0 = e.style.width
 	let h0 = e.style.height
@@ -662,7 +662,7 @@ let popup_state = function(e) {
 		align   = or(align1 , align)
 		px      = or(px1, px) || 0
 		py      = or(py1, py) || 0
-		target1 = or(target1, target)
+		target1 = or(repl(target1, null, false), target)
 		if (target1 != target) {
 			if (target)
 				free()
@@ -798,23 +798,25 @@ let popup_state = function(e) {
 		else if (side == 'inner-top')
 			[x0, y0] = [tr.left + px, tr.top + py]
 		else if (side == 'inner-bottom')
-			[x0, y0] = [tr.left + py, tr.bottom - er.height - py]
+			[x0, y0] = [tr.left + px, tr.bottom - er.height - py]
 		else if (side == 'inner-center')
-			[x0, y0] = [tr.left + (tr.width - er.width) / 2, tr.top + (tr.height - er.height) / 2]
+			[x0, y0] = [
+				tr.left + (tr.width  - er.width ) / 2,
+				tr.top  + (tr.height - er.height) / 2
+			]
 		else {
 			side = 'bottom'; // default
 			[x0, y0] = [tr.left + px, tr.bottom + py]
 		}
 
-		if (align == 'center' && (side == 'top' || side == 'bottom'))
+		let sde = side.replace('inner-', '')
+		if (align == 'center' && (sde == 'top' || sde == 'bottom'))
 			x0 = x0 - er.width / 2 + tr.width / 2
-		else if (align == 'center' && (side == 'inner-top' || side == 'inner-bottom'))
-			x0 = x0 - er.width / 2 + tr.width / 2
-		else if (align == 'center' && (side == 'left' || side == 'right'))
+		else if (align == 'center' && (sde == 'left' || sde == 'right'))
 			y0 = y0 - er.height / 2 + tr.height / 2
-		else if (align == 'end' && (side == 'top' || side == 'bottom'))
+		else if (align == 'end' && (sde == 'top' || sde == 'bottom'))
 			x0 = x0 - er.width + tr.width
-		else if (align == 'end' && (side == 'left' || side == 'right'))
+		else if (align == 'end' && (sde == 'left' || sde == 'right'))
 			y0 = y0 - er.height + tr.height
 
 		e.x = window.scrollX + x0
@@ -1022,6 +1024,8 @@ method(HTMLElement, 'property', function(prop, getter, setter) {
 
 HTMLElement.prototype.init = noop
 
+let repl_empty_str = v => repl(v, '', null)
+
 // component(tag, cons) -> create({option: value}) -> element.
 function component(tag, cons) {
 
@@ -1128,8 +1132,8 @@ function component(tag, cons) {
 			} else if (opt.style) {
 				let style = opt.style
 				let format = opt.style_format || return_arg
-				let parse  = opt.style_parse  || type == 'number' && num || return_arg
-				if (opt.default != null && e.style[style] == null)
+				let parse  = opt.style_parse  || type == 'number' && num || repl_empty_str
+				if (opt.default != null && parse(e.style[style]) == null)
 					e.style[style] = format(opt.default)
 				function get() {
 					return parse(e.style[style])
