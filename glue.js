@@ -15,14 +15,11 @@ isarray = Array.isArray
 
 // logic ---------------------------------------------------------------------
 
-// `||` operator that considers `0` and `''` to be truth values.
+// non-shortcircuiting `||` operator for which only `undefined` and `null` are falsey.
 function or(x, z) { return x != null ? x : z }
 
-// `||` operator that considers `null` to be truth value as well.
-function opt(x, z) { return x !== undefined ? x : z }
-
-// `&&` operator that considers `0` and `''` to be truth values.
-function and(x, z) { return x != null ? z : x }
+// non-shortcircuiting `||` operator for which only `undefined` is falsey.
+function strict_or(x, z) { return x !== undefined ? x : z }
 
 // single-value filter.
 function repl(x, v, z) { return x === v ? z : x }
