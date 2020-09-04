@@ -182,34 +182,6 @@ method(Element, 'set', function(s, whitespace) {
 	}
 })
 
-// quick overlays ------------------------------------------------------------
-
-function overlay(attrs, content) {
-	let e = div(attrs)
-	e.style = `
-		position: absolute;
-		left: 0;
-		top: 0;
-		right: 0;
-		bottom: 0;
-		display: flex;
-		overflow: auto;
-		justify-content: center;
-	` + (attrs && attrs.style || '')
-	if (content == null)
-		content = div()
-	e.set(content)
-	e.content = e.at[0]
-	e.content.style['margin'] = 'auto' // center it.
-	return e
-}
-
-method(Element, 'overlay', function(target, attrs, content) {
-	let e = overlay(attrs, content)
-	target.add(e)
-	return e
-})
-
 // events & event wrappers ---------------------------------------------------
 
 {
@@ -246,18 +218,18 @@ callers.pointerdown = function(e, f) {
 	return ret
 }
 
-method(Element, 'capture_pointer', function(e, move, up) {
+method(Element, 'capture_pointer', function(ev, move, up) {
 	move = or(move, return_false)
 	up   = or(up  , return_false)
-	let down_mx = e.clientX
-	let down_my = e.clientY
-	function wrap_move(e, mx, my) {
-		return move.call(this, e, mx, my, down_mx, down_my)
+	let down_mx = ev.clientX
+	let down_my = ev.clientY
+	function wrap_move(ev, mx, my) {
+		return move.call(this, ev, mx, my, down_mx, down_my)
 	}
-	function wrap_up(e, mx, my) {
+	function wrap_up(ev, mx, my) {
 		this.off('pointermove', wrap_move)
 		this.off('pointerup'  , wrap_up)
-		return up.call(this, e, mx, my)
+		return up.call(this, ev, mx, my)
 	}
 	this.on('pointermove', wrap_move)
 	this.on('pointerup'  , wrap_up)
@@ -314,7 +286,7 @@ method(Element, 'detect_style_size_changes', function(event_name) {
 etrack = new Map()
 
 let log_add_event = function(target, name, f, capture) {
-	if (target.initialized === null)
+	if (target.initialized === null) // skip handlers added in the constructor.
 		return
 	capture = !!capture
 	let ft = map_attr(map_attr(map_attr(etrack, name), target), capture)
@@ -340,6 +312,8 @@ let log_remove_event = function(target, name, f, capture) {
 		print('off without on', name, capture)
 	}
 }
+
+DEBUG_EVENTS = false
 
 let on = function(e, f, enable, capture) {
 	assert(enable === undefined || typeof enable == 'boolean')
@@ -369,13 +343,15 @@ let on = function(e, f, enable, capture) {
 			f.listener = listener
 		}
 	}
-	log_add_event(this, e, listener, capture)
+	if (DEBUG_EVENTS)
+		log_add_event(this, e, listener, capture)
 	this.addEventListener(e, listener, capture)
 }
 
 let off = function(e, f, capture) {
 	let listener = f.listener || f
-	log_remove_event(this, e, listener, capture)
+	if (DEBUG_EVENTS)
+		log_remove_event(this, e, listener, capture)
 	this.removeEventListener(e, listener, capture)
 }
 
@@ -870,6 +846,34 @@ method(Element, 'modal', function(on) {
 	}
 })
 
+// quick overlays ------------------------------------------------------------
+
+function overlay(attrs, content) {
+	let e = div(attrs)
+	e.style = `
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		display: flex;
+		overflow: auto;
+		justify-content: center;
+	` + (attrs && attrs.style || '')
+	if (content == null)
+		content = div()
+	e.set(content)
+	e.content = e.at[0]
+	e.content.style['margin'] = 'auto' // center it.
+	return e
+}
+
+method(Element, 'overlay', function(target, attrs, content) {
+	let e = overlay(attrs, content)
+	target.add(e)
+	return e
+})
+
 // live-move list element pattern --------------------------------------------
 
 // implements:
@@ -1002,259 +1006,4 @@ function live_move_mixin(e) {
 
 	return e
 }
-
-// ---------------------------------------------------------------------------
-// creating & setting up web components
-// ---------------------------------------------------------------------------
-
-// NOTE: the only reason for using this web components "technology" instead
-// of creating normal elements is because of connectedCallback and
-// disconnectedCallback for which there are no events in built-in elements,
-// and we use those events to solve the so-called "lapsed listener problem"
-// (a proper iterable weak hash map would be a better way to solve this but
-// alas, the web people could't get that one right either).
-
-method(HTMLElement, 'override', function(method, func) {
-	override(this, method, func)
-})
-
-method(HTMLElement, 'property', function(prop, getter, setter) {
-	property(this, prop, {get: getter, set: setter})
-})
-
-HTMLElement.prototype.init = noop
-
-let repl_empty_str = v => repl(v, '', null)
-
-// component(tag, cons) -> create({option: value}) -> element.
-function component(tag, cons) {
-
-	let typename = tag.replace(/^[^\-]+\-/, '').replace(/\-/g, '_')
-
-	let cls = class extends HTMLElement {
-
-		constructor() {
-			super()
-			this.attached = false
-			this.initialized = null
-		}
-
-		connectedCallback() {
-			if (this.attached)
-				return
-			if (!this.isConnected)
-				return
-			// elements created by the browser must be initialized on first
-			// attach as they aren't allowed to create children or set
-			// attributes in the constructor.
-			init(this)
-			this.attach()
-		}
-
-		disconnectedCallback() {
-			this.detach()
-		}
-
-		attach() {
-			if (this.attached)
-				return
-			this.attached = true
-			this.fire('attach')
-			if (this.id)
-				document.fire('global_attached', this, this.id)
-		}
-
-		detach() {
-			if (!this.attached)
-				return
-			this.attached = false
-			this.fire('detach')
-			if (this.id)
-				document.fire('global_detached', this, this.id)
-		}
-
-	}
-
-	customElements.define(tag, cls)
-
-	function init(e, ...args) {
-
-		if (e.initialized)
-			return
-		e.typename = typename
-		e.props = {}
-
-		e.prop = function(prop, opt) {
-			opt = opt || {}
-			update(opt, e.props[prop]) // class overrides
-			let getter = 'get_'+prop
-			let setter = 'set_'+prop
-			let type = opt.type
-			opt.name = prop
-			let convert = opt.convert || return_arg
-			let priv = opt.private
-			if (!e[setter])
-				e[setter] = noop
-			let chev = true // TODO: disable those when editing mode not allowed app-wide.
-
-			if (opt.store == 'var') {
-				let v = opt.default
-				function get() {
-					return v
-				}
-				function set(v1) {
-					let v0 = v
-					v1 = convert(v1, v0)
-					if (v1 === v0)
-						return
-					v = v1
-					e[setter](v1, v0)
-					if (!priv && chev)
-						e.fireup('prop_changed', prop, v1, v0)
-				}
-			} else if (opt.store == 'attr') {  // for attr-based styling
-				let attr = prop.replace(/_/g, '-')
-				if (opt.default !== undefined)
-					e.attr(attr, opt.default)
-				function get() {
-					return e.attrval(attr)
-				}
-				function set(v1) {
-					let v0 = get()
-					v1 = convert(v1, v0)
-					if (v1 === v0)
-						return
-					e.attr(attr, v1)
-					e[setter](v1, v0)
-					if (!priv && chev)
-						e.fireup('prop_changed', prop, v1, v0)
-				}
-			} else if (opt.style) {
-				let style = opt.style
-				let format = opt.style_format || return_arg
-				let parse  = opt.style_parse  || type == 'number' && num || repl_empty_str
-				if (opt.default != null && parse(e.style[style]) == null)
-					e.style[style] = format(opt.default)
-				function get() {
-					return parse(e.style[style])
-				}
-				function set(v) {
-					let v0 = get.call(e)
-					v = convert(v, v0)
-					if (v == v0)
-						return
-					e.style[style] = format(v)
-					v = get.call(e) // take it again (browser only sets valid values)
-					if (v == v0)
-						return
-					e[setter](v, v0)
-					if (!priv && chev)
-						e.fireup('prop_changed', prop, v, v0)
-				}
-			} else {
-				assert(!('default' in opt))
-				function get() {
-					return e[getter]()
-				}
-				function set(v) {
-					let v0 = e[getter]()
-					v = convert(v, v0)
-					if (v === v0)
-						return
-					e[setter](v, v0)
-					if (!priv && chev)
-						e.fireup('prop_changed', prop, v, v0)
-				}
-			}
-
-			if (opt.bind) {
-				let resolve = opt.resolve || global_widget_resolver(type)
-				let NAME = prop
-				let REF = repl(opt.bind, true, NAME)
-				function global_changed(te, name, last_name) {
-					// NOTE: changing the name from something to nothing
-					// will unbind dependants forever.
-					if (e[NAME] == last_name)
-						e[NAME] = name
-				}
-				function global_attached(te, name) {
-					if (e[NAME] == name)
-						e[REF] = te
-				}
-				function global_detached(te, name) {
-					if (e[REF] == te)
-						e[REF] = null
-				}
-				function bind(on) {
-					document.on('global_changed' , global_changed, on)
-					document.on('global_attached', global_attached, on)
-					document.on('global_detached', global_detached, on)
-				}
-				function attach() {
-					e[REF] = resolve(e[NAME])
-					bind(true)
-				}
-				function detach() {
-					e[REF] = null
-					bind(false)
-				}
-				function prop_changed(k, name, last_name) {
-					if (k != NAME) return
-					if (e.attached)
-						e[REF] = resolve(name)
-					if ((name != null) != (last_name != null)) {
-						e.on('attach', attach, name != null)
-						e.on('detach', detach, name != null)
-					}
-				}
-				if (e[NAME] != null)
-					prop_changed(NAME, e[NAME])
-				e.on('prop_changed', prop_changed)
-			}
-
-			e.property(prop, get, set)
-
-			if (!priv)
-				e.props[prop] = opt
-
-		}
-
-		cons(e)
-		e.initialized = false
-		update(e, ...args)
-		e.initialized = true
-		e.init()
-	}
-
-	function create(...args) {
-		let e = new cls()
-		init(e, ...args)
-		return e
-	}
-
-	create.class = cls
-	create.construct = cons
-
-	component.types[typename] = create
-	window[typename] = create
-
-	return create
-}
-
-component.types = {} // {typename->create}
-
-component.create = function(t) {
-	if (t instanceof HTMLElement)
-		return t
-	let create = component.types[t.typename]
-	return create(t)
-}
-
-global_widget_resolver = memoize(function(type) {
-	let is_type = 'is_'+type
-	return function(name) {
-		let e = window[name]
-		return isobject(e) && e.attached && e[is_type] && e.can_select_widget ? e : null
-	}
-})
 
