@@ -21,11 +21,12 @@ method(Element, 'attrval', function(k) {
 	return repl(this.getAttribute(k), '', true)
 })
 
+// NOTE: setting this doesn't remove existing attrs!
 property(Element, 'attrs', {
 	get: function() {
 		return this.attributes
 	},
-	set: function(attrs) { // doesn't remove existing attrs.
+	set: function(attrs) {
 		if (attrs)
 			for (let k in attrs)
 				this.attr(k, attrs[k])
@@ -51,11 +52,12 @@ method(Element, 'switch_class', function(s1, s2, normal) {
 })
 
 
+// NOTE: setting this doesn't remove existing classes!
 property(Element, 'classes', {
 	get: function() {
 		return this.attrval('class')
 	},
-	set: function(s) { // doesn't remove existing classes.
+	set: function(s) {
 		if (s)
 			for (s of s.split(/\s+/))
 				this.class(s, true)
@@ -370,18 +372,6 @@ function event(name, bubbles, ...args) {
 		: name
 }
 
-/* TODO: use this instead of fireup() or not?
-event.bubbles = {
-	rightclick: true,
-	rightpointerdown: true,
-	rightpointerup: true,
-	layout_changed: true,
-	prop_changed: true,
-	widget_tree_changed: true,
-	cell_dblclick: true,
-}
-*/
-
 var ev = {}
 var ep = {}
 let log_fire = function(e) {
@@ -458,7 +448,7 @@ method(Element, 'show', function(v, affects_layout) {
 		return
 	this.style.display = d1
 	if (affects_layout)
-		this.fireup('layout_changed')
+		document.fire('layout_changed')
 })
 method(Element, 'hide', function() {
 	this.show(false)
@@ -653,7 +643,7 @@ let popup_state = function(e) {
 
 	function init() {
 		if (target != document.body) { // prevent infinite recursion.
-			if (target.typename) { // component
+			if (target.iswidget) {
 				target.on('attach', target_attached)
 				target.on('detach', target_detached)
 			}
@@ -665,7 +655,7 @@ let popup_state = function(e) {
 	function free() {
 		if (target) {
 			target_detached()
-			if (target.typename) { // component
+			if (target.iswidget) { // component
 				target.off('attach', target_attached)
 				target.off('detach', target_detached)
 			}
