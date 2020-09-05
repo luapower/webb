@@ -4,8 +4,6 @@
 	Written by Cosmin Apreutesei. Public Domain.
 
 	ajax(req) -> req
-
-	req.send()
 	req.abort()
 
 	^slow(show|hide)
@@ -26,8 +24,9 @@ function ajax(req) {
 	let xhr = new XMLHttpRequest()
 
 	let method = req.method || (req.upload ? 'POST' : 'GET')
+	let async = req.async !== false
 
-	xhr.open(method, req.url, true, req.user, req.pass)
+	xhr.open(method, req.url, async, req.user, req.pass)
 
 	let upload = req.upload
 	if (typeof upload == 'object') {
@@ -35,7 +34,8 @@ function ajax(req) {
 		xhr.setRequestHeader('content-type', 'application/json')
 	}
 
-	xhr.timeout = (req.timeout || 0) * 1000
+	if (async)
+		xhr.timeout = (req.timeout || 0) * 1000
 
 	if (req.headers)
 		for (let h of headers)
@@ -127,6 +127,10 @@ function ajax(req) {
 	req.on('success', req.success)
 
 	req.xhr = xhr
+
+	if (!req.dont_send)
+		req.send()
+
 	return req
 }
 
