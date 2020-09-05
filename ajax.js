@@ -4,6 +4,7 @@
 	Written by Cosmin Apreutesei. Public Domain.
 
 	ajax(req) -> req
+	req.send()
 	req.abort()
 
 	^slow(show|hide)
