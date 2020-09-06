@@ -374,12 +374,14 @@ function event(name, bubbles, ...args) {
 
 var ev = {}
 var ep = {}
-let log_fire = function(e) {
+let log_fire = DEBUG_EVENTS && function(e) {
 	ev[e.type] = (ev[e.type] || 0) + 1
-	if (e.type == 'prop_changed')
-		ep[e.detail.args[0]] = (ep[e.detail.args[0]] || 0) + 1
+	if (e.type == 'prop_changed') {
+		let k = e.detail.args[1]
+		ep[k] = (ep[k] || 0) + 1
+	}
 	return e
-}
+} || return_arg
 
 let fire = function(name, ...args) {
 	let e = log_fire(event(name, false, ...args))
