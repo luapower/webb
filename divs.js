@@ -646,20 +646,18 @@ let popup_state = function(e) {
 	function init() {
 		if (target != document.body) { // prevent infinite recursion.
 			if (target.iswidget) {
-				target.on('attach', target_attached)
-				target.on('detach', target_detached)
+				target.on('bind', target_bind)
 			}
 		}
 		if (target.isConnected || target.attached)
-			target_attached()
+			target_bind(true)
 	}
 
 	function free() {
 		if (target) {
-			target_detached()
+			target_bind(false)
 			if (target.iswidget) { // component
-				target.off('attach', target_attached)
-				target.off('detach', target_detached)
+				target.off('bind', target_bind)
 			}
 			target = null
 		}
@@ -670,7 +668,20 @@ let popup_state = function(e) {
 			raf(update)
 	}
 
-	function bind_target(on) {
+	function target_bind(on) {
+		if (on) {
+			e.style.position = 'absolute'
+			document.body.add(e)
+			update()
+			if (e.popup_target_bind)
+				e.popup_target_bind(target, true)
+			popup_timer.add(update)
+		} else {
+			e.remove()
+			popup_timer.remove(update)
+			if (e.popup_target_bind)
+				e.popup_target_bind(target, false)
+		}
 
 		// this detects explicit target element size changes which is not much.
 		target.detect_style_size_changes()
@@ -690,24 +701,6 @@ let popup_state = function(e) {
 		// layout changes update the popup position.
 		document.on('layout_changed', update, on)
 
-	}
-
-	function target_attached() {
-		e.style.position = 'absolute'
-		document.body.add(e)
-		update()
-		if (e.popup_target_attached)
-			e.popup_target_attached(target)
-		bind_target(true)
-		popup_timer.add(update)
-	}
-
-	function target_detached() {
-		e.remove()
-		popup_timer.remove(update)
-		bind_target(false)
-		if (e.popup_target_detached)
-			e.popup_target_detached(target)
 	}
 
 	function target_updated() {
