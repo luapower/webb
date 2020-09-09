@@ -35,6 +35,8 @@ max = Math.max
 sqrt = Math.sqrt
 random = Math.random
 
+// NOTE: returns x1 if x1 < x0, which enables the idiom
+// `a[clamp(i, 0, b.length-1)]` to return undefined when b is empty.
 function clamp(x, x0, x1) {
 	return min(max(x, or(x0, -1/0)), or(x1, 1/0))
 }

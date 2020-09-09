@@ -626,11 +626,11 @@ let popup_state = function(e) {
 	let target, side, align, px, py
 
 	s.update = function(target1, side1, align1, px1, py1) {
-		side    = or(side1  , side)
-		align   = or(align1 , align)
+		side    = or(side1, side)
+		align   = or(align1, align)
 		px      = or(px1, px) || 0
 		py      = or(py1, py) || 0
-		target1 = or(repl(target1, null, false), target)
+		target1 = strict_or(target1, target) // because `null` means remove...
 		if (target1 != target) {
 			if (target)
 				free()
@@ -656,9 +656,8 @@ let popup_state = function(e) {
 	function free() {
 		if (target) {
 			target_bind(false)
-			if (target.iswidget) { // component
+			if (target.iswidget)
 				target.off('bind', target_bind)
-			}
 			target = null
 		}
 	}
@@ -708,13 +707,6 @@ let popup_state = function(e) {
 			e.popup_target_updated(target)
 	}
 
-	function force_attached(e, v) {
-		if (e.attached != null)
-			e.attached = v
-		for (let ce of e.children)
-			force_attached(ce, v)
-	}
-
 	function is_top_popup() {
 		let last = document.body.last
 		while (1) {
@@ -735,10 +727,9 @@ let popup_state = function(e) {
 		if (from_user === true && e.parent == document.body && !is_top_popup()) {
 			let sx = e.scrollLeft
 			let sy = e.scrollTop
-			force_attached(e, false)
-			e.remove()
-			force_attached(e, true)
+			bind_events = false
 			document.body.add(e)
+			bind_events = true
 			e.scroll(sx, sy)
 		}
 
