@@ -357,13 +357,18 @@ let off = function(e, f, capture) {
 	this.removeEventListener(e, listener, capture)
 }
 
-let once = function(e, f, capture) {
+let once = function(e, f, enable, capture) {
+	if (enable == false) {
+		this.off(e, f, capture)
+		return
+	}
 	let wrapper = function(...args) {
 		let ret = f(...args)
 		e.off(wrapper, capture)
 		return ret
 	}
 	e.on(wrapper, true, capture)
+	f.listener = wrapper.listener // so it can be off'ed.
 }
 
 function event(name, bubbles, ...args) {
