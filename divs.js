@@ -317,6 +317,14 @@ let log_remove_event = function(target, name, f, capture) {
 
 DEBUG_EVENTS = false
 
+override(Event, 'stopPropagation', function(inherited, ...args) {
+	inherited.call(this, ...args)
+	this.propagation_stoppped = true
+	// notify document of stopped events.
+	if (this.type == 'pointerdown')
+		document.fire('stopped_event', this)
+})
+
 let on = function(e, f, enable, capture) {
 	assert(enable === undefined || typeof enable == 'boolean')
 	if (enable == false) {
@@ -337,9 +345,6 @@ let on = function(e, f, enable, capture) {
 					e.preventDefault()
 					e.stopPropagation()
 					e.stopImmediatePropagation()
-					// notify document of stopped events.
-					if (e.type == 'pointerdown')
-						document.fire('stopped_event', e)
 				}
 			}
 			f.listener = listener
@@ -645,7 +650,7 @@ let popup_state = function(e) {
 			e.popup_target = target
 		}
 		if (target)
-			update(true)
+			update()
 	}
 
 	function init() {
@@ -712,31 +717,9 @@ let popup_state = function(e) {
 			e.popup_target_updated(target)
 	}
 
-	function is_top_popup() {
-		let last = document.body.last
-		while (1) {
-			if (e == last)
-				return true
-			if (last.__popup_state) {
-				return false
-			}
-			last = last.prev
-		}
-	}
-
-	function update(from_user) {
+	function update() {
 		if (!(target && target.isConnected))
 			return
-
-		// move to top if the update was user-triggered not layout-triggered.
-		if (from_user === true && e.parent == document.body && !is_top_popup()) {
-			let sx = e.scrollLeft
-			let sy = e.scrollTop
-			bind_events = false
-			document.body.add(e)
-			bind_events = true
-			e.scroll(sx, sy)
-		}
 
 		let tr = target.rect()
 		let er = e.rect()
