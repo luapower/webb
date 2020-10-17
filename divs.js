@@ -11,6 +11,7 @@
 	element attribute manipulation:
 		e.hasattr(k)
 		e.attrval(k)
+		e.bool_attrval(k)
 		e.attrs = {k: v}
 	element css class list manipulation:
 		e.class(k, [false])
@@ -77,6 +78,7 @@
 		e.focused
 		e.hasfocus
 		e.focusables()
+		e.effectively_disabled
 	text editing:
 		e.select(i, j)
 		e.contenteditable
@@ -112,6 +114,11 @@ method(Element, 'attr', function(k, v) {
 // NOTE: '' is not supported, it's converted to `true`.
 method(Element, 'attrval', function(k) {
 	return repl(this.getAttribute(k), '', true)
+})
+
+method(Element, 'bool_attrval', function(k) {
+	let v = this.getAttribute(k)
+	return repl(repl(v, '', true), 'false', false)
 })
 
 // NOTE: setting this doesn't remove existing attrs!
@@ -293,6 +300,8 @@ function passthrough_caller(e, f) {
 }
 
 callers.click = function(e, f) {
+	if (e.target.effectively_disabled)
+		return false
 	if (e.which == 1)
 		return f.call(this, e)
 	else if (e.which == 3)
@@ -300,6 +309,8 @@ callers.click = function(e, f) {
 }
 
 callers.pointerdown = function(e, f) {
+	if (e.target.effectively_disabled)
+		return false
 	let ret
 	if (e.which == 1)
 		ret = f.call(this, e, e.clientX, e.clientY)
@@ -331,6 +342,8 @@ method(Element, 'capture_pointer', function(ev, move, up) {
 })
 
 callers.pointerup = function(e, f) {
+	if (e.target.effectively_disabled)
+		return false
 	let ret
 	if (e.which == 1)
 		ret = f.call(this, e, e.clientX, e.clientY)
@@ -352,6 +365,8 @@ callers.keyup    = callers.keydown
 callers.keypress = callers.keydown
 
 callers.wheel = function(e, f) {
+	if (e.target.effectively_disabled)
+		return
 	if (e.deltaY)
 		return f.call(this, e, e.deltaY)
 }
@@ -512,8 +527,9 @@ function px(v) {
 }
 
 property(Element, 'x'    , { set: function(v) { this.style.left          = px(v) } })
-property(Element, 'x2'   , { set: function(v) { this.style.right         = px(v) } })
 property(Element, 'y'    , { set: function(v) { this.style.top           = px(v) } })
+property(Element, 'x2'   , { set: function(v) { this.style.right         = px(v) } })
+property(Element, 'y2'   , { set: function(v) { this.style.bottom        = px(v) } })
 property(Element, 'w'    , { set: function(v) { this.style.width         = px(v) } })
 property(Element, 'h'    , { set: function(v) { this.style.height        = px(v) } })
 property(Element, 'min_w', { set: function(v) { this.style['min-width' ] = px(v) } })
@@ -576,6 +592,10 @@ property(Element, 'hasfocus', {get: function() {
 method(Element, 'focusables', function() {
 	return this.$('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
 })
+
+property(Element, 'effectively_disabled', {get: function() {
+	return this.bool_attrval('disabled') || (this.parent && this.parent.effectively_disabled)
+}})
 
 // text editing --------------------------------------------------------------
 
