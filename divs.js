@@ -91,6 +91,9 @@
 		e.scroll_to_view_rect(sx0, sy0, x, y, w, h)
 		e.make_visible_scroll_offset(sx0, sy0[, parent])
 		e.make_visible()
+	animation:
+		raf(f)
+		transition(f, [dt], [x0], [x1], [easing])
 	UI patterns:
 		e.popup([target|false], [side], [align], [px], [py])
 		e.modal([on])
@@ -168,8 +171,6 @@ method(Element, 'css', function(prop, state) {
 	let css = getComputedStyle(this, state)
 	return prop ? css[prop] : css
 })
-
-raf = requestAnimationFrame
 
 // dom tree navigation for elements, skipping text nodes ---------------------
 
@@ -476,10 +477,10 @@ let once = function(e, f, enable, capture) {
 	}
 	let wrapper = function(...args) {
 		let ret = f(...args)
-		e.off(wrapper, capture)
+		this.off(e, wrapper, capture)
 		return ret
 	}
-	e.on(wrapper, true, capture)
+	this.on(e, wrapper, true, capture)
 	f.listener = wrapper.listener // so it can be off'ed.
 }
 
@@ -557,7 +558,11 @@ method(DOMRect, 'contains', function(x, y) {
 		(y >= this.top  && y <= this.bottom))
 })
 
-window.on('resize', function() { document.fire('layout_changed') })
+{
+	let layout_changed = function() { document.fire('layout_changed') }
+	window.on('resize', layout_changed)
+	window.on('load'  , layout_changed) // because fonts load asynchronously.
+}
 
 // common style wrappers -----------------------------------------------------
 
@@ -686,6 +691,61 @@ method(Element, 'make_visible', function() {
 		break
 	}
 })
+
+// animation -----------------------------------------------------------------
+
+easing = {} // from easing.lua
+
+easing.reverse = (f, t, ...args) => 1 - f(1 - t, ...args)
+easing.inout   = (f, t, ...args) => t < .5 ? .5 * f(t * 2, ...args) : .5 * (1 - f((1 - t) * 2, ...args)) + .5
+easing.outin   = (f, t, ...args) => t < .5 ? .5 * (1 - f(1 - t * 2, ...args)) : .5 * (1 - (1 - f(1 - (1 - t) * 2, ...args))) + .5
+
+// ease any interpolation function.
+easing.ease = function(f, way, t, ...args) {
+	f = or(easing[f], f)
+	if (way == 'out')
+		return easing.reverse(f, t, ...args)
+	else if (way == 'inout')
+		return easing.inout(f, t, ...args)
+	else if (way == 'outin')
+		return easing.outin(f, t, ...args)
+	else
+		return f(t, ...args)
+}
+
+// actual easing functions.
+easing.linear = t => t
+easing.quad   = t => t**2
+easing.cubic  = t => t**3
+easing.quart  = t => t**4
+easing.quint  = t => t**5
+easing.expo   = t => 2**(10 * (t - 1))
+easing.sine   = t => -cos(t * (PI * .5)) + 1
+easing.circ   = t => -(sqrt(1 - t**2) - 1)
+easing.back   = t => t**2 * (2.7 * t - 1.7)
+
+raf = requestAnimationFrame
+
+function transition(f, dt, y0, y1, ease_f, ease_way, ...ease_args) {
+	dt = or(dt, 1)
+	y0 = or(y0, 0)
+	y1 = or(y1, 1)
+	ease_f = or(ease_f, 'cubic')
+	let t0
+	let wrapper = function(t) {
+		t0 = or(t0, t)
+		let lin_x = lerp(t, t0, t0 + dt * 1000, 0, 1)
+		if (lin_x < 1) {
+			let eas_x = easing.ease(ease_f, ease_way, lin_x, ...ease_args)
+			let y = lerp(eas_x, 0, 1, y0, y1)
+			if (f(y) !== false)
+				raf(wrapper)
+		} else {
+			f(y1, true)
+		}
+	}
+	raf(wrapper)
+}
 
 // popup pattern -------------------------------------------------------------
 
