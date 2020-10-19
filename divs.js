@@ -62,6 +62,7 @@
 		e.capture_pointer(ev, on_pointermove, on_pointerup)
 		e.detect_style_size_changes()
 		DEBUG_EVENTS = false
+		on_dom_load(fn)
 	element geometry:
 		px(x)
 		e.x, e.y, e.x1, e.y1, e.x2, e.y2, e.w, e.h
@@ -115,6 +116,8 @@ method(Element, 'attr', function(k, v) {
 })
 
 // NOTE: '' is not supported, it's converted to `true`.
+// NOTE: `undefined` is not supported, `null` is returned if attr is missing.
+// NOTE: to set false explicitly, use 'false' and use bool_attrval() as getter.
 method(Element, 'attrval', function(k) {
 	return repl(this.getAttribute(k), '', true)
 })
@@ -517,6 +520,13 @@ for (let e of [Window, Document, Element]) {
 	method(e, 'once'   , once)
 	method(e, 'fire'   , fire)
 	method(e, 'fireup' , fireup)
+}
+
+function on_dom_load(fn) {
+	if (document.readyState === 'loading')
+		document.once('DOMContentLoaded', fn)
+	else // `DOMContentLoaded` already fired
+		fn()
 }
 
 }
