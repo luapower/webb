@@ -26,8 +26,6 @@ CONFIG
 	config('404_jpeg_action', '404.jpg')  404 action for image/jpeg
 
 	action['404.html']                    basic `404 Not Found` text
-	action['404.png']                     temporary redirect to 1x1.png
-	action['404.jpg']                     temporary redirect to 1x1.png
 
 TODO
 
@@ -330,10 +328,3 @@ setmetatable(action, {__call = action_call})
 action['404.html'] = function()
 	check(false, '<h1>404 Not Found</h1>')
 end
-
---return a transparent png for missing images to avoid the broken image icon.
-action['404.png'] = function()
-	redirect'/1x1.png'
-end
-action['404.jpg'] = action['404.png']
-

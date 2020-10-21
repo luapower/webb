@@ -858,7 +858,7 @@ let popup_state = function(e) {
 
 	function target_bind(on) {
 		if (on) {
-			e.style.position = 'absolute'
+			e.class('popup')
 			document.body.add(e)
 			update()
 			if (e.popup_target_bind)
@@ -866,6 +866,7 @@ let popup_state = function(e) {
 			popup_timer.add(update)
 		} else {
 			e.remove()
+			e.class('popup', false)
 			popup_timer.remove(update)
 			if (e.popup_target_bind)
 				e.popup_target_bind(target, false)
