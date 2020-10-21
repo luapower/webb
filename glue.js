@@ -825,6 +825,15 @@ function ajax(req) {
 
 	req.xhr = xhr
 
+	req.error_message = function(type, status, message, body) {
+		if (type == 'http')
+			return S('error_http', 'Server returned {0} {1}').subst(status, message)
+		else if (type == 'network')
+			return S('error_load_network', 'Loading failed: network error.')
+		else if (type == 'timeout')
+			return S('error_load_timeout', 'Loading failed: timed out.')
+	}
+
 	if (!req.dont_send)
 		req.send()
 
