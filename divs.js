@@ -289,6 +289,10 @@ method(Element, 'set', function(s, whitespace) {
 
 // events & event wrappers ---------------------------------------------------
 
+// NOTE: these wrappers disable mouse events on any target with attr `disabled`.
+// NOTE: preventing focusing is a matter of removing attr `tabindex` except
+// for input elements that must have it set to -1.
+
 {
 let callers = {}
 
@@ -297,7 +301,7 @@ let hidden_events = {prop_changed: 1, attr_changed: 1, stopped_event: 1}
 function passthrough_caller(e, f) {
 	if (isobject(e.detail) && e.detail.args) {
 		//if (!(e.type in hidden_events))
-		//print(e.type, ...e.detail.args)
+		//debug(e.type, ...e.detail.args)
 		return f.call(this, ...e.detail.args, e)
 	} else
 		return f.call(this, e)
@@ -406,7 +410,7 @@ let log_add_event = function(target, name, f, capture) {
 	if (!ft.has(f))
 		ft.set(f, stacktrace())
 	else
-		print('on duplicate', name, capture)
+		debug('on duplicate', name, capture)
 }
 
 let log_remove_event = function(target, name, f, capture) {
@@ -422,7 +426,7 @@ let log_remove_event = function(target, name, f, capture) {
 				t.delete(name)
 		}
 	} else {
-		print('off without on', name, capture)
+		warn('off without on', name, capture)
 	}
 }
 
@@ -577,6 +581,7 @@ method(DOMRect, 'contains', function(x, y) {
 // common style wrappers -----------------------------------------------------
 
 // NOTE: requires `[hidden] { display: none !important; }` in CSS.
+
 method(Element, 'show', function(v, affects_layout) {
 	this.attr('hidden', v === false)
 	if (affects_layout)

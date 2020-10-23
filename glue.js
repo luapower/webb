@@ -5,6 +5,10 @@
 
 	types:
 		isobject(e)
+		isarray(a)
+		isstr(s)
+		isnum(n)
+		isbool(b)
 	logic:
 		or(x, z)
 		strict_or(x, z)
@@ -28,6 +32,8 @@
 		return_arg
 	error handling:
 		print()
+		warn()
+		debug()
 		trace()
 		assert()
 		stacktrace()
@@ -106,11 +112,11 @@
 
 // types ---------------------------------------------------------------------
 
-function isobject(e) {
-	return e != null && typeof e == 'object'
-}
-
+isobject = e => e != null && typeof e == 'object'
 isarray = Array.isArray
+isstr = s => typeof s == 'string'
+isnum = n => typeof n == 'number'
+isbool = b => typeof b == 'boolean'
 
 // logic ---------------------------------------------------------------------
 
@@ -176,6 +182,8 @@ function return_arg(arg) { return arg; }
 // error handling ------------------------------------------------------------
 
 print = console.log
+warn  = print
+debug = print
 trace = console.trace
 
 function assert(ret, err, ...args) {
