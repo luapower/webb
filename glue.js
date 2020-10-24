@@ -521,7 +521,7 @@ locale = navigator.language
 
 	function month_year(t, how) {
 		_d.setTime(t * 1000)
-		return _d.toLocaleDateString(locale, {month: how || 'short', year: 'long'})
+		return _d.toLocaleDateString(locale, {month: how || 'short', year: 'numeric'})
 	}
 }
 
