@@ -541,8 +541,8 @@ function px(v) {
 	return typeof v == 'number' ? v+'px' : v
 }
 
-property(Element, 'x'    , { set: function(v) { this.style.left          = px(v) } })
-property(Element, 'y'    , { set: function(v) { this.style.top           = px(v) } })
+property(Element, 'x1'   , { set: function(v) { this.style.left          = px(v) } })
+property(Element, 'y1'   , { set: function(v) { this.style.top           = px(v) } })
 property(Element, 'x2'   , { set: function(v) { this.style.right         = px(v) } })
 property(Element, 'y2'   , { set: function(v) { this.style.bottom        = px(v) } })
 property(Element, 'w'    , { set: function(v) { this.style.width         = px(v) } })
@@ -552,6 +552,8 @@ property(Element, 'min_h', { set: function(v) { this.style['min-height'] = px(v)
 property(Element, 'max_w', { set: function(v) { this.style['max-width' ] = px(v) } })
 property(Element, 'max_h', { set: function(v) { this.style['max-height'] = px(v) } })
 
+alias(Element, 'x', 'x1')
+alias(Element, 'y', 'y1')
 alias(Element, 'rect', 'getBoundingClientRect')
 
 alias(HTMLElement, 'ox', 'offsetLeft')
@@ -583,9 +585,11 @@ method(DOMRect, 'contains', function(x, y) {
 // NOTE: requires `[hidden] { display: none !important; }` in CSS.
 
 method(Element, 'show', function(v, affects_layout) {
-	this.attr('hidden', v === false)
+	v = v !== false
+	this.attr('hidden', !v)
 	if (affects_layout)
 		document.fire('layout_changed')
+	this.fire('show', v)
 })
 method(Element, 'hide', function() {
 	this.show(false)
@@ -817,13 +821,15 @@ let popup_state = function(e) {
 
 	let s = {}
 
-	let target, side, align, px, py
+	let target, side, align, px, py, pw, ph
 
-	s.update = function(target1, side1, align1, px1, py1) {
+	s.update = function(target1, side1, align1, px1, py1, pw1, ph1) {
 		side    = or(side1, side)
 		align   = or(align1, align)
-		px      = or(px1, px) || 0
-		py      = or(py1, py) || 0
+		px      = or(px1, px)
+		py      = or(py1, py)
+		pw      = or(pw1, pw)
+		ph      = or(ph1, ph)
 		target1 = strict_or(target1, target) // because `null` means remove...
 		if (target1 != target) {
 			if (target)
@@ -909,40 +915,49 @@ let popup_state = function(e) {
 		let tr = target.rect()
 		let er = e.rect()
 
+		let w = er.w
+		let h = er.h
+		let tx1 = tr.x + or(px, 0)
+		let ty1 = tr.y + or(py, 0)
+		let tx2 = tx1 + or(pw, tr.w)
+		let ty2 = ty1 + or(ph, tr.h)
+		let tw = tx2 - tx1
+		let th = ty2 - ty1
+
 		let x0, y0
-		if (side == 'right')
-			[x0, y0] = [tr.right + px, tr.top + py]
-		else if (side == 'left')
-			[x0, y0] = [tr.left - er.width - px, tr.top + py]
-		else if (side == 'top')
-			[x0, y0] = [tr.left + px, tr.top - er.height - py]
-		else if (side == 'inner-right')
-			[x0, y0] = [tr.right - er.width - px, tr.top + py]
-		else if (side == 'inner-left')
-			[x0, y0] = [tr.left + px, tr.top + py]
-		else if (side == 'inner-top')
-			[x0, y0] = [tr.left + px, tr.top + py]
-		else if (side == 'inner-bottom')
-			[x0, y0] = [tr.left + px, tr.bottom - er.height - py]
-		else if (side == 'inner-center')
-			[x0, y0] = [
-				tr.left + (tr.width  - er.width ) / 2,
-				tr.top  + (tr.height - er.height) / 2
+		if (side == 'right') {
+			;[x0, y0] = [tx2, ty1]
+		} else if (side == 'left') {
+			;[x0, y0] = [tx1 - w, ty1]
+		} else if (side == 'top') {
+			;[x0, y0] = [tx1, ty1 - h]
+		} else if (side == 'inner-right') {
+		 	;[x0, y0] = [tx2 - w, tx1]
+		} else if (side == 'inner-left') {
+		 	;[x0, y0] = [tx1, ty1]
+		} else if (side == 'inner-top') {
+		 	;[x0, y0] = [tx1, ty1]
+		} else if (side == 'inner-bottom') {
+		 	;[x0, y0] = [tx1, ty2 - h]
+		} else if (side == 'inner-center') {
+			;[x0, y0] = [
+				tx1 + (tw - w) / 2,
+				ty1 + (th - h) / 2
 			]
-		else {
-			side = 'bottom'; // default
-			[x0, y0] = [tr.left + px, tr.bottom + py]
+		} else {
+			side = 'bottom' // default
+			;[x0, y0] = [tx1, ty2]
 		}
 
 		let sde = side.replace('inner-', '')
 		if (align == 'center' && (sde == 'top' || sde == 'bottom'))
-			x0 = x0 - er.width / 2 + tr.width / 2
+			x0 = x0 + (tw - w) / 2
 		else if (align == 'center' && (sde == 'left' || sde == 'right'))
-			y0 = y0 - er.height / 2 + tr.height / 2
+			y0 = y0 + (th - h) / 2
 		else if (align == 'end' && (sde == 'top' || sde == 'bottom'))
-			x0 = x0 - er.width + tr.width
+			x0 = x0 + tw - w
 		else if (align == 'end' && (sde == 'left' || sde == 'right'))
-			y0 = y0 - er.height + tr.height
+			y0 = y0 - th + h
 
 		e.x = window.scrollX + x0
 		e.y = window.scrollY + y0
@@ -953,9 +968,9 @@ let popup_state = function(e) {
 	return s
 }
 
-method(HTMLElement, 'popup', function(target, side, align, px, py) {
+method(HTMLElement, 'popup', function(target, side, align, px, py, pw, ph) {
 	this.__popup_state = this.__popup_state || popup_state(this)
-	this.__popup_state.update(target, side, align, px, py)
+	this.__popup_state.update(target, side, align, px, py, pw, ph)
 })
 
 }
