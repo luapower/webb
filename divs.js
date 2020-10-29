@@ -92,9 +92,12 @@
 		e.scroll_to_view_rect(sx0, sy0, x, y, w, h)
 		e.make_visible_scroll_offset(sx0, sy0[, parent])
 		e.make_visible()
-	animation:
+	animation easing:
 		raf(f)
 		transition(f, [dt], [x0], [x1], [easing])
+	hit testing:
+		hit_test_rect_sides(x0, y0, d1, d2, x, y, w, h)
+		e.hit_test_sides(mx, my, [d1], [d2])
 	UI patterns:
 		e.popup([target|false], [side], [align], [px], [py])
 		e.modal([on])
@@ -186,9 +189,19 @@ alias(Element, 'prev'   , 'previousElementSibling')
 
 {
 let indexOf = Array.prototype.indexOf
-property(Element, 'index', { get: function() {
-	return indexOf.call(this.parentNode.children, this)
-}})
+property(Element, 'index', {
+	get: function() {
+		return indexOf.call(this.parentNode.children, this)
+	},
+	set: function(i) {
+		let sx = this.scrollLeft
+		let sy = this.scrollTop
+		bind_events = false
+		this.parent.insert(i, this)
+		bind_events = true
+		this.scroll(sx, sy)
+	}
+})
 }
 
 // dom tree querying ---------------------------------------------------------
@@ -298,34 +311,34 @@ let callers = {}
 
 let hidden_events = {prop_changed: 1, attr_changed: 1, stopped_event: 1}
 
-function passthrough_caller(e, f) {
-	if (isobject(e.detail) && e.detail.args) {
-		//if (!(e.type in hidden_events))
-		//debug(e.type, ...e.detail.args)
-		return f.call(this, ...e.detail.args, e)
+function passthrough_caller(ev, f) {
+	if (isobject(ev.detail) && ev.detail.args) {
+		//if (!(ev.type in hidden_events))
+		//debug(ev.type, ...ev.detail.args)
+		return f.call(this, ...ev.detail.args, ev)
 	} else
-		return f.call(this, e)
+		return f.call(this, ev)
 }
 
-callers.click = function(e, f) {
-	if (e.target.effectively_disabled)
+callers.click = function(ev, f) {
+	if (ev.target.effectively_disabled)
 		return false
-	if (e.which == 1)
-		return f.call(this, e)
-	else if (e.which == 3)
-		return this.fireup('rightclick', e)
+	if (ev.which == 1)
+		return f.call(this, ev)
+	else if (ev.which == 3)
+		return this.fireup('rightclick', ev)
 }
 
-callers.pointerdown = function(e, f) {
-	if (e.target.effectively_disabled)
+callers.pointerdown = function(ev, f) {
+	if (ev.target.effectively_disabled)
 		return false
 	let ret
-	if (e.which == 1)
-		ret = f.call(this, e, e.clientX, e.clientY)
-	else if (e.which == 3)
-		ret = this.fireup('rightpointerdown', e, e.clientX, e.clientY)
+	if (ev.which == 1)
+		ret = f.call(this, ev, ev.clientX, ev.clientY)
+	else if (ev.which == 3)
+		ret = this.fireup('rightpointerdown', ev, ev.clientX, ev.clientY)
 	if (ret == 'capture') {
-		this.setPointerCapture(e.pointerId)
+		this.setPointerCapture(ev.pointerId)
 		ret = false
 	}
 	return ret
@@ -349,34 +362,37 @@ method(Element, 'capture_pointer', function(ev, move, up) {
 	return 'capture'
 })
 
-callers.pointerup = function(e, f) {
-	if (e.target.effectively_disabled)
+callers.pointerup = function(ev, f) {
+	if (ev.target.effectively_disabled)
 		return false
 	let ret
-	if (e.which == 1)
-		ret = f.call(this, e, e.clientX, e.clientY)
-	else if (e.which == 3)
-		ret = this.fireup('rightpointerup', e, e.clientX, e.clientY)
-	if (this.hasPointerCapture(e.pointerId))
-		this.releasePointerCapture(e.pointerId)
+	try {
+		if (ev.which == 1)
+			ret = f.call(this, ev, ev.clientX, ev.clientY)
+		else if (ev.which == 3)
+			ret = this.fireup('rightpointerup', ev, ev.clientX, ev.clientY)
+	} finally {
+		if (this.hasPointerCapture(ev.pointerId))
+			this.releasePointerCapture(ev.pointerId)
+	}
 	return ret
 }
 
-callers.pointermove = function(e, f) {
-	return f.call(this, e, e.clientX, e.clientY)
+callers.pointermove = function(ev, f) {
+	return f.call(this, ev, ev.clientX, ev.clientY)
 }
 
-callers.keydown = function(e, f) {
-	return f.call(this, e.key, e.shiftKey, e.ctrlKey, e.altKey, e)
+callers.keydown = function(ev, f) {
+	return f.call(this, ev.key, ev.shiftKey, ev.ctrlKey, ev.altKey, ev)
 }
 callers.keyup    = callers.keydown
 callers.keypress = callers.keydown
 
-callers.wheel = function(e, f) {
-	if (e.target.effectively_disabled)
+callers.wheel = function(ev, f) {
+	if (ev.target.effectively_disabled)
 		return
-	if (e.deltaY)
-		return f.call(this, e, e.deltaY)
+	if (ev.deltaY)
+		return f.call(this, ev, ev.deltaY)
 }
 
 method(Element, 'detect_style_size_changes', function(event_name) {
@@ -440,54 +456,54 @@ override(Event, 'stopPropagation', function(inherited, ...args) {
 		document.fire('stopped_event', this)
 })
 
-let on = function(e, f, enable, capture) {
+let on = function(name, f, enable, capture) {
 	assert(enable === undefined || typeof enable == 'boolean')
 	if (enable == false) {
-		this.off(e, f, capture)
+		this.off(name, f, capture)
 		return
 	}
 	let listener
-	if (e.starts('raw:')) { // raw handler
-		e = e.slice(4)
+	if (name.starts('raw:')) { // raw handler
+		name = name.slice(4)
 		listener = f
 	} else {
 		listener = f.listener
 		if (!listener) {
-			let caller = callers[e] || passthrough_caller
-			listener = function(e) {
-				let ret = caller.call(this, e, f)
+			let caller = callers[name] || passthrough_caller
+			listener = function(ev) {
+				let ret = caller.call(this, ev, f)
 				if (ret === false) { // like jquery
-					e.preventDefault()
-					e.stopPropagation()
-					e.stopImmediatePropagation()
+					ev.preventDefault()
+					ev.stopPropagation()
+					ev.stopImmediatePropagation()
 				}
 			}
 			f.listener = listener
 		}
 	}
 	if (DEBUG_EVENTS)
-		log_add_event(this, e, listener, capture)
-	this.addEventListener(e, listener, capture)
+		log_add_event(this, name, listener, capture)
+	this.addEventListener(name, listener, capture)
 }
 
-let off = function(e, f, capture) {
+let off = function(name, f, capture) {
 	let listener = f.listener || f
 	if (DEBUG_EVENTS)
-		log_remove_event(this, e, listener, capture)
-	this.removeEventListener(e, listener, capture)
+		log_remove_event(this, name, listener, capture)
+	this.removeEventListener(name, listener, capture)
 }
 
-let once = function(e, f, enable, capture) {
+let once = function(name, f, enable, capture) {
 	if (enable == false) {
-		this.off(e, f, capture)
+		this.off(name, f, capture)
 		return
 	}
 	let wrapper = function(...args) {
 		let ret = f(...args)
-		this.off(e, wrapper, capture)
+		this.off(name, wrapper, capture)
 		return ret
 	}
-	this.on(e, wrapper, true, capture)
+	this.on(name, wrapper, true, capture)
 	f.listener = wrapper.listener // so it can be off'ed.
 }
 
@@ -711,7 +727,7 @@ method(Element, 'make_visible', function() {
 	}
 })
 
-// animation -----------------------------------------------------------------
+// animation easing ----------------------------------------------------------
 
 easing = {} // from easing.lua
 
@@ -764,6 +780,46 @@ function transition(f, dt, y0, y1, ease_f, ease_way, ...ease_args) {
 		}
 	}
 	raf(wrapper)
+}
+
+// hit-testing ---------------------------------------------------------------
+
+{
+
+// check if a point (x0, y0) is inside rect (x, y, w, h)
+// offseted by d1 internally and d2 externally.
+let hit = function(x0, y0, d1, d2, x, y, w, h) {
+	x = x - d1
+	y = y - d1
+	w = w + d1 + d2
+	h = h + d1 + d2
+	return x0 >= x && x0 <= x + w && y0 >= y && y0 <= y + h
+}
+
+function hit_test_rect_sides(x0, y0, d1, d2, x, y, w, h) {
+	if (hit(x0, y0, d1, d2, x, y, 0, 0))
+		return 'top_left'
+	else if (hit(x0, y0, d1, d2, x + w, y, 0, 0))
+		return 'top_right'
+	else if (hit(x0, y0, d1, d2, x, y + h, 0, 0))
+		return 'bottom_left'
+	else if (hit(x0, y0, d1, d2, x + w, y + h, 0, 0))
+		return 'bottom_right'
+	else if (hit(x0, y0, d1, d2, x, y, w, 0))
+		return 'top'
+	else if (hit(x0, y0, d1, d2, x, y + h, w, 0))
+		return 'bottom'
+	else if (hit(x0, y0, d1, d2, x, y, 0, h))
+		return 'left'
+	else if (hit(x0, y0, d1, d2, x + w, y, 0, h))
+		return 'right'
+}
+
+method(Element, 'hit_test_sides', function(mx, my, d1, d2) {
+	let r = this.rect()
+	return hit_test_rect_sides(mx, my, or(d1, 5), or(d2, 5), r.x, r.y, r.w, r.h)
+})
+
 }
 
 // popup pattern -------------------------------------------------------------
@@ -821,15 +877,17 @@ let popup_state = function(e) {
 
 	let s = {}
 
-	let target, side, align, px, py, pw, ph
+	let target, side, align, px, py, pw, ph, ox, oy
 
-	s.update = function(target1, side1, align1, px1, py1, pw1, ph1) {
-		side    = or(side1, side)
-		align   = or(align1, align)
-		px      = or(px1, px)
-		py      = or(py1, py)
-		pw      = or(pw1, pw)
-		ph      = or(ph1, ph)
+	s.update = function(target1, side1, align1, px1, py1, pw1, ph1, ox1, oy1) {
+		side  = or(side1, side)
+		align = or(align1, align)
+		px    = or(px1, px)
+		py    = or(py1, py)
+		pw    = or(pw1, pw)
+		ph    = or(ph1, ph)
+		ox    = or(ox1, ox)
+		oy    = or(oy1, oy)
 		target1 = strict_or(target1, target) // because `null` means remove...
 		if (target1 != target) {
 			if (target)
@@ -915,6 +973,8 @@ let popup_state = function(e) {
 		let tr = target.rect()
 		let er = e.rect()
 
+		let x = ox || 0
+		let y = oy || 0
 		let w = er.w
 		let h = er.h
 		let tx1 = tr.x + or(px, 0)
@@ -932,7 +992,7 @@ let popup_state = function(e) {
 		} else if (side == 'top') {
 			;[x0, y0] = [tx1, ty1 - h]
 		} else if (side == 'inner-right') {
-		 	;[x0, y0] = [tx2 - w, tx1]
+		 	;[x0, y0] = [tx2 - w, ty1]
 		} else if (side == 'inner-left') {
 		 	;[x0, y0] = [tx1, ty1]
 		} else if (side == 'inner-top') {
@@ -949,15 +1009,20 @@ let popup_state = function(e) {
 			;[x0, y0] = [tx1, ty2]
 		}
 
-		let sde = side.replace('inner-', '')
-		if (align == 'center' && (sde == 'top' || sde == 'bottom'))
+		let sd = side.replace('inner-', '')
+		let sdx = sd == 'left' || sd == 'right'
+		let sdy = sd == 'top'  || sd == 'bottom'
+		if (align == 'center' && sdy)
 			x0 = x0 + (tw - w) / 2
-		else if (align == 'center' && (sde == 'left' || sde == 'right'))
+		else if (align == 'center' && sdx)
 			y0 = y0 + (th - h) / 2
-		else if (align == 'end' && (sde == 'top' || sde == 'bottom'))
+		else if (align == 'end' && sdy)
 			x0 = x0 + tw - w
-		else if (align == 'end' && (sde == 'left' || sde == 'right'))
-			y0 = y0 - th + h
+		else if (align == 'end' && sdx)
+			y0 = y0 + th - h
+
+		x0 += (side == 'inner-right'  || (sdy && align == 'end')) ? -x : x
+		y0 += (side == 'inner-bottom' || (sdx && align == 'end')) ? -y : y
 
 		e.x = window.scrollX + x0
 		e.y = window.scrollY + y0
@@ -968,9 +1033,9 @@ let popup_state = function(e) {
 	return s
 }
 
-method(HTMLElement, 'popup', function(target, side, align, px, py, pw, ph) {
+method(HTMLElement, 'popup', function(target, side, align, px, py, pw, ph, ox, oy) {
 	this.__popup_state = this.__popup_state || popup_state(this)
-	this.__popup_state.update(target, side, align, px, py, pw, ph)
+	this.__popup_state.update(target, side, align, px, py, pw, ph, ox, oy)
 })
 
 }
@@ -1005,7 +1070,8 @@ method(Element, 'modal', function(on) {
 		dialog.on('pointerdown', () => false)
 		e.dialog = dialog
 		document.body.add(dialog)
-		dialog.showModal()
+		if (dialog.showModal) // Firefox doesn't have this.
+			dialog.showModal()
 		e.focus()
 	}
 })
