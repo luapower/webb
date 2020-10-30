@@ -81,6 +81,7 @@
 		e.focusables()
 		e.effectively_disabled
 	text editing:
+		input.select_range(i, j)
 		e.select(i, j)
 		e.contenteditable
 		e.insert_at_caret(s)
@@ -639,7 +640,7 @@ property(Element, 'effectively_disabled', {get: function() {
 
 // text editing --------------------------------------------------------------
 
-alias(HTMLInputElement, 'select', 'setSelectionRange')
+alias(HTMLInputElement, 'select_range', 'setSelectionRange')
 
 property(Element, 'contenteditable', {
 	get: function() { return this.contentEditable == 'true' },
