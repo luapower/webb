@@ -60,7 +60,6 @@
 		~stopped_event      (stopped_ev, ev)
 		~layout_changed()
 		e.capture_pointer(ev, on_pointermove, on_pointerup)
-		e.detect_style_size_changes()
 		DEBUG_EVENTS = false
 		on_dom_load(fn)
 	element geometry:
@@ -396,27 +395,6 @@ callers.wheel = function(ev, f) {
 		return f.call(this, ev, ev.deltaY)
 }
 
-method(Element, 'detect_style_size_changes', function(event_name) {
-	let e = this
-	if (e.__style_size_change_observer)
-		return
-	let w0 = e.style.width
-	let h0 = e.style.height
-	let obs = new MutationObserver(function(mutations) {
-		if (mutations[0].attributeName == 'style') {
-			let w1 = e.style.width
-			let h1 = e.style.height
-			if (w1 != w0 || h1 != h0) {
-				w0 = w1
-				h0 = h1
-				e.fire(event_name || 'style_size_changed', w1, h1, w0, h0)
-			}
-		}
-	})
-	obs.observe(e, {attributes: true})
-	e.__style_size_change_observer = obs
-})
-
 etrack = new Map()
 
 let log_add_event = function(target, name, f, capture) {
@@ -576,14 +554,14 @@ alias(Element, 'rect', 'getBoundingClientRect')
 alias(HTMLElement, 'ox', 'offsetLeft')
 alias(HTMLElement, 'oy', 'offsetTop')
 
-alias(DOMRect, 'x' , 'left')
-alias(DOMRect, 'y' , 'top')
-alias(DOMRect, 'x1', 'left')
-alias(DOMRect, 'y1', 'top')
-alias(DOMRect, 'w' , 'width')
-alias(DOMRect, 'h' , 'height')
-alias(DOMRect, 'x2', 'right')
-alias(DOMRect, 'y2', 'bottom')
+alias(DOMRectReadOnly, 'x' , 'left')
+alias(DOMRectReadOnly, 'y' , 'top')
+alias(DOMRectReadOnly, 'x1', 'left')
+alias(DOMRectReadOnly, 'y1', 'top')
+alias(DOMRectReadOnly, 'w' , 'width')
+alias(DOMRectReadOnly, 'h' , 'height')
+alias(DOMRectReadOnly, 'x2', 'right')
+alias(DOMRectReadOnly, 'y2', 'bottom')
 
 method(DOMRect, 'contains', function(x, y) {
 	return (
@@ -928,6 +906,17 @@ let popup_state = function(e) {
 
 	function target_bind(on) {
 		if (on) {
+			let css = target.css()
+			// simulate css inheritance..
+			// NOTE: this is stronger than `!important` but what can we do?
+			if (!e.style['font-family']) {
+				e.style['font-family'] = css['font-family']
+				e.__font_family_inherited = true
+			}
+			if (!e.style['font-size']) {
+				e.style['font-size'] = css['font-size']
+				e.__font_size_inherited = true
+			}
 			e.class('popup')
 			document.body.add(e)
 			update()
@@ -935,6 +924,8 @@ let popup_state = function(e) {
 				e.popup_target_bind(target, true)
 			popup_timer.add(update)
 		} else {
+			if (e.__font_family_inherited) e.style['font-family'] = null
+			if (e.__font_size_inherited  ) e.style['font-size'  ] = null
 			e.remove()
 			e.class('popup', false)
 			popup_timer.remove(update)
@@ -942,9 +933,11 @@ let popup_state = function(e) {
 				e.popup_target_bind(target, false)
 		}
 
-		// this detects explicit target element size changes which is not much.
-		target.detect_style_size_changes()
-		target.on('style_size_changed', update, on)
+		// changes in target size updates the popup position.
+		if (target.detect_resize) {
+			target.detect_resize()
+			target.on('resize', update, on)
+		}
 
 		// allow popup_update() to change popup visibility on target hover.
 		target.on('pointerenter', update, on)
