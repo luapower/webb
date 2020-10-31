@@ -145,10 +145,15 @@ property(Element, 'attrs', {
 // element css class list manipulation ---------------------------------------
 
 method(Element, 'class', function(name, enable) {
-	if (enable !== false)
-		this.classList.add(name)
-	else
-		this.classList.remove(name)
+	if (name.includes(' ')) {
+		for (let s of name.split(/\s+/))
+			this.class(s, enable)
+	} else {
+		if (enable !== false)
+			this.classList.add(name)
+		else
+			this.classList.remove(name)
+	}
 })
 
 method(Element, 'hasclass', function(name) {
