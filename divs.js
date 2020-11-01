@@ -912,15 +912,15 @@ let popup_state = function(e) {
 	function target_bind(on) {
 		if (on) {
 			let css = target.css()
-			// simulate css inheritance..
-			// NOTE: this is stronger than `!important` but what can we do?
-			if (!e.style['font-family']) {
-				e.style['font-family'] = css['font-family']
-				e.__font_family_inherited = true
-			}
-			if (!e.style['font-size']) {
-				e.style['font-size'] = css['font-size']
-				e.__font_size_inherited = true
+			// simulate css font inheritance.
+			// NOTE: this overrides the same properties declared in css when
+			// the element is displayed as a popup, which leaves `!important`
+			// as the only way to override back these properties from css.
+			e.__css_inherited = {}
+			for (k of ['font-family', 'font-size', 'line-height'])
+				if (!e.style[k]) {
+				e.style[k] = css[k]
+				e.__css_inherited[k] = true
 			}
 			e.class('popup')
 			document.body.add(e)
@@ -929,8 +929,8 @@ let popup_state = function(e) {
 				e.popup_target_bind(target, true)
 			popup_timer.add(update)
 		} else {
-			if (e.__font_family_inherited) e.style['font-family'] = null
-			if (e.__font_size_inherited  ) e.style['font-size'  ] = null
+			for (k in e.__css_inherited)
+				e.style[k] = null
 			e.remove()
 			e.class('popup', false)
 			popup_timer.remove(update)
@@ -1022,6 +1022,18 @@ let popup_state = function(e) {
 
 		x0 += (side == 'inner-right'  || (sdy && align == 'end')) ? -x : x
 		y0 += (side == 'inner-bottom' || (sdx && align == 'end')) ? -y : y
+
+		// adjust position to fit the screen.
+		let br = document.body.rect()
+		let bw = br.w - 10
+		let bh = br.h - 10
+		let ox2 = max(0, x0 + w - bw)
+		let ox1 = min(0, x0)
+		let oy2 = max(0, y0 + h - bh)
+		let oy1 = min(0, y0)
+
+		x0 -= ox1 ? ox1 : ox2
+		y0 -= oy1 ? oy1 : oy2
 
 		e.x = window.scrollX + x0
 		e.y = window.scrollY + y0
