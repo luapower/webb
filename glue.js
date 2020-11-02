@@ -284,10 +284,7 @@ alias(String, 'upper' , 'toUpperCase')
 alias(String, 'lower' , 'toLowerCase')
 
 // stub for getting message strings that can be translated multiple languages.
-if (!S)
-	function S(label, msg) {
-		return msg
-	}
+S = window.S || function S(label, msg) { return msg }
 
 // arrays --------------------------------------------------------------------
 

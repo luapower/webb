@@ -70,8 +70,8 @@
 		e.ox, e.oy
 		e.contains(x, y)
 	element visibility:
-		e.show([on][, affects_layout])
-		e.hide()
+		e.show([on][, ev])
+		e.hide([ev])
 	element state:
 		e.hovered
 		e.focused_element
@@ -584,15 +584,15 @@ method(DOMRect, 'contains', function(x, y) {
 
 // NOTE: requires `[hidden] { display: none !important; }` in CSS.
 
-method(Element, 'show', function(v, affects_layout) {
+method(Element, 'show', function(v, ev) {
 	v = v !== false
 	this.attr('hidden', !v)
-	if (affects_layout)
+	if (ev && ev.layout_changed)
 		document.fire('layout_changed')
-	this.fire('show', v)
+	this.fire('show', v, ev)
 })
-method(Element, 'hide', function() {
-	this.show(false)
+method(Element, 'hide', function(ev) {
+	this.show(false, ev)
 })
 
 // common state wrappers -----------------------------------------------------
@@ -808,21 +808,21 @@ method(Element, 'hit_test_sides', function(mx, my, d1, d2) {
 
 // popup pattern -------------------------------------------------------------
 
-// Why is this so complicated? Because the forever almost-there-but-just-not-quite
-// model of the web doesn't have the notion of a global z-index so we can't
-// have relatively positioned popups that are also painted last i.e. on top
-// of everything, so we have to choose between popups that are well-positioned
-// but possibly clipped or obscured by other elements, or popups that stay
-// on top but have to be manually positioned and kept in sync with the position
-// of their target. We chose the latter since we have a lot of implicit
-// "stacking contexts" (i.e. abstraction leaks of the graphics engine) and we
-// try to auto-update the popup position the best we can, but there will be
-// cases where you'll have to call popup() to update the popup's position
-// manually. We simply don't have an observer for tracking changes to an
-// element's position relative to another element (or to document.body, which
-// would be enough for our case here).
+// Why is this so complicated? Because the forever not-quite-there-yet web
+// platform doesn't have the notion of a global z-index so we can't have
+// in-DOM (i.e. relatively positioned and styled) popups that are also
+// painted last i.e. on top of everything, so we have to choose between popups
+// that are well-positioned but most probably clipped or obscured by other
+// elements, or popups that stay on top but have to be manually positioned
+// and styled, and kept in sync with the position of their target. We chose
+// the latter since we have a lot of implicit "stacking contexts" (read:
+// abstraction leaks of the graphics engine) and we try to auto-update the
+// popup position the best we can, but there will be cases where you'll have
+// to call popup() to update the popup's position manually. We simply don't
+// have an observer for tracking changes to an element's position on screen
+// or relative to another element.
 
-// `popup_target_updated` event allows changing/animating popup's visibility
+// `popup_target_updated` hook allows changing/animating popup's visibility
 // based on target's hover state or focused state.
 
 {
@@ -925,8 +925,7 @@ let popup_state = function(e) {
 			e.class('popup')
 			document.body.add(e)
 			update()
-			if (e.popup_target_bind)
-				e.popup_target_bind(target, true)
+			e.fire('popup_bind', true, target)
 			popup_timer.add(update)
 		} else {
 			for (k in e.__css_inherited)
@@ -934,8 +933,7 @@ let popup_state = function(e) {
 			e.remove()
 			e.class('popup', false)
 			popup_timer.remove(update)
-			if (e.popup_target_bind)
-				e.popup_target_bind(target, false)
+			e.fire('popup_bind', false, target)
 		}
 
 		// changes in target size updates the popup position.
@@ -1023,17 +1021,21 @@ let popup_state = function(e) {
 		x0 += (side == 'inner-right'  || (sdy && align == 'end')) ? -x : x
 		y0 += (side == 'inner-bottom' || (sdx && align == 'end')) ? -y : y
 
-		// adjust position to fit the screen.
-		let br = document.body.rect()
-		let bw = br.w - 10
-		let bh = br.h - 10
-		let ox2 = max(0, x0 + w - bw)
-		let ox1 = min(0, x0)
-		let oy2 = max(0, y0 + h - bh)
-		let oy1 = min(0, y0)
-
-		x0 -= ox1 ? ox1 : ox2
-		y0 -= oy1 ? oy1 : oy2
+		if (side.starts('inner-')) {
+			// adjust the offset of inner popups to fit the screen.
+			let br = document.body.rect()
+			let bw = br.w - 10
+			let bh = br.h - 10
+			let ox2 = max(0, x0 + w - bw)
+			let ox1 = min(0, x0)
+			let oy2 = max(0, y0 + h - bh)
+			let oy1 = min(0, y0)
+			x0 -= ox1 ? ox1 : ox2
+			y0 -= oy1 ? oy1 : oy2
+		} else {
+			// change the alignment of outer popups to fit the screen.
+			// TODO
+		}
 
 		e.x = window.scrollX + x0
 		e.y = window.scrollY + y0
