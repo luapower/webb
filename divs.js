@@ -925,7 +925,6 @@ let popup_state = function(e) {
 			e.class('popup')
 			document.body.add(e)
 			update()
-			e.fire('popup_bind', true, target)
 			popup_timer.add(update)
 		} else {
 			for (k in e.__css_inherited)
@@ -933,8 +932,8 @@ let popup_state = function(e) {
 			e.remove()
 			e.class('popup', false)
 			popup_timer.remove(update)
-			e.fire('popup_bind', false, target)
 		}
+		e.fire('popup_bind', on, target)
 
 		// changes in target size updates the popup position.
 		if (target.detect_resize) {
