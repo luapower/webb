@@ -307,9 +307,10 @@ method(Element, 'set', function(s, whitespace) {
 
 // events & event wrappers ---------------------------------------------------
 
-// NOTE: these wrappers disable mouse events on any target with attr `disabled`.
-// NOTE: preventing focusing is a matter of removing attr `tabindex` except
-// for input elements that must have it set to -1.
+// NOTE: these wrappers block mouse events on any target with attr `disabled`.
+// NOTE: `pointer-events: none` is not a solution because popups.
+// NOTE: preventing focusing is a matter of not-setting/removing attr `tabindex`
+// except for input elements that must have an explicit `tabindex=-1`.
 
 {
 let callers = {}
