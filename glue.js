@@ -598,8 +598,8 @@ json = JSON.stringify
 
 // clipboard -----------------------------------------------------------------
 
-function copy_text(text) {
-	navigator.clipboard.writeText(text)
+function copy_text(text, done) {
+	return navigator.clipboard.writeText(text).then(done)
 }
 
 /* URL encoding & decoding ---------------------------------------------------
