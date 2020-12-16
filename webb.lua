@@ -45,7 +45,8 @@ ARG PARSING
 
 OUTPUT
 
-	out(s1,...)                             output a string
+	setcontent(s)                           output a single value
+	out(s1,...)                             output one or more values
 	push_out([f])                           push output function or buffer
 	pop_out() -> s                          pop output function and flush it
 	stringbuffer([t]) -> f(s1,...)/f()->s   create a string buffer
@@ -53,8 +54,9 @@ OUTPUT
 	out_buffering() -> t | f                check if we're buffering output
 	setheader(name, val)                    set a header (unless we're buffering)
 	setmime(ext)                            set content-type based on file extension
-	flush()                                 ngx.flush()
-	print(...)                              like Lua's print but uses out()
+	flush()                                 flush output
+	outprint(...)                           like Lua's print but uses out()
+	outpp(...)                              like pp() but uses out()
 
 HTML ENCODING
 
@@ -141,15 +143,21 @@ an inherited environment is created.
 
 ]==]
 
-assert(ngx, 'ngx not loaded')
+if not ... then require'luapower_server'; return end
 
 glue = require'glue'
+local uri = require'uri'
 
---cached config function -----------------------------------------------------
+local server_conf, req, res, respond, raise_http_error, send_body
+
+req_ctx = nil --public
+
+--config function ------------------------------------------------------------
+
+local NIL = {}
 
 do
 	local conf = {}
-	local null = conf
 	function config(var, default)
 		if type(var) == 'table' then
 			for var, val in pairs(var) do
@@ -161,14 +169,14 @@ do
 		if val == nil then
 			val = os.getenv(var:upper())
 			if val == nil then
-				val = ngx.var[var]
+				val = server_conf[var]
 				if val == nil then
 					val = default
 				end
 			end
-			conf[var] = val == nil and null or val
+			conf[var] = val == nil and NIL or val
 		end
-		if val == null then
+		if val == NIL then
 			return nil
 		else
 			return val
@@ -190,47 +198,48 @@ end
 --per-request environment ----------------------------------------------------
 
 --per-request memoization.
-local NIL = {}
-local function enc(v) if v == nil then return NIL else return v end end
-local function dec(v) if v == NIL then return nil else return v end end
-function once(f, clear_cache, ...)
-	if clear_cache then
-		local t = ngx.ctx[f]
-		if t then
-			if select('#', ...) == 0 then
-				t = {}
-				ngx.ctx[f] = t
-			else
-				local k = ...
-				t[enc(k)] = nil
+do
+	local function enc(v) if v == nil then return NIL else return v end end
+	local function dec(v) if v == NIL then return nil else return v end end
+	function once(f, clear_cache, ...)
+		if clear_cache then
+			local t = req_ctx[f]
+			if t then
+				if select('#', ...) == 0 then
+					t = {}
+					req_ctx[f] = t
+				else
+					local k = ...
+					t[enc(k)] = nil
+				end
 			end
-		end
-	else
-		return function(k)
-			local t = ngx.ctx[f]
-			if not t then
-				t = {}
-				ngx.ctx[f] = t
+		else
+			return function(k)
+				local t = req_ctx[f]
+				if not t then
+					t = {}
+					req_ctx[f] = t
+				end
+				local v = t[enc(k)]
+				if v == nil then
+					v = f(k)
+					t[enc(k)] = enc(v)
+				else
+					v = dec(v)
+				end
+				return v
 			end
-			local v = t[enc(k)]
-			if v == nil then
-				v = f(k)
-				t[enc(k)] = enc(v)
-			else
-				v = dec(v)
-			end
-			return v
 		end
 	end
 end
 
 --per-request shared environment to use in all app code.
 function env(t)
-	local env = ngx.ctx.env
+	local env = req_ctx.env
 	if not env then
 		env = {__index = _G}
 		setmetatable(env, env)
-		ngx.ctx.env = env
+		req_ctx.env = env
 	end
 	if t then
 		t.__index = env
@@ -242,39 +251,27 @@ end
 
 --request API ----------------------------------------------------------------
 
-local _method = once(function()
-	return ngx.req.get_method()
-end)
-
 function method(which)
 	if which then
-		return _method():lower() == which:lower()
+		return req.method:lower() == which:lower()
 	else
-		return _method():lower()
+		return req.method:lower()
 	end
 end
 
-local _headers = once(function()
-	return ngx.req.get_headers()
-end)
-
 function headers(h)
 	if h then
-		return _headers()[h]
+		return req.headers[h]
 	else
-		return _headers()
+		return req.headers
 	end
 end
 
 local _args = once(function()
-	local t = {}
-	for s in glue.gsplit(ngx.var.uri, '/', 2, true) do
-		t[#t+1] = ngx.unescape_uri(s)
-	end
-	glue.update(t, ngx.req.get_uri_args()) --add in the query args
+	local t = uri.parse(req.uri).segments
+	table.remove(t, 1)
 	return t
 end)
-
 function args(v)
 	if v then
 		return _args()[v]
@@ -285,19 +282,17 @@ end
 
 local _post_args = once(function()
 	if not method'post' then return end
-	ngx.req.read_body()
-	local ct = headers'Content-Type'
+	local s = req:read_body'string'
+	local ct = headers'content-type'
 	if ct then
-		if ct:find'^application/x%-www%-form%-urlencoded' then
-			return ngx.req.get_post_args()
-		elseif ct:find'^application/json' then --prevent ENCTYPE CORS
-			local s = ngx.req.get_body_data()
+		if glue.starts(ct, 'application/x-www-form-urlencoded') then
+			return uri.parse_args(s)
+		elseif glue.starts(ct, 'application/json') then --prevent ENCTYPE CORS
 			return s and json(s)
 		end
 	end
-	return ngx.req.get_body_data()
+	return s
 end)
-
 function post(v)
 	if v then
 		local t = _post_args()
@@ -311,21 +306,21 @@ function scheme(s)
 	if s then
 		return scheme() == s
 	end
-	return headers'X-Forwarded-Proto' or ngx.var.scheme
+	return headers'x-forwarded-proto' or (req.http.tcp.istlssocket and 'https' or 'http')
 end
 
 function host(s)
 	if s then
 		return host() == s
 	end
-	return ngx.var.host
+	return headers'x-forwarded-host' or headers'host'
 end
 
 function port(p)
 	if p then
 		return port() == tonumber(p)
 	end
-	return tonumber(headers'X-Forwarded-Port' or ngx.var.server_port)
+	return tonumber(headers'x-forwarded-port' or req.http.tcp.local_port)
 end
 
 function email(user)
@@ -333,7 +328,7 @@ function email(user)
 end
 
 function client_ip()
-	return ngx.var.remote_addr
+	return headers'x-forwarded-for' or req.http.tcp.remote_addr
 end
 
 --arg validation
@@ -375,13 +370,56 @@ end
 
 --output API -----------------------------------------------------------------
 
+local function wrap_send_body(send)
+	respond = nil
+	raise_http_error = nil
+	local req1, res1, req_ctx1, send_body1
+	return function(buf, sz)
+		send_body1 = send_body
+		req_ctx1 = req_ctx
+		req1 = req
+		res1 = res
+		req_ctx1 = req_ctx
+		send(buf, sz)
+		send_body = send_body1
+		req_ctx = req_ctx1
+		req = req1
+		res = res1
+		req_ctx = req_ctx1
+	end
+end
+
+function setcontent(s)
+	if send_body then
+		out(s)
+	else
+		res.content = tostring(s)
+		respond(res)
+		respond = nil
+	end
+end
+
+function outbuf(buf, sz)
+	if not send_body then
+		send_body = wrap_send_body(respond(res))
+		respond = nil
+	end
+	send_body(buf, sz)
+end
+
 function out_buffering()
-	return ngx.ctx.outfunc ~= nil
+	return req_ctx.outfunc ~= nil
 end
 
 local function default_outfunc(...)
-	--TODO: call tostring() on all args
-	ngx.print(...)
+	for i=1,select('#',...) do
+		local s = tostring((select(i,...)))
+		if not send_body then
+			send_body = wrap_send_body(respond(res))
+			respond = nil
+		end
+		send_body(s)
+	end
 end
 
 function stringbuffer(t)
@@ -399,25 +437,25 @@ function stringbuffer(t)
 end
 
 function push_out(f)
-	ngx.ctx.outfunc = f or stringbuffer()
-	if not ngx.ctx.outfuncs then
-		ngx.ctx.outfuncs = {}
+	req_ctx.outfunc = f or stringbuffer()
+	if not req_ctx.outfuncs then
+		req_ctx.outfuncs = {}
 	end
-	table.insert(ngx.ctx.outfuncs, ngx.ctx.outfunc)
+	table.insert(req_ctx.outfuncs, req_ctx.outfunc)
 end
 
 function pop_out()
-	if not ngx.ctx.outfunc then return end
-	local s = ngx.ctx.outfunc()
-	local outfuncs = ngx.ctx.outfuncs
+	if not req_ctx.outfunc then return end
+	local s = req_ctx.outfunc()
+	local outfuncs = req_ctx.outfuncs
 	table.remove(outfuncs)
-	ngx.ctx.outfunc = outfuncs[#outfuncs]
+	req_ctx.outfunc = outfuncs[#outfuncs]
 	return s
 end
 
 function out(s, ...)
 	if s == nil then return end --prevent flushing the buffer needlessly
-	local outfunc = ngx.ctx.outfunc or default_outfunc
+	local outfunc = req_ctx.outfunc or default_outfunc
 	outfunc(s, ...)
 end
 
@@ -433,55 +471,68 @@ function setheader(name, val)
 	if out_buffering() then
 		return
 	end
-	ngx.header[name] = val
+	res.headers[name] = val
 end
 
 mime_types = {
 	html = 'text/html',
 	txt  = 'text/plain',
+	sh   = 'text/plain',
 	css  = 'text/css',
 	json = 'application/json',
 	js   = 'application/javascript',
 	jpg  = 'image/jpeg',
 	jpeg = 'image/jpeg',
 	png  = 'image/png',
-	ico  = 'image/ico',
+	gif  = 'image/gif',
+	ico  = 'image/x-icon',
+	svg  = 'image/svg+xml',
+	ttf  = 'font/ttf',
+	woff = 'font/woff',
+	woff2= 'font/woff2',
+	pdf  = 'application/pdf',
+	zip  = 'application/zip',
+	gz   = 'application/x-gzip',
+	tgz  = 'application/x-gzip',
+	xz   = 'application/x-xz',
+	bz2  = 'application/x-bz2',
+	tar  = 'application/x-tar',
+	mp3  = 'audio/mpeg',
 }
 
 function setmime(ext)
-	setheader('content-type', assert(mime_types[ext]))
+	res.content_type = mime_types[ext]
 end
 
 local function print_wrapper(print)
 	return function(...)
 		if not out_buffering() then
-			if not ngx.headers_sent then
-				ngx.header.content_type = 'text/plain'
-			end
+			res.headers.content_type = 'text/plain'
 			print(...)
-			ngx.flush()
 		else
 			print(...)
 		end
 	end
 end
 
-flush = ngx.flush
+flush = glue.noop
 
 --print functions for debugging with no output buffering and flushing.
 
-print = print_wrapper(glue.printer(out, tostring))
 pp = require'pp'
 
---scheduler ------------------------------------------------------------------
+outprint = print_wrapper(glue.printer(out, tostring))
+outpp = print_wrapper(glue.printer(out, pp))
 
-sleep = ngx.sleep
+--sockets --------------------------------------------------------------------
 
-function connect(ip, port)
-	local skt = ngx.socket.tcp()
-	skt:settimeout(5000)
-	skt:setkeepalive()
-	local ok, err = skt:connect(ip, port)
+local sock = require'sock'
+
+sleep = sock.sleep
+
+function connect(host, port)
+	local skt = sock.tcp()
+	local ok, err = skt:connect(host, port)
 	if not ok then return nil, err end
 	return skt
 end
@@ -502,30 +553,6 @@ end
 
 --url encoding/decoding ------------------------------------------------------
 
-local function url_path(path)
-	if type(path) == 'table' then --encode
-		local t = {}
-		for i,s in ipairs(path) do
-			t[i] = ngx.escape_uri(s)
-		end
-		return #t > 0 and table.concat(t, '/') or nil
-	else --decode
-		local t = {}
-		for s in glue.gsplit(path, '/', 1, true) do
-			t[#t+1] = ngx.unescape_uri(s)
-		end
-		return t
-	end
-end
-
-local function url_params(params)
-	if type(params) == 'table' then --encode
-		return ngx.encode_args(params)
-	else --decode
-		return ngx.decode_args(params)
-	end
-end
-
 --use cases:
 --  decode url: url('a/b?a&b=1') -> {'a', 'b', a=true, b='1'}
 --  encode url: url{'a', 'b', a=true, b='1'} -> 'a/b?a&b=1'
@@ -534,14 +561,7 @@ end
 --  encode params only: url(nil, {a=true, b=1}) -> 'a&b=1'
 function url(path, params)
 	if type(path) == 'string' then --decode or update url
-		local t
-		local i = path:find('?', 1, true)
-		if i then
-			t = url_path(path:sub(1, i-1))
-			glue.update(t, url_params(path:sub(i + 1)))
-		else
-			t = url_path(path)
-		end
+		local t = uri.parse(path)
 		if params then --update url
 			glue.update(t, params) --also updates any path elements
 			return url(t) --re-encode url
@@ -549,40 +569,36 @@ function url(path, params)
 			return t
 		end
 	elseif path then --encode url
-		local s1 = url_path(path)
-		--strip away the array part so that ngx.encode_args() doesn't complain
-		local t = {}
-		for k,v in pairs(path) do
-			if type(k) ~= 'number' then
-				t[k] = v
-			end
-		end
-		local s2 = next(t) ~= nil and url_params(t) or nil
-		return (s1 or '') .. (s1 and s2 and '?' or '') .. (s2 or '')
+		local s1 = uri.format(path)
 	else --encode or decode params only
-		return url_params(params)
+		if type(params) == 'table' then
+			return uri.format_args(params)
+		else
+			return uri.parse_args(params)
+		end
 	end
 end
 
---[[
-ngx.say(pp.format(url('a/b?a&b=1')))
-ngx.say(url{'a', 'b', a=true, b=1})
-ngx.say()
-ngx.say(pp.format(url('?a&b=1')))
-ngx.say(url{'', a=true, b=1})
-ngx.say()
-ngx.say(pp.format(url('a/b?')))
-ngx.say(url{'a', 'b', ['']=true})
-ngx.say()
-ngx.say(pp.format(url('a/b')))
-ngx.say(url{'a', 'b'})
-ngx.say()
-ngx.say(url('a/b?a&b=1', {'c', b=2}))
-ngx.say()
-ngx.say(pp.format(url(nil, 'a&b=1')))
-ngx.say(url(nil, {a=true, b=1}))
-ngx.say()
-]]
+if false then
+	local p = print
+	p(pp.format(url('a/b?a&b=1')))
+	p(url{'a', 'b', a=true, b=1})
+	p()
+	p(pp.format(url('?a&b=1')))
+	p(url{'', a=true, b=1})
+	p()
+	p(pp.format(url('a/b?')))
+	p(url{'a', 'b', ['']=true})
+	p()
+	p(pp.format(url('a/b')))
+	p(url{'a', 'b'})
+	p()
+	p(url('a/b?a&b=1', {'c', b=2}))
+	p()
+	p(pp.format(url(nil, 'a&b=1')))
+	p(url(nil, {a=true, b=1}))
+	p()
+end
 
 function absurl(path)
 	path = path or ''
@@ -604,17 +620,15 @@ end
 
 --response API ---------------------------------------------------------------
 
-function http_error(code, fmt, ...)
+function http_error(status, fmt, ...)
 	local msg = type(fmt) == 'string' and string.format(fmt, ...) or fmt
-	local t = {type = 'http', http_code = code, message = msg and tostring(msg)}
-	function t:__tostring()
-		return tostring(code)..(msg ~= nil and ' '..tostring(msg) or '')
-	end
-	setmetatable(t, t)
-	error(t, 2)
+	raise_http_error{status = status, status_message = msg and tostring(msg)}
 end
 
-redirect = ngx.redirect
+function redirect(uri)
+	--TODO: make it work with relative paths
+	raise_http_error{status = 303, headers = {location = uri}}
+end
 
 function check(ret, ...)
 	if ret then return ret end
@@ -626,17 +640,24 @@ function allow(ret, ...)
 	http_error(403, ...)
 end
 
+--TODO: update xxHash and use xxHash128 for this.
+local md5 = require'md5'
+
 function check_etag(s)
-	if out_buffering() or not method'get' then
-		return
+	if not method'get' then return s end
+	if out_buffering() then return s end
+	local etag = glue.tohex(md5.sum(s))
+	local etags = headers'if-none-match'
+	if etags and type(etags) == 'table' then
+		for _,t in ipairs(etags) do
+			if t.etag == etag then
+				http_error(304)
+			end
+		end
 	end
-	local etag0 = headers'if_none_match'
-	local etag = ngx.md5(s)
-	if etag0 == etag then
-		http_error(304)
-	end
-	--send etag to client as weak etag so that nginx gzip filter still apply
-	setheader('ETag', 'W/'..etag)
+	--send etag to client as weak etag so that gzip filter still apply.
+	setheader('etag', 'W/'..etag)
+	return s
 end
 
 --json API -------------------------------------------------------------------
@@ -659,10 +680,8 @@ function json(v)
 end
 
 function out_json(v)
-	local s = cjson.encode(v)
-	setheader('content-length', #s)
 	setmime'json'
-	out(s)
+	setcontent(cjson.encode(v))
 end
 
 --filesystem API -------------------------------------------------------------
@@ -930,3 +949,24 @@ function catlist(listfile, ...)
 	end
 end
 
+local function respond_function(main, conf)
+	return function(server, req_arg, respond_arg, raise_http_error_arg)
+		server_conf = conf or {}
+		req = req_arg
+		req_ctx = {}
+		res = {headers = {}}
+		send_body = nil
+		respond = respond_arg
+		raise_http_error = raise_http_error_arg
+
+		local main = require(main)
+		if type(main) == 'table' then
+			main = main.respond
+		end
+		main()
+
+		return res
+	end
+end
+
+return respond_function

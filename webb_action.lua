@@ -1,3 +1,4 @@
+if not ... then require'luapower_server'; return end
 --[==[
 
 	webb | action-based routing with multi-language support
@@ -41,9 +42,9 @@ require'webb'
 
 function lang(s)
 	if s then
-		ngx.ctx.lang = s
+		req_ctx.lang = s
 	else
-		return ngx.ctx.lang or args'lang' or config('lang', 'en')
+		return req_ctx.lang or args'lang' or config('lang', 'en')
 	end
 end
 
@@ -131,10 +132,9 @@ end
 --and change the current language if necessary.
 function find_action(action, ...)
 	if action == '' then --root action in current language
-		action = action_name(config('root_action', 'en'))
+		action = config('root_action', 'en')
 	else
-		action = action_name(action)
-		local alias = aliases[action] --look for a regional alias
+		local alias = aliases[action_name(action)] --look for a regional alias
 		if alias then
 			if not args'lang' then --?lang= has priority
 				lang(alias.lang)
@@ -178,38 +178,76 @@ local file_handlers = {
 	end,
 }
 
-local actions_list = glue.keys(file_handlers, true)
-
 local function plain_file_allowed(file)
 	local ext = file:match'%.([^%.]+)$'
 	return not (ext and file_handlers[ext])
 end
 
+local actions_ext = glue.keys(file_handlers, true)
+
+local ffi = require'ffi'
+local fs = require'fs'
+
 local function plain_file_handler(file)
-	out(wwwfile(file))
+	local path = wwwpath(file)
+	if not path then return end
+	local f = assert(fs.open(path, 'r'))
+
+	local mtime, err = f:attr'mtime'
+	if not mtime then
+		f:close()
+		error(err)
+	end
+	setheader('last-modified', mtime)
+
+	local file_size, err = f:attr'size'
+	if not file_size then
+		f:close()
+		error(err)
+	end
+	--[[
+	--TODO:
+	setheader('content-length', file_size)
+	]]
+
+	return function()
+		local filebuf_size = math.min(file_size, 65536)
+		local filebuf = ffi.new('char[?]', filebuf_size)
+		while true do
+			local len, err = f:read(filebuf, filebuf_size)
+			if not len then
+				f:close()
+				error(err)
+			elseif len == 0 then
+				f:close()
+				break
+			else
+				outbuf(filebuf, len)
+			end
+		end
+	end
 end
 
-local actionfile = glue.memoize(function(action)
+local function file_action(action)
+
+	if plain_file_allowed(action) then
+		return plain_file_handler(action)
+	end
+
 	local ret_file, ret_handler
-	if wwwfile[action] then --action is a plain file
-		if plain_file_allowed(action) then
-			ret_file = action
-			ret_handler = plain_file_handler
-		end
-	else
-		for i,ext in ipairs(actions_list) do
-			local file = action..'.'..ext
-			if wwwfile[file] or wwwpath(file) then
-				assert(not ret_file, 'multiple action files for action '..action)
-				ret_file = file
-				ret_handler = file_handlers[ext]
-			end
+	for i,ext in ipairs(actions_ext) do
+		local file = action..'.'..ext
+		if wwwfile[file] or wwwpath(file) then
+			assert(not ret_file, 'multiple action files for action '..action)
+			ret_file = file
+			ret_handler = file_handlers[ext]
 		end
 	end
 	return ret_handler and function(...)
 		return ret_handler(ret_file, ...)
 	end
-end)
+
+end
 
 --output filters
 
@@ -217,7 +255,7 @@ local function html_filter(handler, action, ...)
 	local s = record(handler, action, ...)
 	local s = setlinks(filter_lang(filter_comments(s), lang()))
 	check_etag(s)
-	out(s)
+	setcontent(s)
 end
 
 local function json_filter(handler, action, ...)
@@ -226,9 +264,8 @@ local function json_filter(handler, action, ...)
 		s = json(s)
 	end
 	if s then
-		setheader('content-length', #s)
 		check_etag(s)
-		out(s)
+		setcontent(s)
 	end
 end
 
@@ -255,20 +292,18 @@ end
 
 local actions = {} --{action -> handler | s}
 
-local function action_handler(action_no_ext, action)
+local function action_handler(action_no_ext, action_with_ext, ...)
 	local handler =
-		actions[action_no_ext] --look in the default action table
-		or actions[action] --look again with .html extension
-		or actionfile(action) --look on the filesystem
-	if handler then
-		if type(handler) ~= 'function' then
-			local s = handler
-			handler = function()
-				return s
-			end
+		(action_no_ext and actions[action_name(action_no_ext)]) --look in the default action table
+		or actions[action_name(action_with_ext)] --look again with .html extension
+		or file_action(table.concat({action_with_ext, ...}, '/')) --look on the filesystem
+	if handler and type(handler) ~= 'function' then
+		local s = handler
+		handler = function()
+			setcontent(s)
 		end
-		return handler
 	end
+	return handler
 end
 
 --exec an action without setting content type, looking for a 404 handler
@@ -281,35 +316,34 @@ local function pass(arg1, ...)
 		return arg1, ...
 	end
 end
-function exec(action_no_ext, ...)
-	local action_no_ext, action, ext = action_ext(action_no_ext)
-	local handler = action_handler(action_no_ext, action)
+function exec(action, ...)
+	local action_no_ext, action_with_ext, ext = action_ext(action_no_ext)
+	local handler = action_handler(action_no_ext, action_with_ext, ...)
 	if not handler then return false end
 	return pass(handler(...))
 end
 
-local function action_call(actions, action_no_ext, ...)
-	local action_no_ext, action, ext = action_ext(action_no_ext)
-	local handler = action_handler(action_no_ext, action)
-	local mime = mime_types[ext]
+local function action_call(actions, action, ...)
+	local action_no_ext, action_with_ext, ext = action_ext(action)
+	local handler = action_handler(action_no_ext, action_with_ext, ...)
 	if not handler then
 		local not_found_actions = {
 			['text/html']  = config('404_html_action', '404.html'),
 			['image/png']  = config('404_png_action', '404.png'),
 			['image/jpeg'] = config('404_jpeg_action', '404.jpg'),
 		}
-		local nf_action = not_found_actions[mime]
+		local mime = mime_types[ext]
+		local nf_action = not_found_actions[mime] or config('404_action', '404')
 		if not nf_action
 			or nf_action == action --loop
+			or nf_action == action_with_ext --loop
 			or nf_action == action_no_ext --loop
 		then
 			return false
 		end
-		return action_call(actions, nf_action, ...)
+		return action_call(actions, nf_action, action, ...)
 	end
-	if mime then
-		setheader('content-type', mime)
-	end
+	setmime(ext)
 	local filter = mime_type_filters[mime]
 	if filter then
 		filter(handler, ...)
@@ -321,10 +355,3 @@ end
 
 action = actions
 setmetatable(action, {__call = action_call})
-
---built-in actions -----------------------------------------------------------
-
---return a standard message for missing page actions.
-action['404.html'] = function()
-	check(false, '<h1>404 Not Found</h1>')
-end
