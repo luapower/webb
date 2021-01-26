@@ -25,6 +25,7 @@
 		lerp(x, x0, x1, y0, y1)
 		num(s, z)
 		mod(a, b)
+		nextpow2(x)
 	callback stubs:
 		noop
 		return_true
@@ -38,7 +39,7 @@
 		assert()
 		stacktrace()
 	extending built-in objects:
-		property(cls, prop, descriptor)
+		property(cls, prop, descriptor | get,set)
 		method(cls, method, func)
 		override(cls, method, func)
 		alias(cls, new_name, old_name)
@@ -139,6 +140,7 @@ min = Math.min
 max = Math.max
 sqrt = Math.sqrt
 random = Math.random
+log = Math.log
 
 // NOTE: returns x1 if x1 < x0, which enables the idiom
 // `a[clamp(i, 0, b.length-1)]` to return undefined when b is empty.
@@ -164,6 +166,11 @@ function num(s, z) {
 function mod(a, b) {
 	return (a % b + b) % b
 }
+
+function nextpow2(x) {
+	return max(0, 2**(ceil(log(x) / log(2))))
+}
+
 
 PI = Math.PI
 sin = Math.sin
@@ -204,9 +211,10 @@ function stacktrace() {
 // extending built-in objects ------------------------------------------------
 
 // extend an object with a property, checking for upstream name clashes.
-function property(cls, prop, descriptor) {
+function property(cls, prop, get, set) {
 	let proto = cls.prototype || cls
 	assert(!(prop in proto), '{0}.{1} already exists', cls.name, prop)
+	let descriptor = isobject(get) ? get : {get: get, set: set}
 	Object.defineProperty(proto, prop, descriptor)
 }
 
@@ -320,17 +328,17 @@ property(Array, 'last', {get: function() { return this[this.length-1] } })
 // using '<' gives the first insert position, while '<=' gives the last.
 {
 	let cmps = {}
-	cmps['<' ] = ((a, i, v) => a[i] <  v)
-	cmps['>' ] = ((a, i, v) => a[i] >  v)
-	cmps['<='] = ((a, i, v) => a[i] <= v)
-	cmps['>='] = ((a, i, v) => a[i] >= v)
+	cmps['<' ] = ((a, b) => a <  b)
+	cmps['>' ] = ((a, b) => a >  b)
+	cmps['<='] = ((a, b) => a <= b)
+	cmps['>='] = ((a, b) => a >= b)
 	method(Array, 'binsearch', function(v, cmp, i1, i2) {
 		let lo = or(i1, 0) - 1
 		let hi = or(i2, this.length)
-		cmp = cmps[cmp || '<']
+		cmp = cmps[cmp || '<'] || cmp
 		while (lo + 1 < hi) {
 			let mid = (lo + hi) >> 1
-			if (cmp(this, mid, v))
+			if (cmp(this[mid], v))
 				lo = mid
 			else
 				hi = mid
