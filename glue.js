@@ -358,8 +358,9 @@ function update(dt, ...args) {
 	for (let arg of args)
 		if (arg != null)
 			for (let k in arg)
-				if (arg[k] !== undefined)
-					dt[k] = arg[k]
+				if (arg.hasOwnProperty(k))
+					if (arg[k] !== undefined)
+						dt[k] = arg[k]
 	return dt
 }
 
