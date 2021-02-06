@@ -90,8 +90,8 @@
 	geometry:
 		point_around(cx, cy, r, angle)
 	timers:
-		after(s, f)
-		every(s, f)
+		after(t, f)
+		every(t, f)
 		clock()
 		timer(f)
 	serialization:

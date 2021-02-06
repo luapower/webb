@@ -49,7 +49,7 @@
 		e.once (name|ev, f, [enable], [capture])
 		e.fire   (name, ...args)
 		e.fireup (name, ...args)
-		~[right]click       (ev)
+		~[right]click       (ev, nclicks)
 		~[right]pointerdown (ev, mx, my)
 		~[right]pointerup   (ev, mx, my)
 		~pointermove        (ev, mx, my)
@@ -330,9 +330,9 @@ callers.click = function(ev, f) {
 	if (ev.target.effectively_disabled)
 		return false
 	if (ev.which == 1)
-		return f.call(this, ev)
+		return f.call(this, ev, evt.detail)
 	else if (ev.which == 3)
-		return this.fireup('rightclick', ev)
+		return this.fireup('rightclick', ev, evt.detail)
 }
 
 callers.pointerdown = function(ev, f) {
@@ -353,10 +353,8 @@ callers.pointerdown = function(ev, f) {
 method(Element, 'capture_pointer', function(ev, move, up) {
 	move = or(move, return_false)
 	up   = or(up  , return_false)
-	let down_mx = ev.clientX
-	let down_my = ev.clientY
 	function wrap_move(ev, mx, my) {
-		return move.call(this, ev, mx, my, down_mx, down_my)
+		return move.call(this, ev, mx, my)
 	}
 	function wrap_up(ev, mx, my) {
 		this.off('pointermove', wrap_move)
