@@ -330,9 +330,9 @@ callers.click = function(ev, f) {
 	if (ev.target.effectively_disabled)
 		return false
 	if (ev.which == 1)
-		return f.call(this, ev, evt.detail)
+		return f.call(this, ev, ev.detail)
 	else if (ev.which == 3)
-		return this.fireup('rightclick', ev, evt.detail)
+		return this.fireup('rightclick', ev, ev.detail)
 }
 
 callers.pointerdown = function(ev, f) {
