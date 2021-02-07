@@ -55,6 +55,7 @@
 		a.insert(i, v)
 		a.remove(i) -> v
 		a.remove_value(v) -> v
+		a.remove_values(cond)
 		a.last
 		a.binsearch(v, cmp, i1, i2)
 	hash maps:
@@ -314,6 +315,17 @@ method(Array, 'remove_value', function(v) {
 	if (i == -1) return
 	this.splice(i, 1)
 	return v
+})
+
+method(Array, 'remove_values', function(cond) {
+	let i = 0, j = 0
+	while (i < this.length) {
+		let v = this[i]
+		if (!cond(v, i, this))
+			this[j++] = v
+		i++
+	}
+	this.length = j
 })
 
 // move the n elements at i1 to a new position which is an index in the
