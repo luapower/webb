@@ -231,7 +231,10 @@ end
 local function file_action(action)
 
 	if plain_file_allowed(action) then
-		return plain_file_handler(action)
+		local handler = plain_file_handler(action)
+		if handler then
+			return handler
+		end
 	end
 
 	local ret_file, ret_handler

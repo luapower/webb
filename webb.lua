@@ -959,7 +959,7 @@ local function respond_function(main, conf)
 		respond = respond_arg
 		raise_http_error = raise_http_error_arg
 
-		local main = require(main)
+		local main = type(main) == 'string' and require(main) or main
 		if type(main) == 'table' then
 			main = main.respond
 		end

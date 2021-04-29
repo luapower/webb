@@ -30,7 +30,7 @@ QUERY/DDL
 ]==]
 
 require'webb'
-local mysql = require'webb_mysql'
+local mysql = require'mysql_client'
 local errors = require'errors'
 local raise = errors.raise
 
@@ -114,7 +114,7 @@ function quote_sql(v)
 	elseif v == sql_default then
 		return 'default'
 	elseif type(v) == 'string' then
-		return ngx.quote_sql_str(v)
+		return mysql.quote(v)
 	elseif type(v) == 'number' then
 		if v ~= v or v == 1/0 or v == -1/0 then
 			return 'null' --avoid syntax error for what ends up as null anyway.
@@ -159,11 +159,12 @@ end
 
 --query execution ------------------------------------------------------------
 
+local _print_queries
 function print_queries(on)
 	if on ~= nil then
-		ngx.ctx.print_queries = on
+		_print_queries = on
 	else
-		return ngx.ctx.print_queries or false
+		return _print_queries or false
 	end
 end
 
@@ -315,11 +316,12 @@ end
 
 --ddl vocabulary -------------------------------------------------------------
 
+local _allow_drop
 local function allow_drop(on)
 	if on ~= nil then
-		ngx.ctx.allow_drop = on
-	elseif ngx.ctx.allow_drop ~= nil then
-		return ngx.ctx.allow_drop
+		_allow_drop = on
+	elseif _allow_drop ~= nil then
+		return _allow_drop
 	else
 		return not config('allow_drop', false)
 	end
