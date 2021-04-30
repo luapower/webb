@@ -55,8 +55,8 @@ OUTPUT
 	setheader(name, val)                    set a header (unless we're buffering)
 	setmime(ext)                            set content-type based on file extension
 	flush()                                 flush output
-	outprint(...)                           like Lua's print but uses out()
-	outpp(...)                              like pp() but uses out()
+	printout(...)                           like Lua's print but uses out()
+	ppout(...)                              like pp() but uses out()
 
 HTML ENCODING
 
@@ -521,8 +521,8 @@ flush = glue.noop
 
 pp = require'pp'
 
-outprint = print_wrapper(glue.printer(out, tostring))
-outpp = print_wrapper(glue.printer(out, pp))
+printout = print_wrapper(glue.printer(out, tostring))
+ppout = print_wrapper(glue.printer(out, pp))
 
 --sockets --------------------------------------------------------------------
 

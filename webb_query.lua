@@ -57,7 +57,6 @@ local function connect(ns)
 	local db = dbs[ns]
 	if not db then
 		db = assert(mysql:new())
-		db:set_timeout(pconfig(ns, 'db_conn_timeout', 3) * 1000)
 		assert_db(db:connect{
 			host     = pconfig(ns, 'db_host', '127.0.0.1'),
 			port     = pconfig(ns, 'db_port', 3306),
@@ -65,7 +64,6 @@ local function connect(ns)
 			user     = pconfig(ns, 'db_user', 'root'),
 			password = pconfig(ns, 'db_pass'),
 		})
-		db:set_timeout(pconfig(ns, 'db_query_timeout', 30) * 1000)
 		dbs[ns] = db
 	end
 	return db
@@ -223,14 +221,14 @@ local function run_query_on(ns, compact, sql, ...)
 	if print_queries() then
 		print(outdent(sql))
 	end
+	if print_queries() == 'both' then
+		printout(outdent(sql))
+	end
 	if trace_queries() then
 		log_sql(outdent(sql))
 	end
-	assert_db(db:send_query(sql))
-	local old_compact = db.compact
-	db.compact = compact
+	assert_db(db:send_query(sql, compact and 'compact'))
 	local t, err, cols = assert_db(db:read_result())
-	db.compact = old_compact
 	t = process_result(t, cols)
 	if err == 'again' then --multi-result/multi-statement query
 		t = {t}
