@@ -148,9 +148,9 @@ if not ... then require'luapower_server'; return end
 glue = require'glue'
 local uri = require'uri'
 
-local server_conf, req, res, respond, raise_http_error, send_body
-
-req_ctx = nil --public
+local server_conf = {}
+req_ctx = {}
+local respond, req, res, raise_http_error, send_body
 
 --config function ------------------------------------------------------------
 
@@ -169,7 +169,7 @@ do
 		if val == nil then
 			val = os.getenv(var:upper())
 			if val == nil then
-				val = server_conf[var]
+				val = server_conf and server_conf[var]
 				if val == nil then
 					val = default
 				end
@@ -455,6 +455,7 @@ end
 
 function out(s, ...)
 	if s == nil then return end --prevent flushing the buffer needlessly
+	if not res then return end --not a server context
 	local outfunc = req_ctx.outfunc or default_outfunc
 	outfunc(s, ...)
 end
@@ -507,7 +508,9 @@ end
 local function print_wrapper(print)
 	return function(...)
 		if not out_buffering() then
-			res.headers.content_type = 'text/plain'
+			if res then
+				res.headers.content_type = 'text/plain'
+			end
 			print(...)
 		else
 			print(...)
