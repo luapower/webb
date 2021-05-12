@@ -10,12 +10,14 @@ QUERY
 	quote_sqlparams(s, t) -> s                quote query with ? and :name placeholders.
 	print_queries([t|f]) -> t|f               control printing of queries
 	trace_queries(t|f) -> s                   start/stop tracing of SQL statements
-	query(s, args...) -> res                  query and return result table
-	query1(s, args...) -> t                   query and return first row
-	iquery(s, args...) -> id                  query and return insert id
+	query[_on]([ns,]s, args...) -> res        query and return result table (compact)
+	kv_query[_on]([ns,]s, args...) -> res     query and return result table
+	query1[_on]([ns,]s, args...) -> t         query and return first row
+	iquery[_on]([ns,]s, args...) -> id        query and return insert id
 	changed(res) -> t|f                       check if any rows were updated
 	atomic(func)                              execute func in transaction
 	groupby(res, col) -> t                    group rows by a column
+	sql_default                               placeholder for default value
 
 QUERY/DDL
 
@@ -33,14 +35,18 @@ require'webb'
 local mysql = require'mysql_client'
 local errors = require'errors'
 local raise = errors.raise
+local mysql_print = require'mysql_print'
 
 --db connection --------------------------------------------------------------
 
 local function assert_db(ret, ...)
 	if ret ~= nil then return ret, ... end
 	local err, errno, sqlstate = ...
+	err = err:gsub('You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ', 'Syntax error: ')
 	raise('db', {err = err, errno = errno, sqlstate = sqlstate},
-		'%s: %s %s', err, errno, sqlstate)
+		'%s%s%s', err,
+			errno and ' ['..errno..']' or '',
+			sqlstate and ' '..sqlstate or '')
 end
 
 local function pconfig(ns, k, default)
@@ -54,6 +60,7 @@ end
 local dbs = {} --connected db objects
 
 local function connect(ns)
+	ns = ns or false
 	local db = dbs[ns]
 	if not db then
 		db = assert(mysql:new())
@@ -112,12 +119,12 @@ function quote_sql(v)
 	elseif v == sql_default then
 		return 'default'
 	elseif type(v) == 'string' then
-		return mysql.quote(v)
+		return format("'%s'", mysql.quote(v))
 	elseif type(v) == 'number' then
 		if v ~= v or v == 1/0 or v == -1/0 then
 			return 'null' --avoid syntax error for what ends up as null anyway.
 		else
-			return format('%0.17g', v) --max precision, min. length.
+			return format('%0.17g', v) --max precision, min length.
 		end
 	else
 		return nil, 'invalid value '.. pp.format(v)
@@ -203,19 +210,26 @@ local function outdent(s)
 	return s
 end
 
-local function process_result(t, cols)
+local function process_result(t, cols, compact)
 	if cols and #cols == 1 then --single column result: return it as array
 		local t0 = t
 		t = {}
-		for i,row in ipairs(t0) do
-			t[i] = row[1]
+		if compact then
+			for i,row in ipairs(t0) do
+				t[i] = row[1]
+			end
+		else
+			for i,row in ipairs(t0) do
+				local k,v = next(row)
+				t[i] = v
+			end
 		end
 	end
 	return t
 end
 
 local function run_query_on(ns, compact, sql, ...)
-	local db = connect(ns or false)
+	local db = connect(ns)
 	local sql = preprocess(sql)
 	local sql, params = quote_sqlparams(sql, ...)
 	if print_queries() then
@@ -227,14 +241,14 @@ local function run_query_on(ns, compact, sql, ...)
 	if trace_queries() then
 		log_sql(outdent(sql))
 	end
-	assert_db(db:send_query(sql, compact and 'compact'))
-	local t, err, cols = assert_db(db:read_result())
-	t = process_result(t, cols)
+	assert_db(db:send_query(sql))
+	local t, err, cols = assert_db(db:read_result(nil, compact and 'compact'))
+	t = process_result(t, cols, compact)
 	if err == 'again' then --multi-result/multi-statement query
 		t = {t}
 		repeat
 			local t1, err = assert_db(db:read_result())
-			t1 = process_result(t1, cols)
+			t1 = process_result(t1, cols, compact)
 			t[#t+1] = t1
 		until not err
 	end
@@ -250,13 +264,17 @@ function kv_query_on(ns, ...) --execute, iterate rows, close
 end
 
 function query(...)
-	return query_on(false, ...)
+	return query_on(nil, ...)
+end
+
+function kv_query(...)
+	return kv_query_on(nil, ...)
 end
 
 --query frontends ------------------------------------------------------------
 
 function query1_on(ns, ...) --query first row (or first row/column) and close
-	local t, cols, params = run_query_on(ns, true, ...)
+	local t, cols, params = kv_query_on(ns, ...)
 	local row = t[1]
 	if not row then return end
 	if #cols == 1 then
@@ -266,7 +284,7 @@ function query1_on(ns, ...) --query first row (or first row/column) and close
 end
 
 function query1(...)
-	return query1_on(false, ...)
+	return query1_on(nil, ...)
 end
 
 function iquery_on(ns, ...) --insert query: return the value of the auto_increment field.
@@ -276,7 +294,7 @@ function iquery_on(ns, ...) --insert query: return the value of the auto_increme
 end
 
 function iquery(...)
-	return iquery_on(false, ...)
+	return iquery_on(nil, ...)
 end
 
 function changed(res)
@@ -310,6 +328,12 @@ function groupby(items, col)
 		v = v1
 	end
 	return ipairs(t)
+end
+
+--pretty printing ------------------------------------------------------------
+
+function prq(rows, cols)
+	return mysql_print.client_result(rows, cols)
 end
 
 --ddl vocabulary -------------------------------------------------------------
@@ -373,4 +397,26 @@ function fk(tbl, col, ...)
 		qmacro.fk(tbl, col, ...)..';'
 	query(sql)
 end
+
+--macros ---------------------------------------------------------------------
+
+--ddl commands
+qsubst'table  create table if not exists'
+
+--type domains
+qsubst'id      int unsigned'
+qsubst'pk      int unsigned primary key auto_increment'
+qsubst'name    varchar(64) character set utf8 collate utf8_general_ci'
+qsubst'email   varchar(128) character set utf8 collate utf8_general_ci'
+qsubst'hash    varchar(64) character set ascii'
+qsubst'url     varchar(2048) character set utf8 collate utf8_general_ci'
+qsubst'bool    tinyint not null default 0'
+qsubst'bool1   tinyint not null default 1'
+qsubst'atime   timestamp not null'
+qsubst'ctime   timestamp not null default current_timestamp'
+qsubst'mtime   timestamp not null on update current_timestamp'
+qsubst'money   decimal(20,6)'
+qsubst'qty     decimal(20,6)'
+qsubst'percent decimal(20,6)'
+qsubst'lang    char(2) character set ascii not null'
 

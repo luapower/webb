@@ -148,7 +148,6 @@ if not ... then require'luapower_server'; return end
 glue = require'glue'
 local uri = require'uri'
 
-local server_conf = {}
 req_ctx = {}
 local respond, req, res, raise_http_error, send_body
 
@@ -169,10 +168,7 @@ do
 		if val == nil then
 			val = os.getenv(var:upper())
 			if val == nil then
-				val = server_conf and server_conf[var]
-				if val == nil then
-					val = default
-				end
+				val = default
 			end
 			conf[var] = val == nil and NIL or val
 		end
@@ -268,6 +264,9 @@ function headers(h)
 end
 
 local _args = once(function()
+	if req.args then
+		return req.args
+	end
 	local t = uri.parse(req.uri).segments
 	table.remove(t, 1)
 	return t
@@ -502,14 +501,14 @@ mime_types = {
 }
 
 function setmime(ext)
-	res.content_type = mime_types[ext]
+	setheader('content_type', mime_types[ext])
 end
 
 local function print_wrapper(print)
 	return function(...)
 		if not out_buffering() then
 			if res then
-				res.headers.content_type = 'text/plain'
+				setheader('content_type', 'text/plain')
 			end
 			print(...)
 		else
@@ -531,7 +530,12 @@ ppout = print_wrapper(glue.printer(out, pp))
 
 local sock = require'sock'
 
+newthread = sock.newthread
+resume = sock.resume
+suspend = sock.suspend
+thread = sock.thread
 sleep = sock.sleep
+srun = sock.run
 
 function connect(host, port)
 	local skt = sock.tcp()
@@ -952,24 +956,51 @@ function catlist(listfile, ...)
 	end
 end
 
-local function respond_function(main, conf)
-	return function(server, req_arg, respond_arg, raise_http_error_arg)
-		server_conf = conf or {}
-		req = req_arg
-		req_ctx = {}
-		res = {headers = {}}
-		send_body = nil
-		respond = respond_arg
-		raise_http_error = raise_http_error_arg
+function respond(req1, respond1, raise_http_error1)
+	req = req1
+	req_ctx = {}
+	res = {headers = {}}
+	send_body = nil
+	respond = respond1
+	raise_http_error = raise_http_error1
 
-		local main = type(main) == 'string' and require(main) or main
-		if type(main) == 'table' then
-			main = main.respond
-		end
-		main()
-
-		return res
+	local main = assert(config'main_module')
+	local main = type(main) == 'string' and require(main) or main
+	if type(main) == 'table' then
+		main = main.respond
 	end
+	main()
+
+	return res
 end
 
-return respond_function
+function request(main, arg1, ...)
+	config('main_module', main)
+	local host = 'localhost' --TODO
+	local req = type(arg1) == 'table' and arg1 or {args = {arg1,...}}
+	req = glue.update({
+			method = 'get',
+		}, req)
+	req.headers = glue.update({
+			host = host,
+		}, req.headers)
+	req.http = glue.update({
+		}, req.http)
+	req.http.tcp = glue.update({
+			istlssocket = true,
+			local_port = nil,
+			remote_addr = nil,
+		}, req.http.tcp)
+	local function respond_with(opt)
+		pp(opt)
+	end
+	local function raise_with(err)
+		errors.raise('http_response', err)
+	end
+	srun(function()
+		local res = respond(req, respond_with, raise_with)
+		pp(res)
+	end)
+end
+
+return respond
