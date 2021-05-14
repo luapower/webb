@@ -149,7 +149,7 @@ if not ... then require'luapower_server'; return end
 glue = require'glue'
 local uri = require'uri'
 
-req_ctx = {}
+req_ctx = {} --initialized for use in standalone (no server) scripts.
 local respond, req, res, raise_http_error, send_body
 
 --config function ------------------------------------------------------------
@@ -285,9 +285,9 @@ local _post_args = once(function()
 	local s = req:read_body'string'
 	local ct = headers'content-type'
 	if ct then
-		if glue.starts(ct, 'application/x-www-form-urlencoded') then
+		if ct.media_type == 'application/x-www-form-urlencoded' then
 			return uri.parse_args(s)
-		elseif glue.starts(ct, 'application/json') then --prevent ENCTYPE CORS
+		elseif ct.media_type == 'application/json' then --prevent ENCTYPE CORS
 			return s and json(s)
 		end
 	end

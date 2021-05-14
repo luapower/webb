@@ -279,34 +279,33 @@ local mime_type_filters = {
 
 --logic
 
---get the action's name with and without extension and the extension
-local function action_ext(action)
-	local ext = action:match'%.([^%.]+)$'
+local actions = {} --{action -> handler | s}
+
+local function action_handler(action, ...)
+	local action_ext = action:match'%.([^%.]+)$'
 	local action_no_ext
+	local action_with_ext = action
+	local ext = action_ext
 	if not ext then --add the default .html extension to the action
 		action_no_ext = action
 		ext = 'html'
-		action = action .. '.' .. ext
+		action_with_ext = action .. '.' .. ext
 	elseif ext == 'html' then
 		action_no_ext = action:gsub('%.html$', '')
 	end
-	return action_no_ext, action, ext
-end
 
-local actions = {} --{action -> handler | s}
-
-local function action_handler(action_no_ext, action_with_ext, ...)
 	local handler =
 		(action_no_ext and actions[action_name(action_no_ext)]) --look in the default action table
 		or actions[action_name(action_with_ext)] --look again with .html extension
-		or file_action(table.concat({action_with_ext, ...}, '/')) --look on the filesystem
+		or file_action(table.concat({action, ...}, '/')) --look in the filesystem
+
 	if handler and type(handler) ~= 'function' then
 		local s = handler
 		handler = function()
 			setcontent(s)
 		end
 	end
-	return handler
+	return handler, action_no_ext, action_with_ext, ext
 end
 
 --exec an action without setting content type, looking for a 404 handler
@@ -320,15 +319,14 @@ local function pass(arg1, ...)
 	end
 end
 function exec(action, ...)
-	local action_no_ext, action_with_ext, ext = action_ext(action_no_ext)
-	local handler = action_handler(action_no_ext, action_with_ext, ...)
+	local handler = action_handler(action, ...)
 	if not handler then return false end
 	return pass(handler(...))
 end
 
 local function action_call(actions, action, ...)
-	local action_no_ext, action_with_ext, ext = action_ext(action)
-	local handler = action_handler(action_no_ext, action_with_ext, ...)
+	local handler, action_no_ext, action_with_ext, ext =
+		action_handler(action, ...)
 	if not handler then
 		local not_found_actions = {
 			['text/html']  = config('404_html_action', '404.html'),
