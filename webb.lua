@@ -89,7 +89,8 @@ JSON ENCODING/DECODING
 
 FILESYSTEM
 
-	wwwpath(file, [type]) -> path|nil       get www subpath (and check if exists)
+	wwwpath(file, [type]) -> path           get www subpath (and check if exists)
+	varpath(file) -> path                   get var subpath (no check that it exists)
 	wwwfile(file) -> s                      get file contents
 	wwwfile.filename <- s|f(filename)       set virtual file contents
 
@@ -501,18 +502,18 @@ mime_types = {
 }
 
 function setmime(ext)
-	setheader('content_type', mime_types[ext])
+	setheader('content-type', mime_types[ext])
 end
 
-local function print_wrapper(print)
+local function print_wrapper(out)
 	return function(...)
 		if not out_buffering() then
 			if res then
-				setheader('content_type', 'text/plain')
+				setheader('content-type', 'text/plain')
 			end
-			print(...)
+			out(...)
 		else
-			print(...)
+			out(...)
 		end
 	end
 end
@@ -523,8 +524,8 @@ flush = glue.noop
 
 pp = require'pp'
 
-printout = print_wrapper(glue.printer(out, tostring))
-ppout = print_wrapper(glue.printer(out, pp))
+printout = print_wrapper(glue.printer(tostring))
+ppout = print_wrapper(glue.printer(pp))
 
 --sockets --------------------------------------------------------------------
 
@@ -698,30 +699,35 @@ local path = require'path'
 
 function wwwpath(file, type)
 	assert(file)
-	if file:find('..', 1, true) then return end --trying to escape
+	if file:find('..', 1, true) then return end --TODO: use path module for this
 	local abs_path = assert(path.combine(config'www_dir', file))
-	if fs.is(abs_path, type) then return abs_path end
-	local abs_path = assert(path.combine('webb-www', file))
 	if fs.is(abs_path, type) then return abs_path end
 	local abs_path = assert(path.combine('.', file))
 	if fs.is(abs_path, type) then return abs_path end
 	return nil, file..' not found'
 end
 
-local function wwwfile_call(files, file)
-	local f = files[file]
-	if type(f) == 'function' then
-		return f()
-	elseif f then
-		return f
-	else
-		local file = wwwpath(file)
-		return file and glue.readfile(file)
-	end
+function varpath(file)
+	return assert(path.combine(config'var_dir' or config'www_dir', file))
 end
 
-wwwfile = {} --{filename -> content | handler(filename)}
-setmetatable(wwwfile, {__call = wwwfile_call})
+local function file_object(findfile) --{filename -> content | handler(filename)}
+	return setmetatable({}, {
+		__call = function(self, file)
+			local f = self[file]
+			if type(f) == 'function' then
+				return f()
+			elseif f then
+				return f
+			else
+				local file = findfile(file)
+				return file and glue.readfile(file)
+			end
+		end,
+	})
+end
+wwwfile = file_object(wwwpath)
+varfile = file_object(varpath)
 
 --mustache html templates ----------------------------------------------------
 
@@ -963,7 +969,6 @@ function respond(req1, respond1, raise_http_error1)
 	send_body = nil
 	respond = respond1
 	raise_http_error = raise_http_error1
-
 	local main = assert(config'main_module')
 	local main = type(main) == 'string' and require(main) or main
 	if type(main) == 'table' then

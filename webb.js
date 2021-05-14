@@ -1,6 +1,6 @@
 /*
 
-	webbjs | client-side main module
+	webb.js | client-side main module
 	Written by Cosmin Apreutesei. Public Domain.
 
 CONFIG API
@@ -8,13 +8,6 @@ CONFIG API
 	config(name[, default]) -> value       for global config options
 	S(name[, default]) -> s                for internationalized strings
 	lang()                                 current language
-
-URLs
-
-	url(url) -> {path: [s,...], params: {k->v}}    decode URL
-	url(path_elements[, params]) -> url            encode URL
-	url(url, params) -> url                        update URL
-	url(url, path_elements[, params]) -> url       update URL
 
 ACTIONS
 
@@ -50,19 +43,6 @@ TEMPLATES
 	.setup()                               trigger ^setup event
 	^setup                                 triggered after render on target
 
-PUB/SUB
-
-	listen(topic, func)                       add an event listener
-	unlisten(topic)                           remove event listeners on a topic
-	broadcast_local(topic, data)              broadcast data to local listeners
-	broadcast_external(topic, data)           broadcast data to other windows
-	broadcast(topic, data)                    broadcast data to all windows
-
-PERSISTENCE
-
-	store(key, value)                         store a value in the local store
-	getback(key) -> value                     get back the stored value
-
 */
 
 // config --------------------------------------------------------------------
@@ -88,101 +68,6 @@ function S(name, val) {
 function lang() {
 	return document.documentElement.lang
 }
-
-// url encoding & decoding ---------------------------------------------------
-
-// 1. decode: url('a/b?k=v') -> {path: ['a','b'], params: {k:'v'}}
-// 2. encode: url(['a','b'], {k:'v'}) -> 'a/b?k=v'
-// 3. update: url('a/b', {k:'v'}) -> 'a/b?k=v'
-// 4. update: url('a/b?k=v', ['c'], {k:'x'}) -> 'c/b?k=x'
-function url(path, params, update) {
-	if (typeof path == 'string') { // decode or update
-		if (params !== undefined || update !== undefined) { // update
-			if (typeof params == 'object') { // update params only
-				update = params
-				params = undefined
-			}
-			var t = url(path) // decode
-			if (params) // update path
-				for (var i = 0; i < params.length; i++)
-					t.path[i] = params[i]
-			if (update) // update params
-				for (k in update)
-					t.params[k] = update[k]
-			return url(t.path, t.params) // encode back
-		} else { // decode
-			var i = path.indexOf('?')
-			var params
-			if (i > -1) {
-				params = path.substring(i + 1)
-				path = path.substring(0, i)
-			}
-			var a = path.split('/')
-			for (var i = 0; i < a.length; i++)
-				a[i] = decodeURIComponent(a[i])
-			var t = {}
-			if (params !== undefined) {
-				params = params.split('&')
-				for (var i = 0; i < params.length; i++) {
-					var kv = params[i].split('=')
-					var k = decodeURIComponent(kv[0])
-					var v = kv.length == 1 ? true : decodeURIComponent(kv[1])
-					if (t[k] !== undefined) {
-						if (typeof t[k] != 'array')
-							t[k] = [t[k]]
-						t[k].push(v)
-					} else {
-						t[k] = v
-					}
-				}
-			}
-			return {path: a, params: t}
-		}
-	} else { // encode
-		if (typeof path == 'object') {
-			params = path.params
-			path = path.path
-		}
-		var a = []
-		for (var i = 0; i < path.length; i++)
-			a[i] = encodeURIComponent(path[i])
-		var path = a.join('/')
-		var a = []
-		var keys = Object.keys(params).sort()
-		for (var i = 0; i < keys.length; i++) {
-			var pk = keys[i]
-			var k = encodeURIComponent(pk)
-			var v = params[pk]
-			if (typeof v == 'array') {
-				for (var j = 0; j < v.length; j++) {
-					var z = v[j]
-					var kv = k + (z !== true ? '=' + encodeURIComponent(z) : '')
-					a.push(kv)
-				}
-			} else {
-				var kv = k + (v !== true ? '=' + encodeURIComponent(v) : '')
-				a.push(kv)
-			}
-		}
-		var params = a.join('&')
-		return path + (params ? '?' + params : '')
-	}
-}
-
-/*
-//decode
-console.log(url('a/b?a&b=1'))
-console.log(url('a/b?'))
-console.log(url('a/b'))
-console.log(url('?a&b=1&b=2'))
-console.log(url('/'))
-console.log(url(''))
-//encode
-// TODO
-console.log(url(['a', 'b'], {a: true, b: 1}))
-//update
-// TODO
-*/
 
 // actions/encoding ----------------------------------------------------------
 
@@ -312,7 +197,7 @@ function url_changed() {
 
 $(document).on('url_changed', function() {
 	$(document).off('.current_action')
-	unlisten('.current_action')
+	off('.current_action')
 })
 
 function _save_scroll_state(top) {
@@ -453,54 +338,6 @@ $.fn.render = function(name, data) {
 	return this.render_string(template(name), data)
 }
 
-// inter-window events -------------------------------------------------------
-
-var g_events = $({})
-
-function listen(topic, func) {
-	g_events.on(topic, function(e, data) {
-		func(data)
-	})
-}
-
-function unlisten(topic) {
-	g_events.off(topic)
-}
-
-// broadcast a message to local listeners
-function broadcast_local(topic, data) {
-	g_events.trigger(topic, data)
-}
-
-window.addEventListener('storage', function(e) {
-	// decode the message
-	if (e.key != 'broadcast_') return
-	var args = e.newValue
-	if (!args) return
-	args = JSON.parse(args)
-	// broadcast it
-	broadcast_local(args.topic, args.data)
-})
-
-// broadcast a message to other windows
-function broadcast_external(topic, data) {
-	if (localStorage === undefined)
-		return
-	localStorage.setItem('broadcast_', '')
-	localStorage.setItem('broadcast_',
-		JSON.stringify({
-			topic: topic,
-			data: data
-		})
-	)
-	localStorage.setItem('broadcast_', '')
-}
-
-function broadcast(topic, data) {
-	broadcast_local(topic, data)
-	broadcast_external(topic, data)
-}
-
 // trickled-down events ------------------------------------------------------
 
 (function() {
@@ -535,17 +372,6 @@ function broadcast(topic, data) {
 	}
 
 })()
-
-// persistence ---------------------------------------------------------------
-
-function store(key, value) {
-	Storage.setItem(key, JSON.stringify(value))
-}
-
-function getback(key) {
-	var value = Storage.getItem(key)
-	return value && JSON.parse(value)
-}
 
 // init ----------------------------------------------------------------------
 
