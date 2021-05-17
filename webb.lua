@@ -23,6 +23,10 @@ ENVIRONMENT
 	once(f[, clear_cache[, k]])             memoize for current request
 	env([t]) -> t                           per-request shared environment
 
+LOGGING
+
+	log(...)
+
 REQUEST
 
 	headers([name]) -> s|t                  get header or all
@@ -78,8 +82,8 @@ RESPONSE
 
 SCHEDULER
 
-sleep(n)                                   sleep n seconds
-connect(ip, port) -> sock                  connect to a server
+	sleep(n)                                sleep n seconds
+	connect(ip, port) -> sock               connect to a server
 
 JSON ENCODING/DECODING
 
@@ -90,9 +94,11 @@ JSON ENCODING/DECODING
 FILESYSTEM
 
 	wwwpath(file, [type]) -> path           get www subpath (and check if exists)
-	varpath(file) -> path                   get var subpath (no check that it exists)
 	wwwfile(file) -> s                      get file contents
 	wwwfile.filename <- s|f(filename)       set virtual file contents
+	wwwfiles([filter]) -> {name->true}      list www files
+	varpath(file) -> path                   get var subpath (no check that it exists)
+	varpath.filename <- s|f(filename)       set virtual file contents
 
 MUSTACHE TEMPLATES
 
@@ -123,16 +129,23 @@ FILE CONCATENATION LISTS
 	catlist_files(s) -> {file1,...}         parse a .cat file
 	catlist(file, args...)                  output a .cat file
 
-TODO
+MAIL SENDING
 
-	* more preprocessors: markdown, coffeescript, sass, minimifiers
-	* css & js minifiers
+	sendmail(from, rcpt, subj, msg, html)   send email
 
-API DOCS
+HTTP SERVER INTEGRATION
+
+	respond(req, http_respond, http_raise, http_debug) http_server response handler
+
+STANDALONE OPERATION
+
+	request(main, req | arg1,...)           make a request without a http server.
+
+API DOCS ---------------------------------------------------------------------
 
 	once(f[, clear_cache[, k]])
 
-Memoize 0-arg or 1-arg function for current request. If clear_cache is
+Memoize 0-arg or 1-arg function for current request. If `clear_cache` is
 true, then clear the cache (either for the entire function or for arg `k`).
 
 	env([t]) -> t
@@ -144,13 +157,11 @@ an inherited environment is created.
 
 ]==]
 
-if not ... then require'luapower_server'; return end
-
 glue = require'glue'
 local uri = require'uri'
 
 req_ctx = {} --initialized for use in standalone (no server) scripts.
-local respond, req, res, raise_http_error, send_body
+local req, res, http_respond, http_raise, http_dbg, send_body
 
 --config function ------------------------------------------------------------
 
@@ -246,6 +257,12 @@ function env(t)
 	end
 end
 
+--logging --------------------------------------------------------------------
+
+function log(...)
+	http_dbg(...)
+end
+
 --request API ----------------------------------------------------------------
 
 function method(which)
@@ -313,14 +330,17 @@ function host(s)
 	if s then
 		return host() == s
 	end
-	return headers'x-forwarded-host' or headers'host'
+	return headers'x-forwarded-host'
+		or (headers'host' and headers('host').host)
+		or config'host'
+		or req.http.tcp.local_addr
 end
 
 function port(p)
 	if p then
 		return port() == tonumber(p)
 	end
-	return tonumber(headers'x-forwarded-port' or req.http.tcp.local_port)
+	return headers'x-forwarded-port' or req.http.tcp.local_port
 end
 
 function email(user)
@@ -371,8 +391,9 @@ end
 --output API -----------------------------------------------------------------
 
 local function wrap_send_body(send)
-	respond = nil
-	raise_http_error = nil
+	http_respond = nil
+	http_raise = nil
+	http_dbg = nil
 	local req1, res1, req_ctx1, send_body1
 	return function(buf, sz)
 		send_body1 = send_body
@@ -394,15 +415,15 @@ function setcontent(s)
 		out(s)
 	else
 		res.content = tostring(s)
-		respond(res)
-		respond = nil
+		http_respond(res)
+		http_respond = nil
 	end
 end
 
 function outbuf(buf, sz)
 	if not send_body then
-		send_body = wrap_send_body(respond(res))
-		respond = nil
+		send_body = wrap_send_body(http_respond(res))
+		http_respond = nil
 	end
 	send_body(buf, sz)
 end
@@ -415,8 +436,8 @@ local function default_outfunc(...)
 	for i=1,select('#',...) do
 		local s = tostring((select(i,...)))
 		if not send_body then
-			send_body = wrap_send_body(respond(res))
-			respond = nil
+			send_body = wrap_send_body(http_respond(res))
+			http_respond = nil
 		end
 		send_body(s)
 	end
@@ -430,8 +451,10 @@ function stringbuffer(t)
 			return table.concat(t)
 		end
 		for i=1,n do
-			local s = select(i,...)
-			t[#t+1] = tostring(s)
+			local s = tostring(select(i,...))
+			if s ~= '' then
+				t[#t+1] = s
+			end
 		end
 	end
 end
@@ -454,7 +477,6 @@ function pop_out()
 end
 
 function out(s, ...)
-	if s == nil then return end --prevent flushing the buffer needlessly
 	if not res then return end --not a server context
 	local outfunc = req_ctx.outfunc or default_outfunc
 	outfunc(s, ...)
@@ -630,12 +652,12 @@ end
 
 function http_error(status, fmt, ...)
 	local msg = type(fmt) == 'string' and string.format(fmt, ...) or fmt
-	raise_http_error{status = status, status_message = msg and tostring(msg)}
+	http_raise{status = status, status_message = msg and tostring(msg)}
 end
 
 function redirect(uri)
 	--TODO: make it work with relative paths
-	raise_http_error{status = 303, headers = {location = uri}}
+	http_raise{status = 303, headers = {location = uri}}
 end
 
 function check(ret, ...)
@@ -729,6 +751,27 @@ end
 wwwfile = file_object(wwwpath)
 varfile = file_object(varpath)
 
+function wwwfiles(filter)
+	filter = filter or glue.pass
+	local t = {}
+	for name in pairs(wwwfile) do
+		if filter(name) then
+			t[name] = true
+		end
+	end
+	for name, d in fs.dir(config'www_dir') do
+		if not t[name] and d:is'file' and filter(name) then
+			t[name] = true
+		end
+	end
+	for name, d in fs.dir'.' do
+		if not t[name] and d:is'file' and filter(name) then
+			t[name] = true
+		end
+	end
+	return t
+end
+
 --mustache html templates ----------------------------------------------------
 
 local function underscores(name)
@@ -781,14 +824,8 @@ end
 
 --gather all the templates from the filesystem
 local load_templates = glue.memoize(function()
-	local t = {}
-	for file, d in fs.dir(wwwpath'.') do
-		assert(file)
-		if file:find'%.html%.mu$' and d:is'file' then
-			t[#t+1] = file
-		end
-	end
-	table.sort(t)
+	local t = wwwfiles(function(s) return s:find'%.html%.mu$' end)
+	t = glue.keys(t)
 	for i,file in ipairs(t) do
 		local s = wwwfile(file)
 		local _, i = mustache_unwrap(s, template, file)
@@ -935,11 +972,11 @@ function catlist(listfile, ...)
 			table.insert(t, wwwfile(file))
 			table.insert(c, function() out(wwwfile(file)) end)
 		else
-			local path = wwwfile(file)
+			local path = wwwpath(file)
 			if path then --plain file, get its mtime
 				local mtime = fs.attr(path, 'mtime')
 				table.insert(t, tostring(mtime))
-				table.insert(c, function() out(wwwfile(file)) end)
+				table.insert(c, function() out(glue.readfile(path)) end)
 			elseif action then --file not found, try an action
 				local s, found = record(action, file, ...)
 				if found then
@@ -962,13 +999,42 @@ function catlist(listfile, ...)
 	end
 end
 
-function respond(req1, respond1, raise_http_error1)
+--mail sending ---------------------------------------------------------------
+
+local function strip_name(email)
+	return '<'..(email:match'<(.-)>' or email)..'>'
+end
+
+function sendmail(from, rcpt, subj, msg, html)
+	--TODO: integrate a few "transactional" email providers here.
+	return send{
+		from = strip_name(from),
+		rcpt = {
+			strip_name(rcpt),
+			strip_name(from),
+		},
+		headers = {
+			from = from,
+			to = rcpt,
+			subject = subj,
+			['content-type'] = html and 'text/html' or 'text/plain'
+		},
+		body = msg,
+		server = config('smtp_host', '127.0.0.1'),
+		port   = config('smtp_port', 25),
+	}
+end
+
+--http_server respond function -----------------------------------------------
+
+function respond(req1, http_respond1, http_raise1, http_dbg1)
 	req = req1
 	req_ctx = {}
 	res = {headers = {}}
 	send_body = nil
-	respond = respond1
-	raise_http_error = raise_http_error1
+	http_respond = http_respond1
+	http_raise = http_raise1
+	http_dbg = http_dbg1
 	local main = assert(config'main_module')
 	local main = type(main) == 'string' and require(main) or main
 	if type(main) == 'table' then
@@ -978,6 +1044,8 @@ function respond(req1, respond1, raise_http_error1)
 
 	return res
 end
+
+--standalone operation -------------------------------------------------------
 
 function request(main, arg1, ...)
 	config('main_module', main)
@@ -993,6 +1061,7 @@ function request(main, arg1, ...)
 		}, req.http)
 	req.http.tcp = glue.update({
 			istlssocket = true,
+			local_addr = 'localhost',
 			local_port = nil,
 			remote_addr = nil,
 		}, req.http.tcp)
@@ -1002,8 +1071,11 @@ function request(main, arg1, ...)
 	local function raise_with(err)
 		errors.raise('http_response', err)
 	end
+	local function log_with(...)
+		print('LOG', ...)
+	end
 	srun(function()
-		local res = respond(req, respond_with, raise_with)
+		local res = respond(req, respond_with, raise_with, log_with)
 		pp(res)
 	end)
 end

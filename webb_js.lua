@@ -6,8 +6,8 @@
 CONFIG
 
 	config('page_title_suffix')         suffix for <title>
-	config('separate_js_refs', false)   separate <script> refs or all.js
-	config('separate_css_refs', false)  separate <link> refs or all.css
+	config('separate_js_refs', true)   separate <script> refs or all.js
+	config('separate_css_refs', true)  separate <link> refs or all.css
 
 API
 
@@ -47,14 +47,10 @@ LOADS
 
 	normalize.css
 
-	jquery.js
-	jquery.history.js
-	mustache.js
+	glue.js
+	divs.js
 	webb.js
-	webb.ajax.js
-	webb.timeago.js
-	webb.util.js
-	webb.analytics.js
+	mustache.js
 
 ]==]
 
@@ -138,29 +134,18 @@ wwwfile['inline.js'] = function()
 	return js()
 end
 
-cssfile[[
-normalize.css
-]]
-
 jsfile[[
-jquery.js
-jquery.history.js  // for exec() and ^url_changed
-mustache.js        // for render()
-
 glue.js
+divs.js
 webb.js
-webb.ajax.js
-webb.timeago.js
-webb.util.js
-webb.analytics.js
-
-config.js          // dynamic config
-strings.js         // strings in current language
+mustache.js
+config.js   // dynamic config
+strings.js  // strings in current language
 ]]
 
 --format js and css refs as separate refs or as a single ref based on a .cat action
 
-function jslist(cataction, separate)
+local function jslist(cataction, separate)
 	if not separate then
 		return string.format('	<script src="%s" async></script>', lang_url('/'..cataction))
 	end
@@ -171,7 +156,7 @@ function jslist(cataction, separate)
 	return out()
 end
 
-function csslist(cataction, separate)
+local function csslist(cataction, separate)
 	if not separate then
 		return string.format('	<link rel="stylesheet" type="text/css" href="/%s">', cataction)
 	end
@@ -220,7 +205,7 @@ function webbjs(p)
 	t.title = page_title(p.title, t.body)
 	t.title_suffix = config('page_title_suffix', ' - '..host())
 	t.client_action = p.client_action or false
-	t.all_js = jslist('all.js', config('separate_js_refs', false))
-	t.all_css = csslist('all.css', config('separate_css_refs', false))
+	t.all_js  = jslist ('all.js' , config('separate_js_refs' , true))
+	t.all_css = csslist('all.css', config('separate_css_refs', true))
 	out(render_string(webbjs_template, t))
 end

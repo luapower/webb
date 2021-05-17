@@ -13,8 +13,8 @@ ACTIONS
 
 	lang_url([path[, params[, lang]]]) -> url  traslate a URL
 	find_action(path) -> handler | nil     find the client-side action for a path
-	.setlink([path[, params]])             hook an action to a link
-	.setlinks([filter])                    hook actions to all links
+	e.setlink([path[, params]])            hook an action to a link
+	e.setlinks([filter])                   hook actions to all links
 	page_loading() -> t|f                  was current page loaded or exec()'ed?
 	url_changed()                          window's URL changed
 	exec(path[, params])                   change the window URL
@@ -29,25 +29,23 @@ ARG VALIDATION
 
 	intarg(s)
 	optarg(s)
-
 	slug(id, s)
 
 TEMPLATES
 
 	load_templates(success)                load templates from the server
 	template(name) -> s                    get a template
-	render_string(s[, data]) -> s          render a template from a string
-	render(name[, data]) -> s              render a template
-	.render_string(s, data)                render template string to target
-	.render(name[, data])                  render template to target
-	.setup()                               trigger ^setup event
-	^setup                                 triggered after render on target
+	render_string(s, [data]) -> s          render a template from a string
+	render(name, [data]) -> s              render a template
+	e.render_string(s, data)               render template string to target
+	e.render(name, [data])                 render template to target
+	^bind(on, [data])                      fired before & after render
 
 */
 
 // config --------------------------------------------------------------------
 
-// some of the values come from the server (see config.js.lua).
+// some of the values come from the server (see config.js action).
 var C_ = {}
 function config(name, val) {
 	if (val && !C_[name])
@@ -71,14 +69,12 @@ function lang() {
 
 // actions/encoding ----------------------------------------------------------
 
-function _underscores(action) {
-	return action.replace(/-/g, '_')
+function _action_name(action) {
+	return action.replaceAll('-', '_')
 }
 
-_action_name = _underscores
-
 function _action_urlname(action) {
-	return action.replace(/_/g, '-')
+	return action.replaceAll('_', '-')
 }
 
 function _decode_url(path, params) {
@@ -117,7 +113,7 @@ function lang_url(path, params, target_lang) {
 	var at = config('aliases').to_lang[action]
 	var lang_action = at && at[target_lang]
 	if (lang_action) {
-		if (! (is_root && target_lang == default_lang))
+		if (!(is_root && target_lang == default_lang))
 			t.path[1] = lang_action
 	} else if (target_lang != default_lang) {
 		t.params.lang = target_lang
@@ -162,9 +158,8 @@ function find_action(path) {
 // actions/history -----------------------------------------------------------
 
 function check(truth) {
-	if(!truth) {
-		$(document).trigger('action_not_found')
-	}
+	if(!truth)
+		document.fire('action_not_found')
 }
 
 var g_page_loading = true
@@ -174,9 +169,9 @@ function page_loading() {
 	return g_page_loading
 }
 
-$(function() {
-	var History = window.History
-	History.Adapter.bind(window, 'statechange', function() {
+on_dom_load(function() {
+	window.on('popstate', function(ev) {
+		print('popstate', ev)
 		g_page_loading = false
 		url_changed()
 	})
@@ -186,17 +181,17 @@ var g_ignore_url_changed
 
 function url_changed() {
 	if (g_ignore_url_changed) return
-	$(document).trigger('url_changed')
+	document.fire('url_changed')
 	var handler = find_action(location.pathname)
 	if (handler)
 		handler()
 	else
 		check(false)
-	$(document).trigger('after_exec')
+	document.fire('after_exec')
 }
 
-$(document).on('url_changed', function() {
-	$(document).off('.current_action')
+document.on('url_changed', function() {
+	document.off('.current_action')
 	off('.current_action')
 })
 
@@ -218,7 +213,7 @@ var exec, back
 
 	function check_exec() {
 		aborted = false
-		$(document).trigger('before_exec', [abort_exec])
+		document.fire('before_exec', [abort_exec])
 		return !aborted
 	}
 
@@ -226,7 +221,7 @@ var exec, back
 		if (!check_exec())
 			return
 		// store current scroll top in current state first
-		_save_scroll_state($(window).scrollTop())
+		_save_scroll_state(window.scrollTop())
 		// push new state without data
 		History.pushState(null, null, lang_url(path, params))
 	}
@@ -247,12 +242,12 @@ function setscroll(top) {
 		var state = History.getState()
 		var top = state.data && state.data.top || 0
 	}
-	$(window).scrollTop(top)
+	window.scrollTop(top)
 }
 
-$.fn.setlink = function(path, params) {
-	$.each(this, function() {
-		var a = $(this)
+method(Element, 'setlink', function(path, params) {
+	this.each(function() {
+		var a = this
 		if (a.data('hooked_'))
 			return
 		if (a.attr('target'))
@@ -273,12 +268,12 @@ $.fn.setlink = function(path, params) {
 		}).data('hooked_', true)
 	})
 	return this
-}
+})
 
-$.fn.setlinks = function(filter) {
+method(Element, 'setlinks', function(filter) {
 	this.find(filter || 'a[href],area[href]').setlink()
 	return this
-}
+})
 
 function settitle(title) {
 	title = title
@@ -288,97 +283,67 @@ function settitle(title) {
 		document.title = title + config('page_title_suffix')
 }
 
+// address bar, links and scrolling ------------------------------------------
+
+function slug(id, s) {
+	return (s.upper()
+		.replace(/ /g,'-')
+		.replace(/[^\w-]+/g,'')
+	) + '-' + id
+}
+
+function intarg(s) {
+	s = s && s.match(/\d+$/)
+	return s && num(s) || ''
+}
+
+function optarg(s) {
+	return s && ('/' + s) || ''
+}
+
 // templates -----------------------------------------------------------------
 
 function load_templates(success) {
-	$.get('/'+config('templates_action'), function(s) {
-		$('#__templates').html(s)
-		if (success)
-			success()
-	}).fail(function() {
-		assert(false, 'could not load templates')
+	ajax({
+		url: '/'+config('templates_action'),
+		success: function(s) {
+			__templates.html = s
+			if (success)
+				success()
+		},
+		fail: function() {
+			assert(false, 'could not load templates')
+		},
 	})
 }
 
 function template(name) {
-	var t = $('#' + _underscores(name) + '_template')
-	return t.length > 0 && t.html() || undefined
-}
-
-function load_partial_(name) {
-	return template(name)
+	let e = window[name.replaceAll('-', '_')+'_template']
+	return e && e.html
 }
 
 function render_string(s, data) {
-	return Mustache.render(s, data || {}, load_partial_)
+	return Mustache.render(s, data || {}, template)
 }
 
 function render(template_name, data) {
-	var s = template(template_name)
+	let s = template(template_name)
 	return render_string(s, data)
 }
 
-$.fn.render_string = function(s, data) {
-	assert(this.length > 0, 'render_string(): target empty')
-	var s = render_string(s, data)
-	return this.teardown().html(s).setup()
-}
+method(Element, 'render_string', function(s, data) {
+	s = render_string(s, data)
+	return this.fire('bind', false).set(s).fire('bind', true, data)
+})
 
-$.fn.teardown = function() {
-	this.trigger('teardown')
-	return this
-}
-
-$.fn.setup = function() {
-	this.trigger('setup')
-	return this
-}
-
-$.fn.render = function(name, data) {
+method(Element, 'render', function(name, data) {
 	return this.render_string(template(name), data)
-}
-
-// trickled-down events ------------------------------------------------------
-
-(function() {
-
-	var registered = {}
-
-	function capture(etype, handler) {
-		var attr = 'capture-'+etype
-		$(this).on(etype, handler).attr(attr, true)
-		if (!registered[etype]) {
-			$([window, document]).on(etype, function(e) {
-				var args = $.makeArray(arguments)
-				args.shift()
-				var ret
-				$(e.target).find('['+attr+']').each(function() {
-					ret = $(this).triggerHandler(e, args)
-				})
-				return ret
-			})
-			registered[etype] = true
-		}
-	}
-
-	$.fn.capture = function(etypes, handler) {
-		etypes = etypes.trim().split(' ')
-		for(var i = 0; i < etypes.length; i++) {
-			var etype = etypes[i].trim()
-			if (etype)
-				capture.call(this, etype, handler)
-		}
-		return this
-	}
-
-})()
+})
 
 // init ----------------------------------------------------------------------
 
-$(function() {
-	analytics_init()
+on_dom_load(function() {
 	load_templates(function() {
-		$(document).setup()
 		if (client_action)
 			url_changed()
 	})

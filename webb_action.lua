@@ -1,4 +1,3 @@
-if not ... then require'luapower_server'; return end
 --[==[
 
 	webb | action-based routing with multi-language support
@@ -31,8 +30,7 @@ CONFIG
 TODO
 
 	* cascaded actions: html.m.lua, html.m.lp, etc.
-	* .markdown, .coffee, .sass, .less actions
-	* css & js minifying filters
+	* .markdown filter.
 
 ]==]
 
@@ -164,33 +162,21 @@ function redirect(url, ...)
 	return webb_redirect(url, ...)
 end
 
---action files ---------------------------------------------------------------
-
-local file_handlers = {
-	cat = function(file, ...)
-		catlist(file, ...)
-	end,
-	lua = function(file, ...)
-		return run(file, nil, ...)
-	end,
-	lp = function(file, ...)
-		include(file)
-	end,
-}
-
-local function plain_file_allowed(file)
-	local ext = file:match'%.([^%.]+)$'
-	return not (ext and file_handlers[ext])
-end
-
-local actions_ext = glue.keys(file_handlers, true)
+--serving plain files --------------------------------------------------------
 
 local ffi = require'ffi'
 local fs = require'fs'
 
 local function plain_file_handler(file)
+
+	if wwwfile[file] then
+		return wwwfile(file)
+	end
+
 	local path = wwwpath(file)
-	if not path then return end
+	if not path then
+		return
+	end
 	local f = assert(fs.open(path, 'r'))
 
 	local mtime, err = f:attr'mtime'
@@ -205,10 +191,7 @@ local function plain_file_handler(file)
 		f:close()
 		error(err)
 	end
-	--[[
-	--TODO:
 	setheader('content-length', file_size)
-	]]
 
 	return function()
 		local filebuf_size = math.min(file_size, 65536)
@@ -228,31 +211,7 @@ local function plain_file_handler(file)
 	end
 end
 
-local function file_action(action)
-
-	if plain_file_allowed(action) then
-		local handler = plain_file_handler(action)
-		if handler then
-			return handler
-		end
-	end
-
-	local ret_file, ret_handler
-	for i,ext in ipairs(actions_ext) do
-		local file = action..'.'..ext
-		if wwwfile[file] or wwwpath(file) then
-			assert(not ret_file, 'multiple action files for action '..action)
-			ret_file = file
-			ret_handler = file_handlers[ext]
-		end
-	end
-	return ret_handler and function(...)
-		return ret_handler(ret_file, ...)
-	end
-
-end
-
---output filters
+--output filters -------------------------------------------------------------
 
 local function html_filter(handler, action, ...)
 	local s = record(handler, action, ...)
@@ -277,15 +236,54 @@ local mime_type_filters = {
 	['application/json'] = json_filter,
 }
 
---logic
+--routing logic --------------------------------------------------------------
+
+local file_handlers = {
+	cat = function(file, ...)
+		catlist(file, ...)
+	end,
+	lua = function(file, ...)
+		return run(file, nil, ...)
+	end,
+	lp = function(file, ...)
+		include(file)
+	end,
+}
+
+local actions_ext = glue.keys(file_handlers, true)
+
+local function file_action(...)
+	local file = table.concat({...}, '/')
+	local ext = file:match'%.([^%.]+)$'
+	local plain_file_allowed = not (ext and file_handlers[ext])
+	if plain_file_allowed then
+		local handler = plain_file_handler(file)
+		if handler then
+			return handler
+		end
+	end
+	local action_file, handler
+	for i,ext in ipairs(actions_ext) do
+		local action_file1 = file..'.'..ext
+		if wwwfile[action_file1] or wwwpath(action_file1) then
+			glue.assert(not action_file,
+				'multiple action files for %s (%s, was %s)',
+					file, action_file1, action_file)
+			handler = file_handlers[ext]
+			action_file = action_file1
+		end
+	end
+	return action_file and function(...)
+		return handler(action_file, ...)
+	end
+end
 
 local actions = {} --{action -> handler | s}
 
 local function action_handler(action, ...)
-	local action_ext = action:match'%.([^%.]+)$'
+	local ext = action:match'%.([^%.]+)$'
 	local action_no_ext
 	local action_with_ext = action
-	local ext = action_ext
 	if not ext then --add the default .html extension to the action
 		action_no_ext = action
 		ext = 'html'
@@ -297,7 +295,7 @@ local function action_handler(action, ...)
 	local handler =
 		(action_no_ext and actions[action_name(action_no_ext)]) --look in the default action table
 		or actions[action_name(action_with_ext)] --look again with .html extension
-		or file_action(table.concat({action, ...}, '/')) --look in the filesystem
+		or file_action(action, ...) --look in the filesystem
 
 	if handler and type(handler) ~= 'function' then
 		local s = handler
@@ -329,12 +327,13 @@ local function action_call(actions, action, ...)
 		action_handler(action, ...)
 	if not handler then
 		local not_found_actions = {
-			['text/html']  = config('404_html_action', '404.html'),
-			['image/png']  = config('404_png_action', '404.png'),
+			['text/html' ] = config('404_html_action', '404.html'),
+			['image/png' ] = config('404_png_action' , '404.png'),
 			['image/jpeg'] = config('404_jpeg_action', '404.jpg'),
 		}
 		local mime = mime_types[ext]
-		local nf_action = not_found_actions[mime] or config('404_action', '404')
+		local nf_action = not_found_actions[mime]
+		log('NOT FOUND', '%s', table.concat({action, ...}, '/'))
 		if not nf_action
 			or nf_action == action --loop
 			or nf_action == action_with_ext --loop
