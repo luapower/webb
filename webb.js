@@ -43,43 +43,47 @@ TEMPLATES
 
 */
 
+{ // module scope.
+
 // config --------------------------------------------------------------------
 
 // some of the values come from the server (see config.js action).
-var C_ = {}
+{
+let t = {}
 function config(name, val) {
-	if (val && !C_[name])
-		C_[name] = val
-	if (typeof(C_[name]) === 'undefined')
+	if (val && !t[name])
+		t[name] = val
+	if (typeof(t[name]) === 'undefined')
 		console.log('warning: missing config value for ', name)
-	return C_[name]
-}
+	return t[name]
+}}
 
 // global S() for internationalizing strings.
-var S_ = {}
+{
+let t = {}
 function S(name, val) {
-	if (val && !S_[name])
-		S_[name] = val
-	return S_[name]
-}
+	if (val && !t[name])
+		t[name] = val
+	return t[name]
+}}
 
 function lang() {
 	return document.documentElement.lang
 }
 
-// actions/encoding ----------------------------------------------------------
+// actions -------------------------------------------------------------------
 
-function _action_name(action) {
+let action_name = function(action) {
 	return action.replaceAll('-', '_')
 }
 
-function _action_urlname(action) {
+let action_urlname = function(action) {
 	return action.replaceAll('_', '-')
 }
 
-function _decode_url(path, params) {
+let decode_url = function(path, params) {
 	if (typeof path == 'string') {
-		var t = url(path)
+		let t = url(path)
 		if (params)
 			for (k in params)
 				if (params.hasOwnProperty(k))
@@ -91,9 +95,9 @@ function _decode_url(path, params) {
 }
 
 // extract the action from a decoded url
-function _url_action(t) {
+let url_action = function(t) {
 	if (t.path[0] == '' && t.path.length >= 2)
-		return _action_name(t.path[1])
+		return action_name(t.path[1])
 }
 
 // given an url (in encoded or decoded form), if it's an action url,
@@ -101,42 +105,42 @@ function _url_action(t) {
 // (or current) language if any, or add ?lang= if the given language
 // is not the default language.
 function lang_url(path, params, target_lang) {
-	var t = _decode_url(path, params)
-	var default_lang = config('lang')
-	var target_lang = target_lang || t.params.lang || lang()
-	var action = _url_action(t)
+	let t = decode_url(path, params)
+	let default_lang = config('lang')
+	target_lang = target_lang || t.params.lang || lang()
+	let action = url_action(t)
 	if (action === undefined)
 		return url(t)
-	var is_root = t.path[1] == ''
+	let is_root = t.path[1] == ''
 	if (is_root)
-		action = _action_name(config('root_action'))
-	var at = config('aliases').to_lang[action]
-	var lang_action = at && at[target_lang]
+		action = action_name(config('root_action'))
+	let at = config('aliases').to_lang[action]
+	let lang_action = at && at[target_lang]
 	if (lang_action) {
 		if (!(is_root && target_lang == default_lang))
 			t.path[1] = lang_action
 	} else if (target_lang != default_lang) {
 		t.params.lang = target_lang
 	}
-	t.path[1] = _action_urlname(t.path[1])
+	t.path[1] = action_urlname(t.path[1])
 	return url(t)
 }
 
-var action = {} // {action: handler}
+action = {} // {action: handler}
 
 // given a path (in encoded form), find the action it points to
 // and return its handler.
 function find_action(path) {
-	var t = url(path)
-	var act = _url_action(t)
+	let t = url(path)
+	let act = url_action(t)
 	if (act === undefined)
 		return
 	if (act == '')
 		act = config('root_action')
 	else // an alias or the act name directly
 		act = config('aliases').to_en[act] || act
-	act = _action_name(act)
-	var handler = action[act] // find a handler
+	act = action_name(act)
+	let handler = action[act] // find a handler
 	if (!handler) {
 		// no handler, find a static template
 		if (template(act) !== undefined) {
@@ -147,7 +151,7 @@ function find_action(path) {
 	}
 	if (!handler)
 		return
-	var args = t.path
+	let args = t.path
 	args.shift(0) // remove /
 	args.shift(0) // remove act
 	return function() {
@@ -155,34 +159,33 @@ function find_action(path) {
 	}
 }
 
-// actions/history -----------------------------------------------------------
-
 function check(truth) {
 	if(!truth)
 		document.fire('action_not_found')
 }
 
-var g_page_loading = true
+let loading = true
 
 // check if the action was triggered by a page load or by exec()
 function page_loading() {
-	return g_page_loading
+	return loading
 }
 
 on_dom_load(function() {
 	window.on('popstate', function(ev) {
 		print('popstate', ev)
-		g_page_loading = false
+		loading = false
 		url_changed()
 	})
 })
 
-var g_ignore_url_changed
+let ignore_url_changed
 
 function url_changed() {
-	if (g_ignore_url_changed) return
+	if (ignore_url_changed)
+		return
 	document.fire('url_changed')
-	var handler = find_action(location.pathname)
+	let handler = find_action(location.pathname)
 	if (handler)
 		handler()
 	else
@@ -196,68 +199,63 @@ document.on('url_changed', function() {
 })
 
 function _save_scroll_state(top) {
-	var state = History.getState()
-	g_ignore_url_changed = true
+	let state = History.getState()
+	ignore_url_changed = true
 	History.replaceState({top: top}, state.title, state.url)
-	g_ignore_url_changed = false
+	ignore_url_changed = false
 }
 
-var exec, back
-(function() {
+let aborted
 
-	var aborted
+function abort_exec() {
+	aborted = true
+}
 
-	function abort_exec() {
-		aborted = true
-	}
+function check_exec() {
+	aborted = false
+	document.fire('before_exec', [abort_exec])
+	return !aborted
+}
 
-	function check_exec() {
-		aborted = false
-		document.fire('before_exec', [abort_exec])
-		return !aborted
-	}
+function exec(path, params) {
+	if (!check_exec())
+		return
+	// store current scroll top in current state first
+	_save_scroll_state(window.scrollTop())
+	// push new state without data
+	History.pushState(null, null, lang_url(path, params))
+}
 
-	exec = function(path, params) {
-		if (!check_exec())
-			return
-		// store current scroll top in current state first
-		_save_scroll_state(window.scrollTop())
-		// push new state without data
-		History.pushState(null, null, lang_url(path, params))
-	}
-
-	back = function() {
-		if (!check_exec())
-			return
-		History.back()
-	}
-
-})()
+function back() {
+	if (!check_exec())
+		return
+	History.back()
+}
 
 // set scroll back to where it was or reset it
 function setscroll(top) {
 	if (top !== undefined) {
 		_save_scroll_state(top)
 	} else {
-		var state = History.getState()
-		var top = state.data && state.data.top || 0
+		let state = History.getState()
+		let top = state.data && state.data.top || 0
 	}
 	window.scrollTop(top)
 }
 
 method(Element, 'setlink', function(path, params) {
 	this.each(function() {
-		var a = this
+		let a = this
 		if (a.data('hooked_'))
 			return
 		if (a.attr('target'))
 			return
-		var path = path || a.attr('href')
+		let path = path || a.attr('href')
 		if (!path)
 			return
-		var url = lang_url(path, params)
+		let url = lang_url(path, params)
 		a.attr('href', url)
-		var handler = find_action(url)
+		let handler = find_action(url)
 		if (!handler)
 			return
 		a.click(function(event) {
@@ -282,8 +280,6 @@ function settitle(title) {
 	if (title)
 		document.title = title + config('page_title_suffix')
 }
-
-// address bar, links and scrolling ------------------------------------------
 
 function slug(id, s) {
 	return (s.upper()
@@ -348,3 +344,5 @@ on_dom_load(function() {
 			url_changed()
 	})
 })
+
+} // module scope.

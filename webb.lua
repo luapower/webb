@@ -160,6 +160,15 @@ an inherited environment is created.
 glue = require'glue'
 local uri = require'uri'
 
+local concat = table.concat
+local remove = table.remove
+local insert = table.insert
+local readfile = glue.readfile
+local update = glue.update
+local assertf = glue.assert
+local memoize = glue.memoize
+local _ = string.format
+
 req_ctx = {} --initialized for use in standalone (no server) scripts.
 local req, res, http_respond, http_raise, http_dbg, send_body
 
@@ -286,7 +295,7 @@ local _args = once(function()
 		return req.args
 	end
 	local t = uri.parse(req.uri).segments
-	table.remove(t, 1)
+	remove(t, 1)
 	return t
 end)
 function args(v)
@@ -344,7 +353,7 @@ function port(p)
 end
 
 function email(user)
-	return string.format('%s@%s', assert(user), host())
+	return _('%s@%s', assert(user), host())
 end
 
 function client_ip()
@@ -379,7 +388,7 @@ function list_arg(s, arg_f)
 	arg_f = arg_f or str_arg
 	local t = {}
 	for s in glue.gsplit(s, ',', 1, true) do
-		table.insert(t, arg_f(s))
+		insert(t, arg_f(s))
 	end
 	return t
 end
@@ -448,7 +457,7 @@ function stringbuffer(t)
 	return function(...)
 		local n = select('#',...)
 		if n == 0 then --flush it
-			return table.concat(t)
+			return concat(t)
 		end
 		for i=1,n do
 			local s = tostring(select(i,...))
@@ -464,14 +473,14 @@ function push_out(f)
 	if not req_ctx.outfuncs then
 		req_ctx.outfuncs = {}
 	end
-	table.insert(req_ctx.outfuncs, req_ctx.outfunc)
+	insert(req_ctx.outfuncs, req_ctx.outfunc)
 end
 
 function pop_out()
 	if not req_ctx.outfunc then return end
 	local s = req_ctx.outfunc()
 	local outfuncs = req_ctx.outfuncs
-	table.remove(outfuncs)
+	remove(outfuncs)
 	req_ctx.outfunc = outfuncs[#outfuncs]
 	return s
 end
@@ -593,7 +602,7 @@ function url(path, params)
 	if type(path) == 'string' then --decode or update url
 		local t = uri.parse(path)
 		if params then --update url
-			glue.update(t, params) --also updates any path elements
+			update(t, params) --also updates any path elements
 			return url(t) --re-encode url
 		else --decode url
 			return t
@@ -651,7 +660,7 @@ end
 --response API ---------------------------------------------------------------
 
 function http_error(status, fmt, ...)
-	local msg = type(fmt) == 'string' and string.format(fmt, ...) or fmt
+	local msg = type(fmt) == 'string' and _(fmt, ...) or fmt
 	http_raise{status = status, status_message = msg and tostring(msg)}
 end
 
@@ -743,7 +752,7 @@ local function file_object(findfile) --{filename -> content | handler(filename)}
 				return f
 			else
 				local file = findfile(file)
-				return file and glue.readfile(file)
+				return file and readfile(file)
 			end
 		end,
 	})
@@ -794,7 +803,7 @@ function mustache_wrap(s, name)
 end
 
 local function check_template(name, file)
-	glue.assert(not template[name], 'duplicate template "%s" in %s', name, file)
+	assertf(not template[name], 'duplicate template "%s" in %s', name, file)
 end
 
 --TODO: make this parser more robust so we can have <script> tags in templates
@@ -819,11 +828,11 @@ local template_names = {} --keep template names in insertion order
 local function add_template(template, name, s)
 	name = underscores(name)
 	rawset(template, name, s)
-	table.insert(template_names, name)
+	insert(template_names, name)
 end
 
 --gather all the templates from the filesystem
-local load_templates = glue.memoize(function()
+local load_templates = memoize(function()
 	local t = wwwfiles(function(s) return s:find'%.html%.mu$' end)
 	t = glue.keys(t)
 	for i,file in ipairs(t) do
@@ -844,7 +853,7 @@ local function template_call(template, name)
 		return template_names
 	else
 		name = underscores(name)
-		local s = glue.assert(template[name], 'template not found: %s', name)
+		local s = assertf(template[name], 'template not found: %s', name)
 		if type(s) == 'function' then
 			s = s()
 		end
@@ -867,18 +876,66 @@ end
 
 --LuaPages templates ---------------------------------------------------------
 
-local lp = require'lp'
+local function lp_out(s, i, f)
+	s = s:sub(i, f or -1)
+	if s == '' then return s end
+	-- we could use `%q' here, but this way we have better control
+	s = s:gsub('([\\\n\'])', '\\%1')
+	-- substitute '\r' by '\'+'r' and let `loadstring' reconstruct it
+	s = s:gsub('\r', '\\r')
+	return _(' out(\'%s\'); ', s)
+end
+
+local function lp_translate(s)
+	s = s:gsub('^#![^\n]+\n', '')
+	s = s:gsub('<%%(.-)%%>', '<?lua %1 ?>"')
+	local res = {}
+	local start = 1 --start of untranslated part in `s'
+	while true do
+		local ip, fp, target, exp, code = s:find('<%?(%w*)[ \t]*(=?)(.-)%?>', start)
+		if not ip then
+			ip, fp, target, exp, code = s:find('<%?(%w*)[ \t]*(=?)(.*)', start)
+			if not ip then
+				break
+			end
+		end
+		insert(res, lp_out(s, start, ip-1))
+		if target ~= '' and target ~= 'lua' then
+			--not for Lua; pass whole instruction to the output
+			insert(res, lp_out(s, ip, fp))
+		else
+			if exp == '=' then --expression?
+				insert(res, _(' out(%s);', code))
+			else --command
+				insert(res, _(' %s ', code))
+			end
+		end
+		start = fp + 1
+	end
+	insert(res, lp_out(s, start))
+	return concat(res)
+end
+
+local function lp_compile(s, chunkname, env)
+	local s = lp_translate(s)
+	return assert(load(s, chunkname, 'bt', env))
+end
+
+local function lp_include(filename, env)
+	local s = readfile(filename)
+	local prog = lp_compile(src, '@'..filename, env)
+	prog()
+end
 
 local function compile_string(s, chunkname)
-	lp.setoutfunc'out'
-	local f = lp.compile(s, chunkname)
+	local f = lp_compile(s, chunkname)
 	return function(_env, ...)
 		setfenv(f, _env or env())
 		f(...)
 	end
 end
 
-local compile = glue.memoize(function(file)
+local compile = memoize(function(file)
 	return compile_string(wwwfile(file), '@'..file)
 end)
 
@@ -900,7 +957,7 @@ local function compile_lua_string(s, chunkname)
 	end
 end
 
-local compile_lua = glue.memoize(function(file)
+local compile_lua = memoize(function(file)
 	return compile_lua_string(wwwfile(file), file)
 end)
 
@@ -950,7 +1007,7 @@ function catlist_files(s)
 	for file in s:gmatch'([^%s]+)' do
 		if not already[file] then
 			already[file] = true
-			table.insert(t, file)
+			insert(t, file)
 		end
 	end
 	return t
@@ -969,28 +1026,28 @@ function catlist(listfile, ...)
 
 	for i,file in ipairs(catlist_files(wwwfile(listfile))) do
 		if wwwfile[file] then --virtual file
-			table.insert(t, wwwfile(file))
-			table.insert(c, function() out(wwwfile(file)) end)
+			insert(t, wwwfile(file))
+			insert(c, function() out(wwwfile(file)) end)
 		else
 			local path = wwwpath(file)
 			if path then --plain file, get its mtime
 				local mtime = fs.attr(path, 'mtime')
-				table.insert(t, tostring(mtime))
-				table.insert(c, function() out(glue.readfile(path)) end)
+				insert(t, tostring(mtime))
+				insert(c, function() out(readfile(path)) end)
 			elseif action then --file not found, try an action
 				local s, found = record(action, file, ...)
 				if found then
-					table.insert(t, s)
-					table.insert(c, function() out(s) end)
+					insert(t, s)
+					insert(c, function() out(s) end)
 				else
-					glue.assert(false, 'file not found: %s', file)
+					assertf(false, 'file not found: %s', file)
 				end
 			else
-				glue.assert(false, 'file not found: %s', file)
+				assertf(false, 'file not found: %s', file)
 			end
 		end
 	end
-	check_etag(table.concat(t, '\0'))
+	check_etag(concat(t, '\0'))
 
 	--output the content
 	for i,f in ipairs(c) do
@@ -1051,15 +1108,15 @@ function request(main, arg1, ...)
 	config('main_module', main)
 	local host = 'localhost' --TODO
 	local req = type(arg1) == 'table' and arg1 or {args = {arg1,...}}
-	req = glue.update({
+	req = update({
 			method = 'get',
 		}, req)
-	req.headers = glue.update({
+	req.headers = update({
 			host = host,
 		}, req.headers)
-	req.http = glue.update({
+	req.http = update({
 		}, req.http)
-	req.http.tcp = glue.update({
+	req.http.tcp = update({
 			istlssocket = true,
 			local_addr = 'localhost',
 			local_port = nil,
