@@ -7,12 +7,12 @@ ACTION ALIASES
 
 	lang([s]) -> s                        get/set current language
 	alias(name_en, name, lang)            set an action alias for a language
-	find_action(name, ...) -> name, ...   find action and set language
-	setlinks(s) -> s                      translate URLs based on aliases
+	lang_url(s[, target_lang]) -> s       translate URL based on alias
+	setlinks(s) -> s                      html filter to translate URLs
 
 ACTIONS
 
-	action(name, args...) -> t|f          execute action (false if not found)
+	action(name, args...) -> t|f          execute action as http response
 	exec(name, args...) -> ret...|true    execute action internally
 
 	function action.NAME(args...) end     set an inline action handler
@@ -22,10 +22,8 @@ CONFIG
 	config('lang', 'en')                  default language
 	config('root_action', 'en')           name of the '/' (root) action
 	config('404_html_action', '404.html') 404 action for text/html
-	config('404_png_action', '404.png')   404 action for image/png
-	config('404_jpeg_action', '404.jpg')  404 action for image/jpeg
-
-	action['404.html']                    basic `404 Not Found` text
+	config('404_png_action' , '404.png' ) 404 action for image/png
+	config('404_jpeg_action', '404.jpg' ) 404 action for image/jpeg
 
 TODO
 
@@ -36,7 +34,7 @@ TODO
 
 require'webb'
 
---action aliases -------------------------------------------------------------
+--multi-language actions & links ---------------------------------------------
 
 function lang(s)
 	if s then
@@ -46,15 +44,16 @@ function lang(s)
 	end
 end
 
---NOTE: it is assumed that action names are always in english even if they
---actually request a page in the default language which can configured
---to be different than english. Action name translation is done
---automatically provided that 1) all links are passed through lang_url(),
---2) routing is done by calling action(find_action(unpack(args()))) instead
---of action(unpack(args())), and 3) action names are translated in different
---languages with alias(). Using action aliases is the key to avoiding
---the appending of ?lang=xx to links. Aliases for the root action ('en')
---are also allowed in order to avoid the ?lang param.
+--[[
+It is assumed that action names are always in english even if they actually
+request a page in the default language which can configured to be different
+than english. Action name translation is done automatically provided that
+1) all links are passed through lang_url(), 2) routing is done by calling
+action(unpack(args())) which calls find_action() and 3) action names are
+translated in different languages with alias(). Using action aliases is
+the key to avoiding the appending of ?lang=xx to links. Aliases for the
+root action ('en') are also allowed in order to avoid the ?lang param.
+]]
 
 local aliases = {} --{alias={lang=, action=}}
 local aliases_json = {to_en = {}, to_lang = {}}
@@ -128,7 +127,7 @@ end
 
 --given a list of path elements, find the action they point to
 --and change the current language if necessary.
-function find_action(action, ...)
+local function find_action(action, ...)
 	if action == '' then --root action in current language
 		action = config('root_action', 'en')
 	else
@@ -156,10 +155,7 @@ end
 --override redirect to automatically translate URLs.
 local webb_redirect = redirect
 function redirect(url, ...)
-	if lang_url then
-		url = lang_url(url)
-	end
-	return webb_redirect(url, ...)
+	return webb_redirect(lang_url(url), ...)
 end
 
 --serving plain files --------------------------------------------------------
@@ -303,7 +299,7 @@ local function action_handler(action, ...)
 			setcontent(s)
 		end
 	end
-	return handler, action_no_ext, action_with_ext, ext
+	return handler, ext
 end
 
 --exec an action without setting content type, looking for a 404 handler
@@ -322,10 +318,12 @@ function exec(action, ...)
 	return pass(handler(...))
 end
 
-local function action_call(actions, action, ...)
-	local handler, action_no_ext, action_with_ext, ext =
-		action_handler(action, ...)
+local function action_call(self, fallback, action, ...)
+	local handler, ext = action_handler(action, ...)
 	if not handler then
+		if not fallback then
+			return false
+		end
 		local not_found_actions = {
 			['text/html' ] = config('404_html_action', '404.html'),
 			['image/png' ] = config('404_png_action' , '404.png'),
@@ -333,15 +331,11 @@ local function action_call(actions, action, ...)
 		}
 		local mime = mime_types[ext]
 		local nf_action = not_found_actions[mime]
-		log('NOT FOUND', '%s', table.concat({action, ...}, '/'))
-		if not nf_action
-			or nf_action == action --loop
-			or nf_action == action_with_ext --loop
-			or nf_action == action_no_ext --loop
-		then
+		if not nf_action then
+			log('NOT FOUND', '%s', table.concat({action, ...}, '/'))
 			return false
 		end
-		return action_call(actions, nf_action, action, ...)
+		return action_call(self, false, nf_action, action, ...)
 	end
 	setmime(ext)
 	local filter = mime_type_filters[mime]
@@ -352,6 +346,8 @@ local function action_call(actions, action, ...)
 	end
 	return true
 end
-
+setmetatable(actions, {__call = function(self, ...)
+	return action_call(self, true, find_action(...))
+end})
 action = actions
-setmetatable(action, {__call = action_call})
+

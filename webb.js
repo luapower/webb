@@ -1,6 +1,6 @@
 /*
 
-	webb.js | client-side main module
+	webb.js | single-page apps | client-side API
 	Written by Cosmin Apreutesei. Public Domain.
 
 CONFIG API
@@ -12,11 +12,9 @@ CONFIG API
 ACTIONS
 
 	lang_url([path[, params[, lang]]]) -> url  traslate a URL
-	find_action(path) -> handler | nil     find the client-side action for a path
 	e.setlink([path[, params]])            hook an action to a link
 	e.setlinks([filter])                   hook actions to all links
 	page_loading() -> t|f                  was current page loaded or exec()'ed?
-	url_changed()                          window's URL changed
 	exec(path[, params])                   change the window URL
 	back()                                 go back to last URL in history
 	setscroll([top])                       set scroll to last position or reset
@@ -24,16 +22,12 @@ ACTIONS
 	^url_changed                           url changed event
 	^action_not_found                      action not found event
 	action: {action: handler}
-
-ARG VALIDATION
-
 	intarg(s)
 	optarg(s)
 	slug(id, s)
 
 TEMPLATES
 
-	load_templates(success)                load templates from the server
 	template(name) -> s                    get a template
 	render_string(s, [data]) -> s          render a template from a string
 	render(name, [data]) -> s              render a template
@@ -53,7 +47,7 @@ let t = {}
 function config(name, val) {
 	if (val && !t[name])
 		t[name] = val
-	if (typeof(t[name]) === 'undefined')
+	if (typeof(t[name]) == 'undefined')
 		console.log('warning: missing config value for ', name)
 	return t[name]
 }}
@@ -126,11 +120,10 @@ function lang_url(path, params, target_lang) {
 	return url(t)
 }
 
-action = {} // {action: handler}
+action = {} // {name->handler}
 
-// given a path (in encoded form), find the action it points to
-// and return its handler.
-function find_action(path) {
+// given a path (in encoded form), find its action and return the handler.
+let action_handler = function(path) {
 	let t = url(path)
 	let act = url_action(t)
 	if (act === undefined)
@@ -142,26 +135,23 @@ function find_action(path) {
 	act = action_name(act)
 	let handler = action[act] // find a handler
 	if (!handler) {
-		// no handler, find a static template
-		if (template(act) !== undefined) {
+		// no handler, find a static template with the same name
+		// to be rendered on the #main element.
+		if (template(act)) {
 			handler = function() {
-				render(act, null, '#main')
+				if (window.main)
+					window.main.render(act)
 			}
 		}
 	}
 	if (!handler)
 		return
 	let args = t.path
-	args.shift(0) // remove /
-	args.shift(0) // remove act
+	args.shift() // remove /
+	args.shift() // remove act
 	return function() {
 		handler.apply(null, args)
 	}
-}
-
-function check(truth) {
-	if(!truth)
-		document.fire('action_not_found')
 }
 
 let loading = true
@@ -171,65 +161,59 @@ function page_loading() {
 	return loading
 }
 
-on_dom_load(function() {
-	window.on('popstate', function(ev) {
-		print('popstate', ev)
-		loading = false
-		url_changed()
-	})
-})
-
 let ignore_url_changed
 
-function url_changed() {
+let url_changed = function() {
 	if (ignore_url_changed)
 		return
 	document.fire('url_changed')
-	let handler = find_action(location.pathname)
+	let handler = action_handler(location.pathname)
 	if (handler)
 		handler()
 	else
-		check(false)
+		document.fire('action_not_found')
 	document.fire('after_exec')
 }
 
-document.on('url_changed', function() {
-	document.off('.current_action')
-	off('.current_action')
+document.on('action_not_found', function() {
+	if (location.pathname != '/')
+		exec('/')
 })
 
 function _save_scroll_state(top) {
-	let state = History.getState()
+	let state = history.state
+	if (!state)
+		return
 	ignore_url_changed = true
-	History.replaceState({top: top}, state.title, state.url)
+	history.replaceState({top: top}, state.title, state.url)
 	ignore_url_changed = false
 }
 
-let aborted
+let exec_aborted
 
-function abort_exec() {
-	aborted = true
+let abort_exec = function() {
+	exec_aborted = true
 }
 
-function check_exec() {
-	aborted = false
-	document.fire('before_exec', [abort_exec])
-	return !aborted
+let check_exec = function() {
+	exec_aborted = false
+	document.fire('before_exec', abort_exec)
+	return !exec_aborted
 }
 
 function exec(path, params) {
 	if (!check_exec())
 		return
 	// store current scroll top in current state first
-	_save_scroll_state(window.scrollTop())
+	_save_scroll_state(window.scrollY)
 	// push new state without data
-	History.pushState(null, null, lang_url(path, params))
+	history.pushState(null, null, lang_url(path, params))
 }
 
 function back() {
 	if (!check_exec())
 		return
-	History.back()
+	history.back()
 }
 
 // set scroll back to where it was or reset it
@@ -237,39 +221,40 @@ function setscroll(top) {
 	if (top !== undefined) {
 		_save_scroll_state(top)
 	} else {
-		let state = History.getState()
+		let state = history.state
+		if (!state)
+			return
 		let top = state.data && state.data.top || 0
 	}
-	window.scrollTop(top)
+	window.scrollY = top
 }
 
 method(Element, 'setlink', function(path, params) {
-	this.each(function() {
-		let a = this
-		if (a.data('hooked_'))
+	if (this.attr('_hooked'))
+		return
+	if (this.attr('target'))
+		return
+	path = path || this.attr('href')
+	if (!path)
+		return
+	let url = lang_url(path, params)
+	this.attr('href', url)
+	let handler = action_handler(url)
+	if (!handler)
+		return
+	this.on('click', function(event) {
+		// shit/ctrl+click passes through to open in new window or tab
+		if (event.shiftKey || event.ctrlKey)
 			return
-		if (a.attr('target'))
-			return
-		let path = path || a.attr('href')
-		if (!path)
-			return
-		let url = lang_url(path, params)
-		a.attr('href', url)
-		let handler = find_action(url)
-		if (!handler)
-			return
-		a.click(function(event) {
-			// shit/ctrl+click passes through to open in new window or tab
-			if (event.shiftKey || event.ctrlKey) return
-			event.preventDefault()
-			exec(path, params)
-		}).data('hooked_', true)
+		event.preventDefault()
+		exec(path, params)
 	})
+	this.attr('_hooked', true)
 	return this
 })
 
-method(Element, 'setlinks', function(filter) {
-	this.find(filter || 'a[href],area[href]').setlink()
+method(Element, 'setlinks', function(selector) {
+	this.$(selector || 'a[href],area[href]').setlink()
 	return this
 })
 
@@ -299,13 +284,12 @@ function optarg(s) {
 
 // templates -----------------------------------------------------------------
 
-function load_templates(success) {
+let load_templates = function(success) {
 	ajax({
 		url: '/'+config('templates_action'),
 		success: function(s) {
 			__templates.html = s
-			if (success)
-				success()
+			success()
 		},
 		fail: function() {
 			assert(false, 'could not load templates')
@@ -328,8 +312,9 @@ function render(template_name, data) {
 }
 
 method(Element, 'render_string', function(s, data) {
-	s = render_string(s, data)
-	return this.fire('bind', false).set(s).fire('bind', true, data)
+	this.fire('bind', false)
+	this.html = render_string(s, data)
+	this.fire('bind', true, data)
 })
 
 method(Element, 'render', function(name, data) {
@@ -340,7 +325,12 @@ method(Element, 'render', function(name, data) {
 
 on_dom_load(function() {
 	load_templates(function() {
-		if (client_action)
+		window.on('popstate', function(ev) {
+			print('popstate', ev)
+			loading = false
+			url_changed()
+		})
+		if (client_action) // set from server.
 			url_changed()
 	})
 })
