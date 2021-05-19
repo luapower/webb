@@ -49,7 +49,7 @@ ARG PARSING
 OUTPUT
 
 	setcontent(s)                           output a single value
-	out(s1,...)                             output one or more values
+	out(s)                                  output one more non-nil value
 	push_out([f])                           push output function or buffer
 	pop_out() -> s                          pop output function and flush it
 	stringbuffer([t]) -> f(s1,...)/f()->s   create a string buffer
@@ -57,9 +57,9 @@ OUTPUT
 	out_buffering() -> t | f                check if we're buffering output
 	setheader(name, val)                    set a header (unless we're buffering)
 	setmime(ext)                            set content-type based on file extension
-	flush()                                 flush output
-	printout(...)                           like Lua's print but uses out()
-	ppout(...)                              like pp() but uses out()
+	outprint(...)                           like Lua's print but uses out()
+	outpp(...)                              like pp() but uses out()
+	outfile(path)                           buffered out(readfile(path))
 
 HTML ENCODING
 
@@ -96,6 +96,7 @@ FILESYSTEM
 	wwwfile(file) -> s                      get file contents
 	wwwfile.filename <- s|f(filename)       set virtual file contents
 	wwwfiles([filter]) -> {name->true}      list www files
+	outwwwfile(file)                        buffered out(readfile(file))
 	varpath(file) -> path                   get var subpath (no check that it exists)
 	varpath.filename <- s|f(filename)       set virtual file contents
 
@@ -399,9 +400,6 @@ end
 --output API -----------------------------------------------------------------
 
 local function wrap_send_body(send)
-	http_respond = nil
-	http_raise = nil
-	http_dbg = nil
 	local req1, res1, req_ctx1, send_body1
 	return function(buf, sz)
 		send_body1 = send_body
@@ -419,36 +417,29 @@ local function wrap_send_body(send)
 end
 
 function setcontent(s)
-	if send_body then
+	if send_body or out_buffering() then
 		out(s)
 	else
-		res.content = tostring(s)
+		res.content = s ~= nil and tostring(s) or ''
 		http_respond(res)
 		http_respond = nil
 	end
-end
-
-function outbuf(buf, sz)
-	if not send_body then
-		send_body = wrap_send_body(http_respond(res))
-		http_respond = nil
-	end
-	send_body(buf, sz)
 end
 
 function out_buffering()
 	return req_ctx.outfunc ~= nil
 end
 
-local function default_outfunc(...)
-	for i=1,select('#',...) do
-		local s = tostring((select(i,...)))
-		if not send_body then
-			send_body = wrap_send_body(http_respond(res))
-			http_respond = nil
-		end
-		send_body(s)
+local function default_outfunc(s, len)
+	if s == nil or s == '' or len == 0 then
+		return
 	end
+	if not send_body then
+		send_body = wrap_send_body(http_respond(res))
+		http_respond = nil
+	end
+	s = type(s) ~= 'cdata' and tostring(s) or s
+	send_body(s, len)
 end
 
 function stringbuffer(t)
@@ -457,12 +448,19 @@ function stringbuffer(t)
 		local n = select('#',...)
 		if n == 0 then --flush it
 			return concat(t)
-		end
-		for i=1,n do
-			local s = tostring(select(i,...))
-			if s ~= '' then
-				t[#t+1] = s
+		else
+			local s, len = ...
+			if s == nil or s == '' or len == 0 then
+				return
 			end
+			if type(s) == 'cdata' then
+				assert(len)
+				s = ffi.string(s, len)
+			else
+				assert(not len)
+				s = tostring(s)
+			end
+			t[#t+1] = s
 		end
 	end
 end
@@ -484,18 +482,22 @@ function pop_out()
 	return s
 end
 
-function out(s, ...)
+function out(s, len)
 	if not res then return end --not a server context
 	local outfunc = req_ctx.outfunc or default_outfunc
-	outfunc(s, ...)
+	outfunc(s, len)
 end
 
-local function pass(...)
+local function pass_record(...)
 	return pop_out(), ...
 end
-function record(out_content, ...)
+function record(f, ...)
 	push_out()
-	return pass(out_content(...))
+	return pass_record(f(...))
+end
+
+function outfile(path)
+	out(readfile(path)) --TODO: make it buffered
 end
 
 function setheader(name, val)
@@ -536,26 +538,24 @@ function setmime(ext)
 end
 
 local function print_wrapper(out)
-	return function(...)
+	return function(s)
 		if not out_buffering() then
 			if res then
 				setheader('content-type', 'text/plain')
 			end
-			out(...)
+			out(s)
 		else
-			out(...)
+			out(s)
 		end
 	end
 end
-
-flush = glue.noop
 
 --print functions for debugging with no output buffering and flushing.
 
 pp = require'pp'
 
-printout = print_wrapper(glue.printer(tostring))
-ppout = print_wrapper(glue.printer(pp))
+outprint = print_wrapper(glue.printer(tostring))
+outpp    = print_wrapper(glue.printer(pp))
 
 --sockets --------------------------------------------------------------------
 
@@ -778,6 +778,10 @@ function wwwfiles(filter)
 		end
 	end
 	return t
+end
+
+function outwwwfile(file)
+	out(wwwfile(file)) --TODO: make it buffered
 end
 
 --mustache html templates ----------------------------------------------------
@@ -1026,15 +1030,15 @@ function catlist(listfile, ...)
 	for i,file in ipairs(catlist_files(wwwfile(listfile))) do
 		if wwwfile[file] then --virtual file
 			insert(t, wwwfile(file))
-			insert(c, function() out(wwwfile(file)) end)
+			insert2(c, function() out(wwwfile(file)) end)
 		else
 			local path = wwwpath(file)
 			if path then --plain file, get its mtime
 				local mtime = fs.attr(path, 'mtime')
 				insert(t, tostring(mtime))
-				insert(c, function() out(readfile(path)) end)
+				insert(c, function() outfile(path) end)
 			elseif action then --file not found, try an action
-				local s, found = record(action, file, ...)
+				local s, found = record(exec, file, ...)
 				if found then
 					insert(t, s)
 					insert(c, function() out(s) end)

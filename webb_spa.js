@@ -48,7 +48,7 @@ function config(name, val) {
 	if (val && !t[name])
 		t[name] = val
 	if (typeof(t[name]) == 'undefined')
-		console.log('warning: missing config value for ', name)
+		warn('missing config value for', name)
 	return t[name]
 }}
 
@@ -284,19 +284,6 @@ function optarg(s) {
 
 // templates -----------------------------------------------------------------
 
-let load_templates = function(success) {
-	ajax({
-		url: '/'+config('templates_action'),
-		success: function(s) {
-			__templates.html = s
-			success()
-		},
-		fail: function() {
-			assert(false, 'could not load templates')
-		},
-	})
-}
-
 function template(name) {
 	let e = window[name.replaceAll('-', '_')+'_template']
 	return e && e.html
@@ -321,18 +308,23 @@ method(Element, 'render', function(name, data) {
 	return this.render_string(template(name), data)
 })
 
+// loading pattern -----------------------------------------------------------
+
+method(Element, 'load', function(opt) {
+	let req = ajax(opt)
+	req.on('slow')
+	return req
+})
+
 // init ----------------------------------------------------------------------
 
 on_dom_load(function() {
-	load_templates(function() {
-		window.on('popstate', function(ev) {
-			print('popstate', ev)
-			loading = false
-			url_changed()
-		})
-		if (client_action) // set from server.
-			url_changed()
+	window.on('popstate', function(ev) {
+		loading = false
+		url_changed()
 	})
+	if (client_action) // set from server.
+		url_changed()
 })
 
 } // module scope.

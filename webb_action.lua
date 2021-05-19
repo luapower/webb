@@ -201,7 +201,7 @@ local function plain_file_handler(file)
 				f:close()
 				break
 			else
-				outbuf(filebuf, len)
+				out(filebuf, len)
 			end
 		end
 	end
