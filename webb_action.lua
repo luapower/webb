@@ -320,6 +320,7 @@ end
 
 local function action_call(self, fallback, action, ...)
 	local handler, ext = action_handler(action, ...)
+	local mime = mime_types[ext]
 	if not handler then
 		if not fallback then
 			return false
@@ -329,7 +330,6 @@ local function action_call(self, fallback, action, ...)
 			['image/png' ] = config('404_png_action' , '404.png'),
 			['image/jpeg'] = config('404_jpeg_action', '404.jpg'),
 		}
-		local mime = mime_types[ext]
 		local nf_action = not_found_actions[mime]
 		if not nf_action then
 			log('NOT FOUND', '%s', table.concat({action, ...}, '/'))
