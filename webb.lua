@@ -1029,8 +1029,9 @@ function catlist(listfile, ...)
 
 	for i,file in ipairs(catlist_files(wwwfile(listfile))) do
 		if wwwfile[file] then --virtual file
-			insert(t, wwwfile(file))
-			insert2(c, function() out(wwwfile(file)) end)
+			local s = wwwfile(file)
+			insert(t, s)
+			insert(c, function() out(s) end)
 		else
 			local path = wwwpath(file)
 			if path then --plain file, get its mtime

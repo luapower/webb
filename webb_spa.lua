@@ -138,14 +138,7 @@ local function jslist(cataction, mode)
 		out(string.format('	<script src="%s"></script>', lang_url('/'..cataction)))
 	elseif mode == 'embed' then
 		out'<script>'
-		for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
-			local s, found = record(exec, file)
-			if found then
-				out(string.format('; /* %s */\n\n', file))
-				out(s)
-				out';\n'
-			end
-		end
+		catlist(cataction..'.cat')
 		out'</script>\n'
 	elseif mode == 'separate' then
 		for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
@@ -161,17 +154,11 @@ local function csslist(cataction, mode)
 		out(string.format('	<link rel="stylesheet" type="text/css" href="/%s">', cataction))
 	elseif mode == 'embed' then
 		out'<style>'
-		for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
-			local s, found = record(exec, file)
-			if found then
-				out(string.format('/* %s */\n\n', file))
-				out(s)
-			end
-		end
+		catlist(cataction..'.cat')
 		out'</style>\n'
 	elseif mode == 'separate' then
 		for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
-			out(string.format('	<link rel="stylesheet" type="text/css" href="/%s">\n', file))
+			out(string.format('	<link rel="stylesheet" type="text/css" href="%s">\n', lang_url('/'..file)))
 		end
 	else
 		assert(false)
@@ -216,7 +203,7 @@ function spa(p)
 	t.title = page_title(p.title, t.body)
 	t.title_suffix = config('page_title_suffix', ' - '..host())
 	t.client_action = p.client_action or false
-	t.all_js  = record(jslist, 'all.js' , p.js_mode  or config('js_mode' , 'separate'))
+	t.all_js  = record(jslist , 'all.js' , p.js_mode  or config('js_mode' , 'separate'))
 	t.all_css = record(csslist, 'all.css', p.css_mode or config('css_mode', 'separate'))
 	local buf = stringbuffer()
 	for _,name in ipairs(template()) do
