@@ -248,50 +248,52 @@ local file_handlers = {
 
 local actions_ext = glue.keys(file_handlers, true)
 
-local function file_action(...)
-	local file = table.concat({...}, '/')
-	local ext = file:match'%.([^%.]+)$'
-	local plain_file_allowed = not (ext and file_handlers[ext])
-	if plain_file_allowed then
-		local handler = plain_file_handler(file)
-		if handler then
-			return handler
-		end
-	end
-	local action_file, handler
-	for i,ext in ipairs(actions_ext) do
-		local action_file1 = file..'.'..ext
-		if wwwfile[action_file1] or wwwpath(action_file1) then
-			glue.assert(not action_file,
-				'multiple action files for %s (%s, was %s)',
-					file, action_file1, action_file)
-			handler = file_handlers[ext]
-			action_file = action_file1
-		end
-	end
-	return action_file and function(...)
-		return handler(action_file, ...)
-	end
-end
-
 local actions = {} --{action -> handler | s}
 
 local function action_handler(action, ...)
-	local ext = action:match'%.([^%.]+)$'
+
+	local action_ext = action:match'%.([^%.]+)$'
 	local action_no_ext
 	local action_with_ext = action
-	if not ext then --add the default .html extension to the action
+	if not action_ext then --add the default .html extension to the action
 		action_no_ext = action
-		ext = 'html'
-		action_with_ext = action .. '.' .. ext
-	elseif ext == 'html' then
+		action_ext = 'html'
+		action_with_ext = action .. '.' .. action_ext
+	elseif action_ext == 'html' then
 		action_no_ext = action:gsub('%.html$', '')
 	end
+	local ext = action_ext
 
 	local handler =
 		(action_no_ext and actions[action_name(action_no_ext)]) --look in the default action table
 		or actions[action_name(action_with_ext)] --look again with .html extension
-		or file_action(action, ...) --look in the filesystem
+
+	if not handler then --look in the filesystem
+		local file = table.concat({action, ...}, '/')
+		local file_ext = file:match'%.([^%.]+)$'
+		local plain_file_allowed = not (file_ext and file_handlers[file_ext])
+		handler = plain_file_allowed and plain_file_handler(file)
+		if handler then
+			ext = file_ext
+		end
+	end
+
+	if not handler then
+		local action_file, file_handler
+		for i,ext in ipairs(actions_ext) do
+			local action_file1 = action_with_ext..'.'..ext
+			if wwwfile[action_file1] or wwwpath(action_file1) then
+				glue.assert(not action_file,
+					'multiple action files for %s (%s, was %s)',
+						action_with_ext, action_file1, action_file)
+				file_handler = file_handlers[ext]
+				action_file = action_file1
+			end
+		end
+		handler = action_file and function(...)
+			return file_handler(action_file, ...)
+		end
+	end
 
 	if handler and type(handler) ~= 'function' then
 		local s = handler
@@ -299,6 +301,7 @@ local function action_handler(action, ...)
 			setcontent(s)
 		end
 	end
+
 	return handler, ext
 end
 

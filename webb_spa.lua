@@ -171,7 +171,7 @@ local spa_template = [[
 <!DOCTYPE html>
 <html lang="{{lang}}">
 <head>
-	<meta charset="UTF-8">
+	<meta charset=utf-8>
 	<title>{{title}}{{title_suffix}}</title>
 {{{all_js}}}
 {{{all_css}}}
@@ -180,8 +180,8 @@ local spa_template = [[
 		var client_action = {{client_action}}
 	</{{undefined}}script>
 </head>
-<body>
-	<div style="display: none;" id="__templates">{{{templates}}}</div>
+<body opensans>
+	<div style="display: none;">{{{templates}}}</div>
 {{{body}}}
 </body>
 </html>

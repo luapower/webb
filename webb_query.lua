@@ -64,13 +64,15 @@ local function connect(ns)
 	local db = dbs[ns]
 	if not db then
 		db = assert(mysql:new())
-		assert_db(db:connect{
+		local t = {
 			host     = pconfig(ns, 'db_host', '127.0.0.1'),
 			port     = pconfig(ns, 'db_port', 3306),
 			database = pconfig(ns, 'db_name'),
 			user     = pconfig(ns, 'db_user', 'root'),
 			password = pconfig(ns, 'db_pass'),
-		})
+		}
+		log('CONNECT', '%s:%s user=%s db=%s', t.host, t.port, t.user, t.database)
+		assert_db(db:connect(t))
 		dbs[ns] = db
 	end
 	return db
@@ -130,7 +132,6 @@ function quote_sql(v)
 		return nil, 'invalid value '.. pp.format(v)
 	end
 end
-quote = quote_sql --TODO: remove this (conflicts with terra)
 
 function quote_sqlname(v)
 	assert(not v:find('`', 1, true))

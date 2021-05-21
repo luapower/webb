@@ -142,6 +142,11 @@ let action_handler = function(path) {
 				if (window.main)
 					window.main.render(act)
 			}
+		} else if (static_template(act)) {
+			handler = function() {
+				if (window.main)
+					window.main.html = static_template(act)
+			}
 		}
 	}
 	if (!handler)
@@ -176,8 +181,9 @@ let url_changed = function() {
 }
 
 document.on('action_not_found', function() {
-	if (location.pathname != '/')
-		exec('/')
+	if (location.pathname == '/')
+		return // no home action
+	exec('/')
 })
 
 function _save_scroll_state(top) {
@@ -285,8 +291,13 @@ function optarg(s) {
 // templates -----------------------------------------------------------------
 
 function template(name) {
-	let e = window[name.replaceAll('-', '_')+'_template']
-	return e && e.html
+	let e = window[name+'_template']
+	return e && e.tag == 'script' ? e.html : null
+}
+
+function static_template(name) {
+	let e = window[name+'_template']
+	return e && e.tag == 'template' ? e.html : null
 }
 
 function render_string(s, data) {

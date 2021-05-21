@@ -1096,6 +1096,7 @@ function respond(req1, http_respond1, http_raise1, http_dbg1)
 	http_respond = http_respond1
 	http_raise = http_raise1
 	http_dbg = http_dbg1
+	log(req1.method:upper(), '%s', req1.uri)
 	local main = assert(config'main_module')
 	local main = type(main) == 'string' and require(main) or main
 	if type(main) == 'table' then
@@ -1132,8 +1133,8 @@ function request(main, arg1, ...)
 	local function raise_with(err)
 		errors.raise('http_response', err)
 	end
-	local function log_with(...)
-		print('LOG', ...)
+	local function log_with(s, ...)
+		print(s, string.format(...))
 	end
 	srun(function()
 		local res = respond(req, respond_with, raise_with, log_with)
