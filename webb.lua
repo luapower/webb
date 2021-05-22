@@ -58,7 +58,6 @@ OUTPUT
 	setheader(name, val)                    set a header (unless we're buffering)
 	setmime(ext)                            set content-type based on file extension
 	outprint(...)                           like Lua's print but uses out()
-	outpp(...)                              like pp() but uses out()
 	outfile(path)                           buffered out(readfile(path))
 
 HTML ENCODING
@@ -135,7 +134,8 @@ MAIL SENDING
 
 HTTP SERVER INTEGRATION
 
-	respond(req, http_respond, http_raise, http_debug) http_server response handler
+	webb_respond(req, http_respond, http_raise, http_debug) http_server response handler
+	http_server([opt]) -> server
 
 STANDALONE OPERATION
 
@@ -1094,7 +1094,7 @@ end
 
 --http_server respond function -----------------------------------------------
 
-function respond(req1, http_respond1, http_raise1, http_dbg1)
+function webb_respond(req1, http_respond1, http_raise1, http_dbg1)
 	req = req1
 	req_ctx = {}
 	res = {headers = {}}
@@ -1116,6 +1116,7 @@ end
 --standalone operation -------------------------------------------------------
 
 function request(main, arg1, ...)
+	local pp = require'pp'
 	config('main_module', main)
 	local host = 'localhost' --TODO
 	local req = type(arg1) == 'table' and arg1 or {args = {arg1,...}}
@@ -1143,9 +1144,42 @@ function request(main, arg1, ...)
 		print(s, string.format(...))
 	end
 	srun(function()
-		local res = respond(req, respond_with, raise_with, log_with)
+		local res = webb_respond(req, respond_with, raise_with, log_with)
 		pp(res)
 	end)
 end
 
-return respond
+--pre-configured http app server ---------------------------------------------
+
+function http_server(opt)
+	local server = require'http_server'
+	local host       = config('host', 'localhost')
+	local http_addr  = config('http_addr', '127.0.0.1')
+	local https_addr = config('https_addr', false)
+	return server:new(update({
+		libs = 'sock zlib '..(config'https_addr' and 'sock_libtls' or ''),
+		listen = {
+			{
+				host = host,
+				addr = https_addr,
+				port = config'https_port',
+				tls = true,
+				tls_options = {
+					cert_file = config('https_cert_file', host..'.crt'),
+					key_file  = config('https_key_file' , host..'.key'),
+				},
+			},
+			{
+				host = host,
+				addr = http_addr,
+				port = config'http_port',
+			},
+		},
+		debug = {
+			--protocol = true,
+			--stream = true,
+			tracebacks = true,
+		},
+		respond = webb_respond,
+	}, opt))
+end
