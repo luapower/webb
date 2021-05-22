@@ -35,7 +35,7 @@ require'webb'
 local mysql = require'mysql_client'
 local errors = require'errors'
 local raise = errors.raise
-local mysql_print = require'mysql_print'
+local mysql_print = require'mysql_client_print'
 
 --db connection --------------------------------------------------------------
 
@@ -334,7 +334,7 @@ end
 --pretty printing ------------------------------------------------------------
 
 function prq(rows, cols)
-	return mysql_print.client_result(rows, cols)
+	return mysql_print.result(rows, cols)
 end
 
 --ddl vocabulary -------------------------------------------------------------
