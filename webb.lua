@@ -768,11 +768,17 @@ function wwwfiles(filter)
 		end
 	end
 	for name, d in fs.dir(config'www_dir') do
+		if not name then
+			break
+		end
 		if not t[name] and d:is'file' and filter(name) then
 			t[name] = true
 		end
 	end
 	for name, d in fs.dir'.' do
+		if not name then
+			break
+		end
 		if not t[name] and d:is'file' and filter(name) then
 			t[name] = true
 		end
