@@ -195,22 +195,6 @@ local log_sql do
 	end
 end
 
-local function outdent(s)
-	local indent = s:match'^[\t%s]+'
-	if not indent then return s end
-	local t = {}
-	for s in s:lines() do
-		local indent1 = s:sub(1, #indent)
-		if indent1 ~= indent then
-			goto fail
-		end
-		table.insert(t, s:sub(#indent + 1))
-	end
-	do return table.concat(t, '\n') end
-	::fail::
-	return s
-end
-
 local function process_result(t, cols, compact)
 	if cols and #cols == 1 then --single column result: return it as array
 		local t0 = t
@@ -234,13 +218,13 @@ local function run_query_on(ns, compact, sql, ...)
 	local sql = preprocess(sql)
 	local sql, params = quote_sqlparams(sql, ...)
 	if print_queries() then
-		print(outdent(sql))
+		print(glue.outdent(sql))
 	end
 	if print_queries() == 'both' then
-		printout(outdent(sql))
+		printout(glue.outdent(sql))
 	end
 	if trace_queries() then
-		log_sql(outdent(sql))
+		log_sql(glue.outdent(sql))
 	end
 	assert_db(db:send_query(sql))
 	local t, err, cols = assert_db(db:read_result(nil, compact and 'compact'))
