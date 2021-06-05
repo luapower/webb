@@ -227,9 +227,23 @@ local function json_filter(handler, action, ...)
 	end
 end
 
+local function js_filter(handler, action, ...)
+	if not config'minify_js' then
+		handler(action, ...)
+		return
+	end
+	local minify = require'jsmin'.minify
+	local s = record(handler, action, ...)
+	s = minify(s)
+	print('>>>>>>>>>>>', action, #s)
+	check_etag(s)
+	setcontent(s)
+end
+
 local mime_type_filters = {
 	['text/html']        = html_filter,
 	['application/json'] = json_filter,
+	['text/javascript']  = js_filter,
 }
 
 --routing logic --------------------------------------------------------------

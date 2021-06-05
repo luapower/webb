@@ -169,12 +169,20 @@ local assertf = glue.assert
 local memoize = glue.memoize
 local _ = string.format
 
-req_ctx = {} --initialized for use in standalone (no server) scripts.
-local req, res, http_respond, http_raise, http_dbg, send_body
+--request/reply state: initialized for use in standalone (no server) scripts.
+local req_ctx = {}
+local function http_dbg(s, ...)
+	print(s, string.format(...))
+end
+local function http_respond(opt)
+	pp(opt)
+end
+local function http_raise(err)
+	errors.raise('http_response', err)
+end
+local req, res, send_body
 
 --config function ------------------------------------------------------------
-
-local NIL = {}
 
 do
 	local conf = {}
@@ -183,21 +191,24 @@ do
 			for var, val in pairs(var) do
 				config(var, val)
 			end
-			return
-		end
-		local val = conf[var]
-		if val == nil then
-			val = os.getenv(var:upper())
+		else
+			local val = conf[var]
 			if val == nil then
 				val = default
 			end
-			conf[var] = val == nil and NIL or val
-		end
-		if val == NIL then
-			return nil
-		else
+			conf[var] = val
 			return val
 		end
+	end
+
+	function with_config(t, f, ...)
+		local old_conf = conf
+		local function pass(...)
+			conf = old_conf
+			return ...
+		end
+		conf = setmetatable(t, {__index = old_conf})
+		return pass(f(...))
 	end
 end
 
@@ -268,8 +279,8 @@ end
 
 --logging --------------------------------------------------------------------
 
-function log(...)
-	http_dbg(...)
+function log(event, s, ...)
+	http_dbg(event, s, ...)
 end
 
 --request API ----------------------------------------------------------------
@@ -1134,17 +1145,8 @@ function request(main, arg1, ...)
 			local_port = nil,
 			remote_addr = nil,
 		}, req.http.tcp)
-	local function respond_with(opt)
-		pp(opt)
-	end
-	local function raise_with(err)
-		errors.raise('http_response', err)
-	end
-	local function log_with(s, ...)
-		print(s, string.format(...))
-	end
 	srun(function()
-		local res = webb_respond(req, respond_with, raise_with, log_with)
+		local res = webb_respond(req, http_respond, http_raise, http_dbg)
 		pp(res)
 	end)
 end

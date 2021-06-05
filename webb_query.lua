@@ -9,6 +9,7 @@ QUERY
 	quote_sqlname(s) -> s                     quote string to mysql identifier
 	quote_sqlparams(s, t) -> s                quote query with ? and :name placeholders.
 	print_queries([t|f]) -> t|f               control printing of queries
+	allow_drop([t|f]) -> t|f                  fence on/off table dropping
 	trace_queries(t|f) -> s                   start/stop tracing of SQL statements
 	query[_on]([ns,]s, args...) -> res        query and return result table (compact)
 	kv_query[_on]([ns,]s, args...) -> res     query and return result table
@@ -24,9 +25,9 @@ QUERY/DDL
 	qsubst(typedef)                           create a substitution definition
 	qmacro.<name> = f(args...)                create a macro definition
 
-	dropfk(name)                              drop foreign key
-	droptable([t|f]) -> t|f                   check/enable droptable()
-	droptable(name)                           drop table
+	drop_fk(name)                              drop foreign key
+	drop_table([t|f]) -> t|f                   check/enable drop_table()
+	drop_table(name)                           drop table
 	fk(tbl, col, ...)                         create a foreign key
 
 ]==]
@@ -150,7 +151,11 @@ end
 
 local function quote_indexed_params(sql, t)
 	local i = 0
-	return (sql:gsub('%?', function()
+	return (sql:gsub('%?%?', function()
+		i = i + 1
+		local v, err = _('`%s`', t[i])
+		return assertf(v, 'param %d: %s\n%s', i, err, sql)
+	end):gsub('%?', function()
 		i = i + 1
 		local v, err = quote_sql(t[i])
 		return assertf(v, 'param %d: %s\n%s', i, err, sql)
@@ -218,10 +223,10 @@ local function run_query_on(ns, compact, sql, ...)
 	local sql = preprocess(sql)
 	local sql, params = quote_sqlparams(sql, ...)
 	if print_queries() then
-		print(glue.outdent(sql))
+		log('QUERY', '%s', glue.outdent(sql))
 	end
 	if print_queries() == 'both' then
-		printout(glue.outdent(sql))
+		outprint(glue.outdent(sql))
 	end
 	if trace_queries() then
 		log_sql(glue.outdent(sql))
@@ -341,18 +346,18 @@ local function constable(name)
 	]], config'db_name', name)
 end
 
-function dropfk(name)
-	if not droptable() then return end
+function drop_fk(name)
+	if not drop_table() then return end
 	local tbl = constable(name)
 	if not tbl then return end
 	query('alter table '..tbl..' drop foreign key '..name..';')
 end
 
-function droptable(name)
+function drop_table(name)
 	if not name or type(name) == 'boolean' then
 		return allow_drop(name)
 	end
-	if not droptable() then return end
+	if not drop_table() then return end
 	query('drop table if exists '..name..';')
 end
 
@@ -383,6 +388,15 @@ function fk(tbl, col, ...)
 	query(sql)
 end
 
+function qmacro.create_database(name)
+	return string.format([[
+create database if not exists %s
+	character set utf8mb4
+	collate utf8mb4_unicode_ci;
+]], name)
+end
+
+
 --macros ---------------------------------------------------------------------
 
 --ddl commands
@@ -390,11 +404,13 @@ qsubst'table  create table if not exists'
 
 --type domains
 qsubst'id      int unsigned'
+qsubst'bigid   bigint unsigned'
 qsubst'pk      int unsigned primary key auto_increment'
-qsubst'name    varchar(64) character set utf8 collate utf8_general_ci'
-qsubst'email   varchar(128) character set utf8 collate utf8_general_ci'
+qsubst'bigpk   bigint unsigned primary key auto_increment'
+qsubst'name    varchar(64)'
+qsubst'email   varchar(128)'
 qsubst'hash    varchar(64) character set ascii'
-qsubst'url     varchar(2048) character set utf8 collate utf8_general_ci'
+qsubst'url     varchar(2048)'
 qsubst'bool    tinyint not null default 0'
 qsubst'bool1   tinyint not null default 1'
 qsubst'atime   timestamp not null'
@@ -403,5 +419,6 @@ qsubst'mtime   timestamp not null on update current_timestamp'
 qsubst'money   decimal(20,6)'
 qsubst'qty     decimal(20,6)'
 qsubst'percent decimal(20,6)'
+qsubst'count   int unsigned not null default 0'
+qsubst'pos     int unsigned'
 qsubst'lang    char(2) character set ascii not null'
-
