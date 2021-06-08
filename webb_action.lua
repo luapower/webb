@@ -38,9 +38,9 @@ require'webb'
 
 function lang(s)
 	if s then
-		req_ctx.lang = s
+		env()._lang = s
 	else
-		return req_ctx.lang or args'lang' or config('lang', 'en')
+		return env()._lang or args'lang' or config('lang', 'en')
 	end
 end
 

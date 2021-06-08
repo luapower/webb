@@ -28,7 +28,7 @@ QUERY/DDL
 	drop_fk(name)                              drop foreign key
 	drop_table([t|f]) -> t|f                   check/enable drop_table()
 	drop_table(name)                           drop table
-	fk(tbl, col, ...)                         create a foreign key
+	fk(tbl, col, ...)                          create a foreign key
 
 ]==]
 
@@ -415,7 +415,7 @@ qsubst'bool    tinyint not null default 0'
 qsubst'bool1   tinyint not null default 1'
 qsubst'atime   timestamp not null'
 qsubst'ctime   timestamp not null default current_timestamp'
-qsubst'mtime   timestamp not null on update current_timestamp'
+qsubst'mtime   timestamp not null default current_timestamp on update current_timestamp'
 qsubst'money   decimal(20,6)'
 qsubst'qty     decimal(20,6)'
 qsubst'percent decimal(20,6)'

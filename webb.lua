@@ -139,7 +139,7 @@ HTTP SERVER INTEGRATION
 
 STANDALONE OPERATION
 
-	request(main, req | arg1,...)           make a request without a http server.
+	request(req | arg1,...)                 make a request without a http server.
 
 API DOCS ---------------------------------------------------------------------
 
@@ -227,6 +227,7 @@ end
 
 --per-request memoization.
 do
+	local NIL = function() end
 	local function enc(v) if v == nil then return NIL else return v end end
 	local function dec(v) if v == NIL then return nil else return v end end
 	function once(f, clear_cache, ...)
@@ -423,7 +424,6 @@ local function wrap_send_body(send)
 		req_ctx = req_ctx1
 		req = req1
 		res = res1
-		req_ctx = req_ctx1
 	end
 end
 
@@ -1126,29 +1126,34 @@ end
 
 --standalone operation -------------------------------------------------------
 
-function request(main, arg1, ...)
+function request(arg1, ...)
 	local pp = require'pp'
-	config('main_module', main)
-	local host = 'localhost' --TODO
-	local req = type(arg1) == 'table' and arg1 or {args = {arg1,...}}
-	req = update({
-			method = 'get',
-		}, req)
-	req.headers = update({
-			host = host,
-		}, req.headers)
-	req.http = update({
-		}, req.http)
-	req.http.tcp = update({
-			istlssocket = true,
-			local_addr = 'localhost',
-			local_port = nil,
-			remote_addr = nil,
-		}, req.http.tcp)
-	srun(function()
-		local res = webb_respond(req, http_respond, http_raise, http_dbg)
-		pp(res)
-	end)
+	local function main()
+		check(action(unpack(args())))
+	end
+	with_config({main_module = main}, function(...)
+		local host = 'localhost' --TODO
+		local req = type(arg1) == 'table' and arg1 or {args = {arg1,...}}
+		req = update({
+				method = 'get',
+				uri = concat(map(pack('', arg1, ...), tostring), '/'),
+			}, req)
+		req.headers = update({
+				host = host,
+			}, req.headers)
+		req.http = update({
+			}, req.http)
+		req.http.tcp = update({
+				istlssocket = true,
+				local_addr = 'localhost',
+				local_port = nil,
+				remote_addr = nil,
+			}, req.http.tcp)
+		srun(function()
+			local res = webb_respond(req, http_respond, http_raise, http_dbg)
+			pp(res)
+		end)
+	end, ...)
 end
 
 --pre-configured http app server ---------------------------------------------
