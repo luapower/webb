@@ -129,6 +129,25 @@ function quote_sql(v)
 		else
 			return format('%0.17g', v) --max precision, min length.
 		end
+	elseif type(v) == 'table' then
+		if #v > 0 then
+			local t = {}
+			for i,v in ipairs(v) do
+				t[i] = quote_sql(v)
+			end
+			return table.concat(t, v.op or ', ')
+		elseif next(v) ~= nil then
+			assert(v.op, 'op required')
+			local t = {}
+			for k,v in ipairs(v) do
+				t[#t+1] = quote_sqlname(k)
+				t[#t+1] = ' = '
+				t[#t+1] = quote_sql(v)
+			end
+			return table.concat(t, v.op)
+		else --empty
+			return ''
+		end
 	else
 		return nil, 'invalid value '.. pp.format(v)
 	end
@@ -220,10 +239,10 @@ end
 
 local function run_query_on(ns, compact, sql, ...)
 	local db = connect(ns)
-	local sql = preprocess(sql)
 	local sql, params = quote_sqlparams(sql, ...)
+	local sql = preprocess(sql)
 	if print_queries() then
-		log('QUERY', '%s', glue.outdent(sql))
+		log('QUERY', '%s', glue.outdent(sql):gsub('\t', '   '))
 	end
 	if print_queries() == 'both' then
 		outprint(glue.outdent(sql))
@@ -396,7 +415,6 @@ create database if not exists %s
 ]], name)
 end
 
-
 --macros ---------------------------------------------------------------------
 
 --ddl commands
@@ -422,3 +440,13 @@ qsubst'percent decimal(20,6)'
 qsubst'count   int unsigned not null default 0'
 qsubst'pos     int unsigned'
 qsubst'lang    char(2) character set ascii not null'
+
+qmacro['in'] = function(expr, ...)
+	if ... == '' then return 'false' end
+	return expr..' in ('..table.concat({...}, ', ')..')'
+end
+
+qmacro['not_in'] = function(expr, ...)
+	if ... == '' then return 'true' end
+	return expr..' not in ('..table.concat({...}, ', ')..')'
+end
