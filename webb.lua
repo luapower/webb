@@ -306,8 +306,15 @@ function args(v)
 	end
 	local args = cx.args
 	if not args then
-		args = uri.parse(cx.req.uri).segments
+		local u = uri.parse(cx.req.uri)
+		args = u.segments
 		remove(args, 1)
+		if u.args then
+			for i = 1, #u.args, 2 do
+				local k,v = u.args[i], u.args[i+1]
+				args[k] = v
+			end
+		end
 		cx.args = args
 	end
 	if v then
@@ -1142,7 +1149,7 @@ function http_server(opt)
 	local http_addr  = config('http_addr', '127.0.0.1')
 	local https_addr = config('https_addr', false)
 	return server:new(update({
-		libs = 'sock'..(config'https_addr' and 'sock_libtls' or ''),
+		libs = 'zlib sock '..(config'https_addr' and 'sock_libtls' or ''),
 		listen = {
 			{
 				host = host,
