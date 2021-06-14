@@ -138,7 +138,7 @@ local function jslist(cataction, mode)
 		out(string.format('	<script src="%s"></script>', lang_url('/'..cataction)))
 	elseif mode == 'embed' then
 		out'<script>'
-		catlist(cataction..'.cat')
+		outcatlist(cataction..'.cat')
 		out'</script>\n'
 	elseif mode == 'separate' then
 		for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
@@ -154,7 +154,7 @@ local function csslist(cataction, mode)
 		out(string.format('	<link rel="stylesheet" type="text/css" href="/%s">', cataction))
 	elseif mode == 'embed' then
 		out'<style>'
-		catlist(cataction..'.cat')
+		outcatlist(cataction..'.cat')
 		out'</style>\n'
 	elseif mode == 'separate' then
 		for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do

@@ -36,20 +36,20 @@ require'webb'
 
 --multi-language actions & links ---------------------------------------------
 
-function lang(s)
+lang = once(function(s)
 	if s then
-		env()._lang = s
+		cx.lang = s
 	else
-		return env()._lang or args'lang' or config('lang', 'en')
+		return cx.lang or args'lang' or config('lang', 'en')
 	end
-end
+end)
 
 --[[
 It is assumed that action names are always in english even if they actually
 request a page in the default language which can configured to be different
 than english. Action name translation is done automatically provided that
 1) all links are passed through lang_url(), 2) routing is done by calling
-action(unpack(args())) which calls find_action() and 3) action names are
+action(req, unpack(args())) which calls find_action() and 3) action names are
 translated in different languages with alias(). Using action aliases is
 the key to avoiding the appending of ?lang=xx to links. Aliases for the
 root action ('en') are also allowed in order to avoid the ?lang param.
@@ -209,15 +209,15 @@ end
 
 --output filters -------------------------------------------------------------
 
-local function html_filter(handler, action, ...)
-	local s = record(handler, action, ...)
+local function html_filter(handler, ...)
+	local s = record(handler, ...)
 	local s = setlinks(filter_lang(filter_comments(s), lang()))
 	check_etag(s)
 	setcontent(s)
 end
 
-local function json_filter(handler, action, ...)
-	local s = handler(action, ...)
+local function json_filter(handler, ...)
+	local s = handler(...)
 	if type(s) == 'table' then
 		s = json(s)
 	end
@@ -227,15 +227,14 @@ local function json_filter(handler, action, ...)
 	end
 end
 
-local function js_filter(handler, action, ...)
+local function js_filter(handler, ...)
 	if not config'minify_js' then
-		handler(action, ...)
+		handler(...)
 		return
 	end
 	local minify = require'jsmin'.minify
-	local s = record(handler, action, ...)
+	local s = record(handler, ...)
 	s = minify(s)
-	print('>>>>>>>>>>>', action, #s)
 	check_etag(s)
 	setcontent(s)
 end
@@ -250,7 +249,7 @@ local mime_type_filters = {
 
 local file_handlers = {
 	cat = function(file, ...)
-		catlist(file, ...)
+		outcatlist(file, ...)
 	end,
 	lua = function(file, ...)
 		return run(file, nil, ...)
@@ -335,7 +334,7 @@ function exec(action, ...)
 	return pass(handler(...))
 end
 
-local function action_call(self, fallback, action, ...)
+local function action_call(fallback, action, ...)
 	local handler, ext = action_handler(action, ...)
 	local mime = mime_types[ext]
 	if not handler then
@@ -352,7 +351,7 @@ local function action_call(self, fallback, action, ...)
 			log('NOT FOUND', '%s', table.concat({action, ...}, '/'))
 			return false
 		end
-		return action_call(self, false, nf_action, action, ...)
+		return action_call(false, nf_action, action, ...)
 	end
 	setmime(ext)
 	local filter = mime_type_filters[mime]
@@ -364,7 +363,7 @@ local function action_call(self, fallback, action, ...)
 	return true
 end
 setmetatable(actions, {__call = function(self, ...)
-	return action_call(self, true, find_action(...))
+	return action_call(true, find_action(...))
 end})
 action = actions
 

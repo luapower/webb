@@ -101,8 +101,19 @@ local function macro_subst(name, args)
 	return macro(unpack(t))
 end
 
-local function preprocess(sql)
+local function preprocess(sql, param_values)
+	sql = sql:gsub('\r?\n[\t ]*%-%-[^\r\n]*\r?\n', '\n') --remove whole-line comments
+	sql = sql:gsub('^[\t ]*%-%-[^\r\n]*\r?\n', '') --remove whole-line comments
+	sql = sql:gsub('\r?\n[\t ]*%-%-[^\r\n]*$', '') --remove whole-line comments
 	sql = sql:gsub('%-%-[^\r\n]*', '') --remove comments
+	sql = sql:gsub('[ \t]*#if (.-)\r?\n(.-\r?\n)[ \t]*#endif[ \t]*\r?\n',
+		function(def, code)
+			if param_values[def] then
+				return code
+			else
+				return ''
+			end
+		end)
 	sql = sql:gsub('$([%w_]+)(%b())', macro_subst)
 	sql = sql:gsub('$([%w_]+)', substs)
 	return sql
@@ -198,24 +209,12 @@ function print_queries(on)
 	end
 end
 
-local log_sql do
-	local sql_log, sql_log_t0
-	function trace_queries(on)
-		if on == nil then
-			return sql_log and true or false
-		elseif on then
-			sql_log = {}
-			sql_log_t0 = time()
-		else
-			local t = sql_log
-			sql_log = nil
-			return t
-		end
-	end
-	function log_sql(sql)
-		local t = time()
-		add(sql_log, _('%.2f %s', t - sql_log_t0, sql))
-		sql_log_t0 = t
+local _trace_queries
+function trace_queries(on)
+	if on ~= nil then
+		_trace_queries = on
+	else
+		return _trace_queries or false
 	end
 end
 
@@ -240,15 +239,16 @@ end
 local function run_query_on(ns, compact, sql, ...)
 	local db = connect(ns)
 	local sql, params = quote_sqlparams(sql, ...)
-	local sql = preprocess(sql)
+	local sql = preprocess(sql, ...)
 	if print_queries() then
 		log('QUERY', '%s', glue.outdent(sql):gsub('\t', '   '))
 	end
 	if print_queries() == 'both' then
 		outprint(glue.outdent(sql))
 	end
+	local qtrace
 	if trace_queries() then
-		log_sql(glue.outdent(sql))
+		qtrace = trace('QUERY', glue.outdent(sql))
 	end
 	assert_db(db:send_query(sql))
 	local t, err, cols = assert_db(db:read_result(nil, compact and 'compact'))
@@ -260,6 +260,9 @@ local function run_query_on(ns, compact, sql, ...)
 			t1 = process_result(t1, cols, compact)
 			t[#t+1] = t1
 		until not err
+	end
+	if qtrace then
+		qtrace('QUERY', #t > 0 and 'rows: '..#t or pp.format(t))
 	end
 	return t, cols, params
 end

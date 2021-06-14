@@ -19,12 +19,13 @@ CONFIG API
 
 ENVIRONMENT
 
-	once(f[, clear_cache[, k]])             memoize for current request
+	once(f, ...)                            memoize for current request
 	env([t]) -> t                           per-request shared environment
 
 LOGGING
 
-	log(...)
+	log(event, fmt, ...)
+	trace(event, fmt, ...) -> log
 
 REQUEST
 
@@ -126,7 +127,7 @@ HTML FILTERS
 FILE CONCATENATION LISTS
 
 	catlist_files(s) -> {file1,...}         parse a .cat file
-	catlist(file, args...)                  output a .cat file
+	outcatlist(file, args...)               output a .cat file
 
 MAIL SENDING
 
@@ -134,7 +135,7 @@ MAIL SENDING
 
 HTTP SERVER INTEGRATION
 
-	webb_respond(req, http_respond, http_raise, http_debug) http_server response handler
+	webb_respond(req)                       http_server response handler
 	http_server([opt]) -> server
 
 STANDALONE OPERATION
@@ -143,10 +144,9 @@ STANDALONE OPERATION
 
 API DOCS ---------------------------------------------------------------------
 
-	once(f[, clear_cache[, k]])
+	once(f)
 
-Memoize 0-arg or 1-arg function for current request. If `clear_cache` is
-true, then clear the cache (either for the entire function or for arg `k`).
+Memoize function for current request.
 
 	env([t]) -> t
 
@@ -159,6 +159,9 @@ an inherited environment is created.
 
 glue = require'glue'
 local uri = require'uri'
+local errors = require'errors'
+local http = require'http'
+local sock = require'sock'
 
 local concat = table.concat
 local remove = table.remove
@@ -169,18 +172,25 @@ local assertf = glue.assert
 local memoize = glue.memoize
 local _ = string.format
 
---request/reply state: initialized for use in standalone (no server) scripts.
-local req_ctx = {}
-local function http_dbg(s, ...)
-	print(s, string.format(...))
+errors.errortype'http_response'.__tostring = function(self)
+	local s = self.traceback or self.message or ''
+	if self.status then
+		s = self.status .. ' ' .. s
+	end
+	return s
 end
-local function http_respond(opt)
-	pp(opt)
+
+--thread context switching ---------------------------------------------------
+
+local cx --request context for current thread.
+local thread_cx = setmetatable({}, {__mode = 'k'})
+function sock.save_thread_context(thread)
+	thread_cx[thread] = cx
 end
-local function http_raise(err)
-	errors.raise('http_response', err)
+function sock.restore_thread_context(thread)
+	cx = thread_cx[thread]
+	_G.cx = cx
 end
-local req, res, send_body
 
 --config function ------------------------------------------------------------
 
@@ -226,49 +236,24 @@ end
 --per-request environment ----------------------------------------------------
 
 --per-request memoization.
-do
-	local NIL = function() end
-	local function enc(v) if v == nil then return NIL else return v end end
-	local function dec(v) if v == NIL then return nil else return v end end
-	function once(f, clear_cache, ...)
-		if clear_cache then
-			local t = req_ctx[f]
-			if t then
-				if select('#', ...) == 0 then
-					t = {}
-					req_ctx[f] = t
-				else
-					local k = ...
-					t[enc(k)] = nil
-				end
-			end
-		else
-			return function(k)
-				local t = req_ctx[f]
-				if not t then
-					t = {}
-					req_ctx[f] = t
-				end
-				local v = t[enc(k)]
-				if v == nil then
-					v = f(k)
-					t[enc(k)] = enc(v)
-				else
-					v = dec(v)
-				end
-				return v
-			end
+function once(f)
+	return function(...)
+		local ret = cx[f]
+		if not ret then
+			ret = f(...)
+			cx[f] = ret
 		end
+		return ret
 	end
 end
 
 --per-request shared environment to use in all app code.
 function env(t)
-	local env = req_ctx.env
+	local env = cx.env
 	if not env then
 		env = {__index = _G}
 		setmetatable(env, env)
-		req_ctx.env = env
+		cx.env = env
 	end
 	if t then
 		t.__index = env
@@ -281,62 +266,80 @@ end
 --logging --------------------------------------------------------------------
 
 function log(event, s, ...)
-	http_dbg(event, s, ...)
+	cx.req:dbg(event, s, ...)
+end
+
+function trace(event, s, ...)
+	if not event then
+		print(debug.traceback())
+		return
+	end
+	log(event, '%4.2f '..s, 0, ...)
+	local t0 = time()
+	return function(event, s, ...)
+		local dt = time() - t0
+		log(event, '%4.2f '..s, dt, ...)
+	end
 end
 
 --request API ----------------------------------------------------------------
 
 function method(which)
 	if which then
-		return req.method:lower() == which:lower()
+		return cx.req.method:lower() == which:lower()
 	else
-		return req.method:lower()
+		return cx.req.method:lower()
 	end
 end
 
 function headers(h)
 	if h then
-		return req.headers[h]
+		return cx.req.headers[h]
 	else
-		return req.headers
+		return cx.req.headers
 	end
 end
 
-local _args = once(function()
-	if req.args then
-		return req.args
-	end
-	local t = uri.parse(req.uri).segments
-	remove(t, 1)
-	return t
-end)
 function args(v)
+	if cx.req.args then
+		return cx.req.args
+	end
+	local args = cx.args
+	if not args then
+		args = uri.parse(cx.req.uri).segments
+		remove(args, 1)
+		cx.args = args
+	end
 	if v then
-		return _args()[v]
+		return args[v]
 	else
-		return _args()
+		return args
 	end
 end
 
-local _post_args = once(function()
-	if not method'post' then return end
-	local s = req:read_body'string'
-	local ct = headers'content-type'
-	if ct then
-		if ct.media_type == 'application/x-www-form-urlencoded' then
-			return uri.parse_args(s)
-		elseif ct.media_type == 'application/json' then --prevent ENCTYPE CORS
-			return s and json(s)
-		end
-	end
-	return s
-end)
 function post(v)
+	if not method'post' then
+		return
+	end
+	local post = cx.post
+	if not post then
+		local s = cx.req:read_body'string'
+		local ct = headers'content-type'
+		if ct then
+			if ct.media_type == 'application/x-www-form-urlencoded' then
+				post = uri.parse_args(s)
+			elseif ct.media_type == 'application/json' then --prevent ENCTYPE CORS
+				post = s and json(s)
+			end
+		else
+			post = s
+		end
+		cx.post = post
+	end
 	if v then
-		local t = _post_args()
-		return t and t[v]
+		return post[v]
 	else
-		return _post_args()
+		return unpack(post)
 	end
 end
 
@@ -344,7 +347,8 @@ function scheme(s)
 	if s then
 		return scheme() == s
 	end
-	return headers'x-forwarded-proto' or (req.http.tcp.istlssocket and 'https' or 'http')
+	return headers'x-forwarded-proto'
+		or (cx.req.http.tcp.istlssocket and 'https' or 'http')
 end
 
 function host(s)
@@ -352,16 +356,17 @@ function host(s)
 		return host() == s
 	end
 	return headers'x-forwarded-host'
-		or (headers'host' and headers('host').host)
+		or (headers'host' and headers'host'.host)
 		or config'host'
-		or req.http.tcp.local_addr
+		or cx.req.http.tcp.local_addr
 end
 
 function port(p)
 	if p then
 		return port() == tonumber(p)
 	end
-	return headers'x-forwarded-port' or req.http.tcp.local_port
+	return headers'x-forwarded-port'
+		or cx.req.http.tcp.local_port
 end
 
 function email(user)
@@ -369,7 +374,8 @@ function email(user)
 end
 
 function client_ip()
-	return headers'x-forwarded-for' or req.http.tcp.remote_addr
+	return headers'x-forwarded-for'
+		or cx.req.http.tcp.remote_addr
 end
 
 --arg validation
@@ -411,46 +417,28 @@ end
 
 --output API -----------------------------------------------------------------
 
-local function wrap_send_body(send)
-	local req1, res1, req_ctx1, send_body1
-	return function(buf, sz)
-		send_body1 = send_body
-		req_ctx1 = req_ctx
-		req1 = req
-		res1 = res
-		req_ctx1 = req_ctx
-		send(buf, sz)
-		send_body = send_body1
-		req_ctx = req_ctx1
-		req = req1
-		res = res1
-	end
-end
-
 function setcontent(s)
-	if send_body or out_buffering() then
+	if cx.send_body or out_buffering() then
 		out(s)
 	else
-		res.content = s ~= nil and tostring(s) or ''
-		http_respond(res)
-		http_respond = nil
+		cx.res.content = s ~= nil and tostring(s) or ''
+		cx.req:respond(cx.res)
 	end
 end
 
 function out_buffering()
-	return req_ctx.outfunc ~= nil
+	return cx.outfunc ~= nil
 end
 
 local function default_outfunc(s, len)
 	if s == nil or s == '' or len == 0 then
 		return
 	end
-	if not send_body then
-		send_body = wrap_send_body(http_respond(res))
-		http_respond = nil
+	if not cx.send_body then
+		cx.send_body = cx.req:respond(cx.res)
 	end
 	s = type(s) ~= 'cdata' and tostring(s) or s
-	send_body(s, len)
+	cx.send_body(s, len)
 end
 
 function stringbuffer(t)
@@ -477,25 +465,25 @@ function stringbuffer(t)
 end
 
 function push_out(f)
-	req_ctx.outfunc = f or stringbuffer()
-	if not req_ctx.outfuncs then
-		req_ctx.outfuncs = {}
+	cx.outfunc = f or stringbuffer()
+	if not cx.outfuncs then
+		cx.outfuncs = {}
 	end
-	insert(req_ctx.outfuncs, req_ctx.outfunc)
+	insert(cx.outfuncs, cx.outfunc)
 end
 
 function pop_out()
-	if not req_ctx.outfunc then return end
-	local s = req_ctx.outfunc()
-	local outfuncs = req_ctx.outfuncs
+	if not cx.outfunc then return end
+	local s = cx.outfunc()
+	local outfuncs = cx.outfuncs
 	remove(outfuncs)
-	req_ctx.outfunc = outfuncs[#outfuncs]
+	cx.outfunc = outfuncs[#outfuncs]
 	return s
 end
 
 function out(s, len)
-	if not res then return end --not a server context
-	local outfunc = req_ctx.outfunc or default_outfunc
+	if not cx.res then return end --not a server context
+	local outfunc = cx.outfunc or default_outfunc
 	outfunc(s, len)
 end
 
@@ -515,7 +503,7 @@ function setheader(name, val)
 	if out_buffering() then
 		return
 	end
-	res.headers[name] = val
+	cx.res.headers[name] = val
 end
 
 mime_types = {
@@ -551,7 +539,7 @@ end
 local function print_wrapper(out)
 	return function(s)
 		if not out_buffering() then
-			if res then
+			if cx.res then
 				setheader('content-type', 'text/plain')
 			end
 			out(s)
@@ -669,14 +657,13 @@ end
 
 --response API ---------------------------------------------------------------
 
-function http_error(status, fmt, ...)
-	local msg = type(fmt) == 'string' and _(fmt, ...) or fmt
-	http_raise{status = status, status_message = msg and tostring(msg)}
+function http_error(...)
+	cx.req:raise(...)
 end
 
 function redirect(uri)
 	--TODO: make it work with relative paths
-	http_raise{status = 303, headers = {location = uri}}
+	http_error{status = 303, headers = {location = uri}}
 end
 
 function check(ret, ...)
@@ -941,12 +928,6 @@ local function lp_compile(s, chunkname, env)
 	return assert(load(s, chunkname, 'bt', env))
 end
 
-local function lp_include(filename, env)
-	local s = readfile(filename)
-	local prog = lp_compile(src, '@'..filename, env)
-	prog()
-end
-
 local function compile_string(s, chunkname)
 	local f = lp_compile(s, chunkname)
 	return function(_env, ...)
@@ -971,8 +952,8 @@ end
 
 local function compile_lua_string(s, chunkname)
 	local f = assert(loadstring(s, chunkname))
-	return function(_env, ...)
-		setfenv(f, _env or env())
+	return function(env_, ...)
+		setfenv(f, env_ or env())
 		return f(...)
 	end
 end
@@ -1036,7 +1017,7 @@ end
 --NOTE: can also concatenate actions if the actions module is loaded.
 --NOTE: favors plain files over actions because it can generate etags without
 --actually reading the files.
-function catlist(listfile, ...)
+function outcatlist(listfile, ...)
 	local js = listfile:find'%.js%.cat$'
 	local sep = js and ';\n' or '\n'
 
@@ -1105,31 +1086,28 @@ end
 
 --http_server respond function -----------------------------------------------
 
-function webb_respond(req1, http_respond1, http_raise1, http_dbg1)
-	req = req1
-	req_ctx = {}
-	res = {headers = {}}
-	send_body = nil
-	http_respond = http_respond1
-	http_raise = http_raise1
-	http_dbg = http_dbg1
-	log(req1.method:upper(), '%s', req1.uri)
+function webb_respond(req, thread)
+	assert(thread == require'coro'.running())
+	cx = {req = req, res = {headers = {}}}
+	_G.cx = cx
+	thread_cx[thread] = cx
+	log(req.method, '%s', req.uri)
 	local main = assert(config'main_module')
 	local main = type(main) == 'string' and require(main) or main
 	if type(main) == 'table' then
 		main = main.respond
 	end
 	main()
-
-	return res
+	cx = nil
+	thread_cx[thread] = nil
 end
 
 --standalone operation -------------------------------------------------------
 
 function request(arg1, ...)
 	local pp = require'pp'
-	local function main()
-		check(action(unpack(args())))
+	local function main(req)
+		check(action(req, unpack(args())))
 	end
 	with_config({main_module = main}, function(...)
 		local host = 'localhost' --TODO
@@ -1150,7 +1128,7 @@ function request(arg1, ...)
 				remote_addr = nil,
 			}, req.http.tcp)
 		srun(function()
-			local res = webb_respond(req, http_respond, http_raise, http_dbg)
+			local res = webb_respond(req)
 			pp(res)
 		end)
 	end, ...)
@@ -1164,7 +1142,7 @@ function http_server(opt)
 	local http_addr  = config('http_addr', '127.0.0.1')
 	local https_addr = config('https_addr', false)
 	return server:new(update({
-		libs = 'sock zlib '..(config'https_addr' and 'sock_libtls' or ''),
+		libs = 'sock'..(config'https_addr' and 'sock_libtls' or ''),
 		listen = {
 			{
 				host = host,
