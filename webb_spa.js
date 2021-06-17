@@ -210,10 +210,9 @@ let check_exec = function() {
 function exec(path, params) {
 	if (!check_exec())
 		return
-	// store current scroll top in current state first
 	_save_scroll_state(window.scrollY)
-	// push new state without data
 	history.pushState(null, null, lang_url(path, params))
+	window.fire('popstate')
 }
 
 function back() {
