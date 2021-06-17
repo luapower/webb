@@ -182,7 +182,9 @@ end
 
 --thread context switching ---------------------------------------------------
 
-local cx --request context for current thread.
+--request context for current thread.
+local cx = {req = {dbg = function(self, topic, ...) print(topic, _(...)) end}}
+
 local thread_cx = setmetatable({}, {__mode = 'k'})
 function sock.save_thread_context(thread)
 	thread_cx[thread] = cx
@@ -301,10 +303,7 @@ function headers(h)
 end
 
 function args(v)
-	if cx.req.args then
-		return cx.req.args
-	end
-	local args = cx.args
+	local args = cx.req.args or cx.args
 	if not args then
 		local u = uri.parse(cx.req.uri)
 		args = u.segments
@@ -845,7 +844,7 @@ local function add_template(template, name, s)
 	insert(template_names, name)
 end
 
---gather all the templates from the filesystem
+--gather all the templates from the filesystem.
 local load_templates = memoize(function()
 	local t = wwwfiles(function(s) return s:find'%.html%.mu$' end)
 	t = glue.keys(t)
@@ -1094,7 +1093,6 @@ end
 --http_server respond function -----------------------------------------------
 
 function webb_respond(req, thread)
-	assert(thread == require'coro'.running())
 	cx = {req = req, res = {headers = {}}}
 	_G.cx = cx
 	thread_cx[thread] = cx
@@ -1113,8 +1111,8 @@ end
 
 function request(arg1, ...)
 	local pp = require'pp'
-	local function main(req)
-		check(action(req, unpack(args())))
+	local function main()
+		check(action(unpack(args())))
 	end
 	with_config({main_module = main}, function(...)
 		local host = 'localhost' --TODO
@@ -1134,9 +1132,12 @@ function request(arg1, ...)
 				local_port = nil,
 				remote_addr = nil,
 			}, req.http.tcp)
+		req.respond = function(self, ...)
+			pp(...)
+		end
+		req.dbg = cx.req.dbg
 		srun(function()
-			local res = webb_respond(req)
-			pp(res)
+			local res = webb_respond(req, coroutine.running())
 		end)
 	end, ...)
 end

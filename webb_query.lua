@@ -108,7 +108,9 @@ local function preprocess(sql, param_values)
 	sql = sql:gsub('%-%-[^\r\n]*', '') --remove comments
 	sql = sql:gsub('[ \t]*#if (.-)\r?\n(.-\r?\n)[ \t]*#endif[ \t]*\r?\n',
 		function(def, code)
-			if param_values[def] then
+			local f = assert(loadstring('return '..def))
+			setfenv(f, param_values)
+			if f() then
 				return code
 			else
 				return ''
@@ -141,7 +143,7 @@ function quote_sql(v)
 			return format('%0.17g', v) --max precision, min length.
 		end
 	elseif type(v) == 'table' then
-		if #v > 0 then
+		if #v > 0 then --list: for use in `in ()`
 			local t = {}
 			for i,v in ipairs(v) do
 				t[i] = quote_sql(v)
@@ -156,8 +158,8 @@ function quote_sql(v)
 				t[#t+1] = quote_sql(v)
 			end
 			return table.concat(t, v.op)
-		else --empty
-			return ''
+		else --empty list: good for 'in (?)' but NOT GOOD for `not in (?)` !!!
+			return 'null'
 		end
 	else
 		return nil, 'invalid value '.. pp.format(v)
@@ -327,7 +329,7 @@ function groupby(items, col)
 	local v
 	local st
 	local group_func = col
-	if type(col) == 'string' then
+	if type(col) == 'string' or type(col) == 'number' then
 		group_func = function(e) return e[col] end
 	end
 	for i,e in ipairs(items) do

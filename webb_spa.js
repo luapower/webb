@@ -336,6 +336,6 @@ on_dom_load(function() {
 	})
 	if (client_action) // set from server.
 		url_changed()
-})
+}, 'url_changed')
 
 } // module scope.
