@@ -22,8 +22,8 @@ ACTIONS
 	^url_changed                           url changed event
 	^action_not_found                      action not found event
 	action: {action: handler}
-	intarg(s)
-	optarg(s)
+	id_arg(s)
+	opt_arg(s)
 	slug(id, s)
 
 TEMPLATES
@@ -31,8 +31,8 @@ TEMPLATES
 	template(name) -> s                    get a template
 	render_string(s, [data]) -> s          render a template from a string
 	render(name, [data]) -> s              render a template
-	e.render_string(s, data)               render template string to target
-	e.render(name, [data])                 render template to target
+	e.render_string(s, data)               render template string into e
+	e.render([data])                       render e.template into e
 	^bind(on, [data])                      fired before & after render
 
 */
@@ -236,7 +236,7 @@ function setscroll(top) {
 }
 
 method(Element, 'setlink', function(path, params) {
-	if (this.attr('_hooked'))
+	if (this._hooked)
 		return
 	if (this.attr('target'))
 		return
@@ -255,7 +255,7 @@ method(Element, 'setlink', function(path, params) {
 		event.preventDefault()
 		exec(path, params)
 	})
-	this.attr('_hooked', true)
+	this._hooked = true
 	return this
 })
 
@@ -279,12 +279,12 @@ function slug(id, s) {
 	) + '-' + id
 }
 
-function intarg(s) {
+function id_arg(s) {
 	s = s && s.match(/\d+$/)
 	return s && num(s) || ''
 }
 
-function optarg(s) {
+function opt_arg(s) {
 	return s && ('/' + s) || ''
 }
 
@@ -310,21 +310,14 @@ function render(template_name, data) {
 }
 
 method(Element, 'render_string', function(s, data) {
-	this.fire('bind', false)
+	this.fire('clear')
 	this.html = render_string(s, data)
-	this.fire('bind', true, data)
+	this.fire('render', data)
 })
 
-method(Element, 'render', function(name, data) {
-	return this.render_string(template(name), data)
-})
-
-// loading pattern -----------------------------------------------------------
-
-method(Element, 'load', function(opt) {
-	let req = ajax(opt)
-	req.on('slow')
-	return req
+method(Element, 'render', function(data) {
+	let s = this.template_string || template(this.template)
+	this.render_string(s, data)
 })
 
 // init ----------------------------------------------------------------------
