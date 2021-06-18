@@ -90,34 +90,43 @@ end
 
 qmacro = {}
 
-local function macro_subst(name, args)
-	local macro = assert(qmacro[name], 'invalid macro')
-	args = args:sub(2,-2)..','
-	local t = {}
-	for arg in args:gmatch'([^,]+)' do
-		arg = glue.trim(arg)
-		t[#t+1] = arg
-	end
-	return macro(unpack(t))
-end
-
 local function preprocess(sql, param_values)
-	sql = sql:gsub('\r?\n[\t ]*%-%-[^\r\n]*\r?\n', '\n') --remove whole-line comments
-	sql = sql:gsub('^[\t ]*%-%-[^\r\n]*\r?\n', '') --remove whole-line comments
-	sql = sql:gsub('\r?\n[\t ]*%-%-[^\r\n]*$', '') --remove whole-line comments
-	sql = sql:gsub('%-%-[^\r\n]*', '') --remove comments
-	sql = sql:gsub('[ \t]*#if (.-)\r?\n(.-\r?\n)[ \t]*#endif[ \t]*\r?\n',
-		function(def, code)
-			local f = assert(loadstring('return '..def))
-			setfenv(f, param_values)
-			if f() then
-				return code
-			else
-				return ''
-			end
-		end)
+
+	--remove single-line comments.
+	sql = sql:gsub('\r?\n[\t ]*%-%-[^\r\n]*\r?\n', '\n')
+	sql = sql:gsub('^[\t ]*%-%-[^\r\n]*\r?\n', '')
+	sql = sql:gsub('\r?\n[\t ]*%-%-[^\r\n]*$', '')
+	sql = sql:gsub('%-%-[^\r\n]*', '')
+
+	--process #if #else #endif conditionals.
+	local function if_subst(expr, if_code, else_code)
+		local f = assert(loadstring('return '..expr))
+		setfenv(f, param_values)
+		if f() then
+			return if_code
+		else
+			return else_code or ''
+		end
+	end
+	sql = sql:gsub('[ \t]*#if (.-)\r?\n(.-\r?\n)[ \t]*#else(.-\r?\n)[ \t]*#endif[ \t]*\r?\n', if_subst)
+	sql = sql:gsub('[ \t]*#if (.-)\r?\n(.-\r?\n)[ \t]*#endif[ \t]*\r?\n', if_subst)
+
+	--process `$foo(args...)` macros.
+	local function macro_subst(name, args)
+		local macro = assert(qmacro[name], 'invalid macro')
+		args = args:sub(2,-2)..','
+		local t = {}
+		for arg in args:gmatch'([^,]+)' do
+			arg = glue.trim(arg)
+			t[#t+1] = arg
+		end
+		return macro(unpack(t))
+	end
 	sql = sql:gsub('$([%w_]+)(%b())', macro_subst)
+
+	--process simple `$foo` substs.
 	sql = sql:gsub('$([%w_]+)', substs)
+
 	return sql
 end
 
@@ -194,10 +203,9 @@ local function quote_indexed_params(sql, t)
 	end))
 end
 
-function quote_sqlparams(sql, ...)
-	local param_values = type((...)) ~= 'table' and {...} or ...
-	local sql = quote_indexed_params(sql, param_values)
-	return quote_named_params(sql, param_values)
+function quote_sqlparams(sql, t)
+	local sql = quote_indexed_params(sql, t)
+	return quote_named_params(sql, t)
 end
 
 --query execution ------------------------------------------------------------
@@ -240,8 +248,10 @@ end
 
 local function run_query_on(ns, compact, sql, ...)
 	local db = connect(ns)
-	local sql, params = quote_sqlparams(sql, ...)
-	local sql = preprocess(sql, ...)
+	local t = type((...)) ~= 'table' and {...} or ...
+	sql = glue.subst(sql, t)
+	local sql, params = quote_sqlparams(sql, t)
+	local sql = preprocess(sql, t)
 	if print_queries() then
 		log('QUERY', '%s', glue.outdent(sql):gsub('\t', '   '))
 	end
@@ -426,25 +436,26 @@ end
 qsubst'table  create table if not exists'
 
 --type domains
-qsubst'id      int unsigned'
-qsubst'bigid   bigint unsigned'
-qsubst'pk      int unsigned primary key auto_increment'
-qsubst'bigpk   bigint unsigned primary key auto_increment'
-qsubst'name    varchar(64)'
-qsubst'email   varchar(128)'
-qsubst'hash    varchar(64) character set ascii'
-qsubst'url     varchar(2048)'
-qsubst'bool    tinyint not null default 0'
-qsubst'bool1   tinyint not null default 1'
-qsubst'atime   timestamp not null'
-qsubst'ctime   timestamp not null default current_timestamp'
-qsubst'mtime   timestamp not null default current_timestamp on update current_timestamp'
-qsubst'money   decimal(20,6)'
-qsubst'qty     decimal(20,6)'
-qsubst'percent decimal(20,6)'
-qsubst'count   int unsigned not null default 0'
-qsubst'pos     int unsigned'
-qsubst'lang    char(2) character set ascii not null'
+qsubst'id       int unsigned'
+qsubst'bigid    bigint unsigned'
+qsubst'pk       int unsigned primary key auto_increment'
+qsubst'bigpk    bigint unsigned primary key auto_increment'
+qsubst'name     varchar(64)'
+qsubst'email    varchar(128)'
+qsubst'hash     varchar(64) character set ascii'
+qsubst'url      varchar(2048)'
+qsubst'bool     tinyint not null default 0'
+qsubst'bool1    tinyint not null default 1'
+qsubst'atime    timestamp not null'
+qsubst'ctime    timestamp not null default current_timestamp'
+qsubst'mtime    timestamp not null default current_timestamp on update current_timestamp'
+qsubst'money    decimal(20,6)'
+qsubst'qty      decimal(20,6)'
+qsubst'percent  decimal(20,6)'
+qsubst'count    int unsigned not null default 0'
+qsubst'pos      int unsigned'
+qsubst'lang     char(2) character set ascii not null'
+qsubst'currency char(3) character set ascii not null'
 
 qmacro['in'] = function(expr, ...)
 	if ... == '' then return 'false' end

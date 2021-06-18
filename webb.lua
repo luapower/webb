@@ -302,6 +302,11 @@ function headers(h)
 	end
 end
 
+function cookie(name)
+	local t = cx.req.headers.cookie
+	return t and t[name]
+end
+
 function args(v)
 	local args = cx.req.args or cx.args
 	if not args then

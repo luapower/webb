@@ -36,13 +36,13 @@ require'webb'
 
 --multi-language actions & links ---------------------------------------------
 
-lang = once(function(s)
+function lang(s)
 	if s then
 		cx.lang = s
 	else
 		return cx.lang or args'lang' or config('lang', 'en')
 	end
-end)
+end
 
 --[[
 It is assumed that action names are always in english even if they actually
