@@ -30,6 +30,7 @@ LOGGING
 REQUEST
 
 	headers([name]) -> s|t                  get header or all
+	cookie(name) -> s | nil                 get cookie value
 	method([method]) -> s|b                 get/check http method
 	post([name]) -> s | t | nil             get POST arg or all
 	args([n|name]) -> s | t | nil           get path element or GET arg or all
