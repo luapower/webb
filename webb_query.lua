@@ -5,9 +5,9 @@
 
 QUERY
 
-	quote_sql(s) -> s                         quote string to mysql literal
-	quote_sqlname(s) -> s                     quote string to mysql identifier
-	quote_sqlparams(s, t) -> s                quote query with ? and :name placeholders.
+	sqlval(s) -> s                            quote string to mysql literal
+	sqlname(s) -> s                           quote string to mysql identifier
+	sqlparams(s, t) -> s                      quote query with ? and :name placeholders.
 	print_queries([t|f]) -> t|f               control printing of queries
 	allow_drop([t|f]) -> t|f                  fence on/off table dropping
 	trace_queries(t|f) -> s                   start/stop tracing of SQL statements
@@ -41,10 +41,12 @@ local mysql_print = require'mysql_client_print'
 --db connection --------------------------------------------------------------
 
 local function assert_db(ret, ...)
-	if ret ~= nil then return ret, ... end
+	if ret ~= nil then
+		return ret, ...
+	end
 	local err, errno, sqlstate = ...
 	err = err:gsub('You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ', 'Syntax error: ')
-	raise('db', {err = err, errno = errno, sqlstate = sqlstate},
+	raise('db', {err = err, errno = errno, sqlstate = sqlstate, addtraceback = true},
 		'%s%s%s', err,
 			errno and ' ['..errno..']' or '',
 			sqlstate and ' '..sqlstate or '')
@@ -134,7 +136,7 @@ end
 
 sql_default = {}
 
-function quote_sql(v)
+function sqlval(v)
 	if v == nil or v == null then
 		return 'null'
 	elseif v == true then
@@ -155,16 +157,16 @@ function quote_sql(v)
 		if #v > 0 then --list: for use in `in ()`
 			local t = {}
 			for i,v in ipairs(v) do
-				t[i] = quote_sql(v)
+				t[i] = sqlval(v)
 			end
 			return table.concat(t, v.op or ', ')
 		elseif next(v) ~= nil then
 			assert(v.op, 'op required')
 			local t = {}
 			for k,v in ipairs(v) do
-				t[#t+1] = quote_sqlname(k)
+				t[#t+1] = sqlname(k)
 				t[#t+1] = ' = '
-				t[#t+1] = quote_sql(v)
+				t[#t+1] = sqlval(v)
 			end
 			return table.concat(t, v.op)
 		else --empty list: good for 'in (?)' but NOT GOOD for `not in (?)` !!!
@@ -175,22 +177,22 @@ function quote_sql(v)
 	end
 end
 
-function quote_sqlname(v)
+function sqlname(v)
 	assert(not v:find('`', 1, true))
 	return '`'..v..'`'
 end
 
-local function quote_named_params(sql, t)
+local function sql_named_params(sql, t)
 	local names = {}
 	local sql = sql:gsub(':([%w_:]+)', function(k)
 		add(names, k)
-		local v, err = quote_sql(t[k])
+		local v, err = sqlval(t[k])
 		return assertf(v, 'param %s: %s\n%s', k, err, sql)
 	end)
 	return sql, names
 end
 
-local function quote_indexed_params(sql, t)
+local function sql_indexed_params(sql, t)
 	local i = 0
 	return (sql:gsub('%?%?', function()
 		i = i + 1
@@ -198,14 +200,14 @@ local function quote_indexed_params(sql, t)
 		return assertf(v, 'param %d: %s\n%s', i, err, sql)
 	end):gsub('%?', function()
 		i = i + 1
-		local v, err = quote_sql(t[i])
+		local v, err = sqlval(t[i])
 		return assertf(v, 'param %d: %s\n%s', i, err, sql)
 	end))
 end
 
-function quote_sqlparams(sql, t)
-	local sql = quote_indexed_params(sql, t)
-	return quote_named_params(sql, t)
+function sqlparams(sql, t)
+	local sql = sql_indexed_params(sql, t)
+	return sql_named_params(sql, t)
 end
 
 --query execution ------------------------------------------------------------
@@ -250,7 +252,7 @@ local function run_query_on(ns, compact, sql, ...)
 	local db = connect(ns)
 	local t = type((...)) ~= 'table' and {...} or ...
 	sql = glue.subst(sql, t)
-	local sql, params = quote_sqlparams(sql, t)
+	local sql, params = sqlparams(sql, t)
 	local sql = preprocess(sql, t)
 	if print_queries() then
 		log('QUERY', '%s', glue.outdent(sql):gsub('\t', '   '))

@@ -11,11 +11,11 @@ CONFIG API
 
 ACTIONS
 
-	lang_url([path[, params[, lang]]]) -> url  traslate a URL
-	e.setlink([path[, params]])            hook an action to a link
+	lang_url(url, [lang]) -> url           traslate a URL
+	e.setlink([url])                       hook an action to a link
 	e.setlinks([filter])                   hook actions to all links
 	page_loading() -> t|f                  was current page loaded or exec()'ed?
-	exec(path[, params])                   change the window URL
+	exec(url)                              change the tab URL
 	back()                                 go back to last URL in history
 	setscroll([top])                       set scroll to last position or reset
 	settitle([title])                      set title to <h1> contents or arg
@@ -75,9 +75,9 @@ let action_urlname = function(action) {
 	return action.replaceAll('_', '-')
 }
 
-let decode_url = function(path, params) {
-	if (typeof path == 'string') {
-		let t = url(path)
+let decode_url = function(url_) {
+	if (typeof url_ == 'string') {
+		let t = url(url)
 		if (params)
 			for (k in params)
 				if (params.hasOwnProperty(k))
@@ -90,41 +90,41 @@ let decode_url = function(path, params) {
 
 // extract the action from a decoded url
 let url_action = function(t) {
-	if (t.path[0] == '' && t.path.length >= 2)
-		return action_name(t.path[1])
+	if (t.segments[0] == '' && t.segments.length >= 2)
+		return action_name(t.segments[1])
 }
 
 // given an url (in encoded or decoded form), if it's an action url,
 // replace its action name with a language-specific alias for a given
 // (or current) language if any, or add ?lang= if the given language
 // is not the default language.
-function lang_url(path, params, target_lang) {
-	let t = decode_url(path, params)
+function lang_url(url_s, target_lang) {
+	let t = url(url_s)
 	let default_lang = config('lang')
 	target_lang = target_lang || t.params.lang || lang()
 	let action = url_action(t)
 	if (action === undefined)
 		return url(t)
-	let is_root = t.path[1] == ''
+	let is_root = t.segments[1] == ''
 	if (is_root)
 		action = action_name(config('root_action'))
 	let at = config('aliases').to_lang[action]
 	let lang_action = at && at[target_lang]
 	if (lang_action) {
 		if (!(is_root && target_lang == default_lang))
-			t.path[1] = lang_action
+			t.segments[1] = lang_action
 	} else if (target_lang != default_lang) {
 		t.params.lang = target_lang
 	}
-	t.path[1] = action_urlname(t.path[1])
+	t.segments[1] = action_urlname(t.segments[1])
 	return url(t)
 }
 
 action = {} // {name->handler}
 
-// given a path (in encoded form), find its action and return the handler.
-let action_handler = function(path) {
-	let t = url(path)
+// given a url (in encoded form), find its action and return the handler.
+let action_handler = function(url_s) {
+	let t = url(url_s)
 	let act = url_action(t)
 	if (act === undefined)
 		return
@@ -151,11 +151,11 @@ let action_handler = function(path) {
 	}
 	if (!handler)
 		return
-	let args = t.path
+	let args = t.segments
 	args.shift() // remove /
 	args.shift() // remove act
 	return function() {
-		handler.apply(null, args)
+		handler.call(null, args, t.params)
 	}
 }
 
@@ -172,7 +172,7 @@ let url_changed = function() {
 	if (ignore_url_changed)
 		return
 	document.fire('url_changed')
-	let handler = action_handler(location.pathname)
+	let handler = action_handler(location.pathname + location.search)
 	if (handler)
 		handler()
 	else
@@ -207,11 +207,11 @@ let check_exec = function() {
 	return !exec_aborted
 }
 
-function exec(path, params) {
+function exec(url) {
 	if (!check_exec())
 		return
 	_save_scroll_state(window.scrollY)
-	history.pushState(null, null, lang_url(path, params))
+	history.pushState(null, null, lang_url(url))
 	window.fire('popstate')
 }
 
@@ -234,15 +234,15 @@ function setscroll(top) {
 	window.scrollY = top
 }
 
-method(Element, 'setlink', function(path, params) {
+method(Element, 'setlink', function(url) {
 	if (this._hooked)
 		return
 	if (this.attr('target'))
 		return
-	path = path || this.attr('href')
-	if (!path)
+	url = url || this.attr('href')
+	if (!url)
 		return
-	let url = lang_url(path, params)
+	url = lang_url(url)
 	this.attr('href', url)
 	let handler = action_handler(url)
 	if (!handler)
@@ -252,7 +252,7 @@ method(Element, 'setlink', function(path, params) {
 		if (event.shiftKey || event.ctrlKey)
 			return
 		event.preventDefault()
-		exec(path, params)
+		exec(url)
 	})
 	this._hooked = true
 	return this
@@ -266,7 +266,7 @@ method(Element, 'setlinks', function(selector) {
 function settitle(title) {
 	title = title
 		|| $('h1').html()
-		|| url(location.pathname).path[1].replace(/[-_]/g, ' ')
+		|| url(location.pathname).segments[1].replace(/[-_]/g, ' ')
 	if (title)
 		document.title = title + config('page_title_suffix')
 }
@@ -308,15 +308,15 @@ function render(template_name, data) {
 	return render_string(s, data)
 }
 
-method(Element, 'render_string', function(s, data) {
+method(Element, 'render_string', function(s, data, ev) {
 	this.fire('clear')
 	this.html = render_string(s, data)
-	this.fire('render', data)
+	this.fire('render', data, ev)
 })
 
-method(Element, 'render', function(data) {
+method(Element, 'render', function(data, ev) {
 	let s = this.template_string || template(this.template)
-	this.render_string(s, data)
+	this.render_string(s, data, ev)
 })
 
 // init ----------------------------------------------------------------------

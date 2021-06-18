@@ -15,7 +15,7 @@ ACTIONS
 	action(name, args...) -> t|f          execute action as http response
 	exec(name, args...) -> ret...|true    execute action internally
 
-	function action.NAME(args...) end     set an inline action handler
+	function action.NAME(args) end        set an inline action handler
 
 CONFIG
 
