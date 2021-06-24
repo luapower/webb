@@ -1118,7 +1118,7 @@ end
 function request(arg1, ...)
 	local pp = require'pp'
 	local function main()
-		check(action(args()))
+		check(action(unpack(args())))
 	end
 	with_config({main_module = main}, function(...)
 		local host = 'localhost' --TODO
