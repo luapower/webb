@@ -38,9 +38,9 @@ require'webb'
 
 function lang(s)
 	if s then
-		cx.lang = s
+		cx().lang = s
 	else
-		return cx.lang or args'lang' or config('lang', 'en')
+		return cx().lang or args'lang' or config('lang', 'en')
 	end
 end
 

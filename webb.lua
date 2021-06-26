@@ -17,10 +17,12 @@ CONFIG API
 	config{name->val}                       set multiple config values
 	S(name[, default_val])                  get/set internationalized string
 
-ENVIRONMENT
+REQUEST CONTEXT
 
 	once(f, ...)                            memoize for current request
+	cx() -> t                               per-request shared context
 	env([t]) -> t                           per-request shared environment
+	on_cleanup(f)                           add a request finalizer
 
 LOGGING
 
@@ -137,6 +139,7 @@ MAIL SENDING
 HTTP SERVER INTEGRATION
 
 	webb_respond(req)                       http_server response handler
+	webb_cleanup()
 	http_server([opt]) -> server
 
 STANDALONE OPERATION
@@ -192,8 +195,9 @@ function sock.save_thread_context(thread)
 end
 function sock.restore_thread_context(thread)
 	cx = thread_cx[thread]
-	_G.cx = cx
 end
+
+function _G.cx() return cx end
 
 --config function ------------------------------------------------------------
 
@@ -1100,7 +1104,6 @@ end
 
 function webb_respond(req, thread)
 	cx = {req = req, res = {headers = {}}}
-	_G.cx = cx
 	thread_cx[thread] = cx
 	log(req.method, '%s', req.uri)
 	local main = assert(config'main_module')
@@ -1108,9 +1111,24 @@ function webb_respond(req, thread)
 	if type(main) == 'table' then
 		main = main.respond
 	end
+	on_cleanup(function()
+		cx = nil
+		thread_cx[thread] = nil
+	end)
 	main()
-	cx = nil
-	thread_cx[thread] = nil
+end
+
+do
+function webb_cleanup()
+	if cx.cleanup then
+		for _,f in ipairs(cx.cleanup) do
+			f()
+		end
+	end
+end
+function on_cleanup(f)
+	add(attr(cx, 'cleanup'), f)
+end
 end
 
 --standalone operation -------------------------------------------------------
@@ -1180,5 +1198,6 @@ function http_server(opt)
 			tracebacks = true,
 		},
 		respond = webb_respond,
+		cleanup = webb_cleanup,
 	}, opt))
 end

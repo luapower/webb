@@ -78,23 +78,35 @@ local function pconfig(ns, k, default)
 	end
 end
 
-local dbs = {} --connected db objects
+local free_dbs = {} --{db->true}
 
 local function connect(ns)
 	ns = ns or false
-	local db = dbs[ns]
+	local cx = cx()
+	local db = cx.db
 	if not db then
-		db = assert(mysql:new())
-		local t = {
-			host     = pconfig(ns, 'db_host', '127.0.0.1'),
-			port     = pconfig(ns, 'db_port', 3306),
-			database = pconfig(ns, 'db_name'),
-			user     = pconfig(ns, 'db_user', 'root'),
-			password = pconfig(ns, 'db_pass'),
-		}
-		log('CONNECT', '%s:%s user=%s db=%s', t.host, t.port, t.user, t.database)
-		assert_db(db:connect(t))
-		dbs[ns] = db
+		local dbs = free_dbs[ns]
+		db = dbs and next(dbs)
+		if not db then
+			db = assert(mysql:new())
+			cx.db = db
+			local t = {
+				host     = pconfig(ns, 'db_host', '127.0.0.1'),
+				port     = pconfig(ns, 'db_port', 3306),
+				database = pconfig(ns, 'db_name'),
+				user     = pconfig(ns, 'db_user', 'root'),
+				password = pconfig(ns, 'db_pass'),
+			}
+			log('CONNECT', '%s:%s user=%s db=%s', t.host, t.port, t.user, t.database)
+			assert_db(db:connect(t))
+		else
+			cx.db = db
+			dbs[db] = nil
+		end
+		on_cleanup(function()
+			cx.db = nil
+			attr(free_dbs, ns)[db] = true
+		end)
 	end
 	return db
 end
@@ -125,7 +137,7 @@ local function run_query_on(ns, compact, sql, ...)
 	local sql, params = spp.query(sql, t)
 	local qtrace
 	if trace_queries() then
-		qtrace = trace('QUERY', glue.outdent(sql))
+		qtrace = trace('QUERY', '\n%s', glue.outdent(sql))
 	end
 	assert_db(db:send_query(sql))
 	local t, err, cols = assert_db(db:read_result(nil, compact and 'compact'))
@@ -139,7 +151,7 @@ local function run_query_on(ns, compact, sql, ...)
 		until not err
 	end
 	if qtrace then
-		qtrace('QUERY', #t > 0 and 'rows: '..#t or pp.format(t))
+		qtrace('QUERY', '%s', #t > 0 and 'rows: '..#t or pp.format(t))
 	end
 	return t, cols, params
 end
@@ -235,7 +247,7 @@ end
 
 --ddl ------------------------------------------------------------------------
 
-local function allow_drop(on)
+function allow_drop(on)
 	if on ~= nil then
 		spp.allow_drop = on
 	else
@@ -243,10 +255,16 @@ local function allow_drop(on)
 	end
 end
 
-create_database = spp.create_database
-fk = spp.fk
-drop_table = spp.drop_table
-drop_fk = spp.drop_fk
+local function with_query(f)
+	return function(...)
+		spp.run_query = query
+		return f(...)
+	end
+end
+create_database = with_query(spp.create_database)
+fk = with_query(spp.fk)
+drop_table = with_query(spp.drop_table)
+drop_fk = with_query(spp.drop_fk)
 
 --debugging ------------------------------------------------------------------
 
