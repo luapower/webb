@@ -82,10 +82,20 @@ RESPONSE
 	allow(ret[, err...]) -> ret             exit with "403 forbidden"
 	check_etag(s)                           exit with "304 not modified"
 
-SCHEDULER
+SOCKETS
 
 	sleep(n)                                sleep n seconds
 	connect(ip, port) -> sock               connect to a server
+	resolve(host) -> ip                     DNS-resolve a host name
+	newthread(f) -> thread                  create thread
+	thread(f, ...) -> thread                create and run thread
+	resume(thread, ...) -> ...              resume thread
+	suspend(thread) -> ...                  suspend thread
+	srun(f)                                 run function in thread
+
+HTTP REQUESTS
+
+	getpage(url,post_data | opt) -> req     make a HTTP request
 
 JSON ENCODING/DECODING
 
@@ -588,6 +598,70 @@ function connect(host, port)
 	local ok, err = skt:connect(host, port)
 	if not ok then return nil, err end
 	return skt
+end
+
+--dns resolver ---------------------------------------------------------------
+
+local resolver
+function resolve_host(host)
+	resolver = resolver or require'resolver'.new{
+		servers = config('ns', {
+			'1.1.1.1', --cloudflare
+			'8.8.8.8', --google
+		}),
+	}
+	local addrs, err = resolver:lookup(host)
+	return addrs and addrs[1], err
+end
+
+--http requests --------------------------------------------------------------
+
+local getpage_client
+
+function getpage(arg1, post_data)
+	local opt = type(arg1) == 'table' and arg1
+
+	if not getpage_client then
+
+		local http_client = require'http_client'
+
+		getpage_client = http_client:new(update({
+			libs = 'sock sock_libtls zlib',
+			resolve = function(_, host) return resolve_host(host) end,
+		}, opt))
+
+	end
+
+	local headers = {}
+	if type(post_data) == 'table' then
+		post_data = json(post_data)
+		headers.content_type = mime_types.json
+	end
+
+	local u = type(arg1) == 'string' and url(arg1) or arg1.url and opt(arg1.url)
+
+	local res, req, err_class = getpage_client:request(update({
+		host = u and u.host,
+		uri = u and u.path,
+		https = (u and u.scheme and u.scheme or scheme()) == 'https',
+		method = post_data and 'POST',
+		headers = headers,
+		content = post_data,
+		receive_content = 'string',
+		debug = {protocol = true, stream = false},
+		--close = true,
+	}, opt))
+
+	if not res then
+		return nil, req, err_class
+	end
+
+	local s = res.content
+	local ct = res.headers['content-type']
+	if ct and ct.media_type == mime_types.json then
+		s = json(s)
+	end
+	return s
 end
 
 --html encoding --------------------------------------------------------------

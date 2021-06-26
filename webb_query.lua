@@ -5,10 +5,12 @@
 
 PREPROCESSOR
 
-	sqlval(s) -> s                            quote string to mysql literal
-	sqlname(s) -> s                           quote string to mysql identifier
+	sqlval(s) -> s                            quote string to SQL literal
+	sqlname(s) -> s                           quote string to SQL identifier
 	sqlparams(s, t) -> s                      quote query with ? and :name placeholders.
+	sqlrows(rows[, opt]) -> s                 quote rows to SQL insert values list
 	sql_default                               placeholder for default value
+	sqlunquoted(s) -> f() -> s                generate an unquoted value to use in sqlrows()
 	qsubst(typedef)                           create a substitution definition
 	qmacro.<name> = f(args...)                create a macro definition
 
@@ -51,10 +53,15 @@ spp.require'mysql'
 spp.keywords[null] = 'null'
 sql_default = spp.keyword.default
 sqlval = spp.value
+sqlrows = spp.rows
 sqlname = spp.name
 sqlparams = spp.params
 qsubst = spp.subst
 qmacro = spp.macro
+
+function sqlunquoted(s)
+	return function() return s end
+end
 
 --db connection --------------------------------------------------------------
 
