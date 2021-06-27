@@ -184,7 +184,7 @@ function pquery1_on   (ns, ...) return run_query1_on(ns , true  , ...) end
 function iquery_on    (ns, ...) return run_iquery_on(ns , false , ...) end
 function piquery_on   (ns, ...) return run_iquery_on(ns , true  , ...) end
 function query        (...)     return query_on     (nil, ...) end
-function pquery       (...)     return puery_on     (nil, ...) end
+function pquery       (...)     return pquery_on    (nil, ...) end
 function kv_query     (...)     return kv_query_on  (nil, ...) end
 function pkv_query    (...)     return pkv_query_on (nil, ...) end
 function query1       (...)     return query1_on    (nil, ...) end
