@@ -13,6 +13,7 @@ ACTION ALIASES
 ACTIONS
 
 	action(name, args...) -> t|f          execute action as http response
+	fileaction(path) -> t|f               serve a plain file
 	exec(name, args...) -> ret...|true    execute action internally
 
 	function action.NAME(args) end        set an inline action handler
@@ -163,17 +164,12 @@ end
 local ffi = require'ffi'
 local fs = require'fs'
 
-local function plain_file_handler(file)
+local function plain_file_handler(path)
 
-	if wwwfile[file] then
-		return wwwfile(file)
-	end
-
-	local path = wwwpath(file)
-	if not path then
+	local f = fs.open(path, 'r')
+	if not f then
 		return
 	end
-	local f = assert(fs.open(path, 'r'))
 
 	local mtime, err = f:attr'mtime'
 	if not mtime then
@@ -265,7 +261,7 @@ local actions = {} --{action -> handler | s}
 
 local function action_handler(action, ...)
 
-	local action_ext = action:match'%.([^%.]+)$'
+	local action_ext = fileext(action)
 	local action_no_ext
 	local action_with_ext = action
 	if not action_ext then --add the default .html extension to the action
@@ -283,9 +279,15 @@ local function action_handler(action, ...)
 
 	if not handler then --look in the filesystem
 		local file = table.concat({action, ...}, '/')
-		local file_ext = file:match'%.([^%.]+)$'
+		file_ext = fileext(file)
 		local plain_file_allowed = not (file_ext and file_handlers[file_ext])
-		handler = plain_file_allowed and plain_file_handler(file)
+		if plain_file_allowed then
+			handler = wwwfile[file] and wwwfile(file)
+			if not handler then
+				local path = wwwpath(file)
+				handler = path and assert(plain_file_handler(path))
+			end
+		end
 		if handler then
 			ext = file_ext
 		end
@@ -334,8 +336,7 @@ function exec(action, ...)
 	return pass(handler(...))
 end
 
-local function action_call(fallback, action, ...)
-	local handler, ext = action_handler(action, ...)
+local function run_action(fallback, action, handler, ext, ...)
 	local mime = mime_types[ext]
 	if not handler then
 		if not fallback then
@@ -351,7 +352,8 @@ local function action_call(fallback, action, ...)
 			log('NOT FOUND', '%s', table.concat({action, ...}, '/'))
 			return false
 		end
-		return action_call(false, nf_action, action, ...)
+		local handler, ext = action_handler(nf_action, ...)
+		return run_action(false, nf_action, handler, ext, action, ...)
 	end
 	setmime(ext)
 	local filter = mime_type_filters[mime]
@@ -362,8 +364,16 @@ local function action_call(fallback, action, ...)
 	end
 	return true
 end
-setmetatable(actions, {__call = function(self, ...)
-	return action_call(true, find_action(...))
+
+setmetatable(actions, {__call = function(self, action, ...)
+	local handler, ext = action_handler(action, ...)
+	return run_action(true, action, handler, ext, ...)
 end})
 action = actions
+
+function fileaction(path)
+	local ext = fileext(path)
+	local handler = plain_file_handler(path)
+	return run_action(true, path, handler, ext)
+end
 

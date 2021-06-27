@@ -37,7 +37,6 @@ DDL
 
 DEBUGGING
 
-	trace_queries(t|f) -> s                   start/stop tracing of SQL statements
 	prq(rows, cols)                           pretty-print query result
 
 ]==]
@@ -138,14 +137,11 @@ local function process_result(t, cols, compact)
 	return t
 end
 
-local function run_query_on(ns, compact, sql, ...)
+local function run_query_on(ns, compact, traceq, sql, ...)
 	local db = connect(ns)
 	local t = type((...)) ~= 'table' and {...} or ...
 	local sql, params = spp.query(sql, t)
-	local qtrace
-	if trace_queries() then
-		qtrace = trace('QUERY', '\n%s', glue.outdent(sql))
-	end
+	local qtrace = traceq and trace('QUERY', '\n%s', glue.outdent(sql))
 	assert_db(db:send_query(sql))
 	local t, err, cols = assert_db(db:read_result(nil, compact and 'compact'))
 	t = process_result(t, cols, compact)
@@ -163,24 +159,8 @@ local function run_query_on(ns, compact, sql, ...)
 	return t, cols, params
 end
 
-function query_on(ns, ...) --execute, iterate rows, close
-	return run_query_on(ns, true, ...)
-end
-
-function kv_query_on(ns, ...) --execute, iterate rows, close
-	return run_query_on(ns, false, ...)
-end
-
-function query(...)
-	return query_on(nil, ...)
-end
-
-function kv_query(...)
-	return kv_query_on(nil, ...)
-end
-
-function query1_on(ns, ...) --query first row (or first row/column) and close
-	local rows, cols, params = kv_query_on(ns, ...)
+local function run_query1_on(ns, traceq, ...) --query first row (or first row/column) and close
+	local rows, cols, params = run_query_on(ns, false, traceq, ...)
 	local row = rows[1]
 	if not row then return end
 	if #cols == 1 then
@@ -189,19 +169,27 @@ function query1_on(ns, ...) --query first row (or first row/column) and close
 	return row, params --first row
 end
 
-function query1(...)
-	return query1_on(nil, ...)
-end
-
-function iquery_on(ns, ...) --insert query: return the value of the auto_increment field.
-	local t, cols, params = run_query_on(ns, true, ...)
+local function run_iquery_on(ns, traceq, ...) --insert query: return the value of the auto_increment field.
+	local t, cols, params = run_query_on(ns, true, traceq, ...)
 	local id = t.insert_id
 	return id ~= 0 and id or nil, params
 end
 
-function iquery(...)
-	return iquery_on(nil, ...)
-end
+function query_on     (ns, ...) return run_query_on (ns , true,  false, ...) end
+function pquery_on    (ns, ...) return run_query_on (ns , true,  true , ...) end
+function kv_query_on  (ns, ...) return run_query_on (ns , false, false, ...) end
+function pkv_query_on (ns, ...) return run_query_on (ns , false, true , ...) end
+function query1_on    (ns, ...) return run_query1_on(ns , false , ...) end
+function pquery1_on   (ns, ...) return run_query1_on(ns , true  , ...) end
+function iquery_on    (ns, ...) return run_iquery_on(ns , false , ...) end
+function piquery_on   (ns, ...) return run_iquery_on(ns , true  , ...) end
+function query        (...)     return query_on     (nil, ...) end
+function pquery       (...)     return puery_on     (nil, ...) end
+function kv_query     (...)     return kv_query_on  (nil, ...) end
+function pkv_query    (...)     return pkv_query_on (nil, ...) end
+function query1       (...)     return query1_on    (nil, ...) end
+function iquery       (...)     return iquery_on    (nil, ...) end
+function piquery      (...)     return piquery_on   (nil, ...) end
 
 function atomic(func)
 	query'start transaction'
@@ -209,22 +197,6 @@ function atomic(func)
 	query(ok and 'commit' or 'rollback')
 	assert(ok, err)
 end
-
-local function with_trace(f)
-	return function(...)
-		local tq = trace_queries()
-		trace_queries(true)
-		local function pass(...)
-			trace_queries(tq)
-			return ...
-		end
-		return pass(f(...))
-	end
-end
-pquery    = with_trace(query)
-pkv_query = with_trace(kv_query)
-pquery1   = with_trace(query1)
-piquery   = with_trace(iquery)
 
 --result processing ----------------------------------------------------------
 
@@ -274,15 +246,6 @@ drop_table = with_query(spp.drop_table)
 drop_fk = with_query(spp.drop_fk)
 
 --debugging ------------------------------------------------------------------
-
-local _trace_queries
-function trace_queries(on)
-	if on ~= nil then
-		_trace_queries = on
-	else
-		return _trace_queries or false
-	end
-end
 
 function prq(rows, cols)
 	return mysql_print.result(rows, cols)

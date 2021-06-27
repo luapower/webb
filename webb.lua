@@ -92,6 +92,7 @@ SOCKETS
 	resume(thread, ...) -> ...              resume thread
 	suspend(thread) -> ...                  suspend thread
 	srun(f)                                 run function in thread
+	resolve(host) -> ip4                    resolve a hostname
 
 HTTP REQUESTS
 
@@ -112,6 +113,13 @@ FILESYSTEM
 	outwwwfile(file)                        buffered out(readfile(file))
 	varpath(file) -> path                   get var subpath (no check that it exists)
 	varpath.filename <- s|f(filename)       set virtual file contents
+
+	fileext(s) -> s                         get file extension (in lowercase)
+	mkdirs(file) -> file | nil              make dirs for file path
+	fileexists(file, [type]) -> file | nil  check if file exists
+	filemtime(file) -> mtime                get file mtime
+	filename(filepath) -> file              get file name from full path
+	filedir(filepath) -> dir                get dir name from full path
 
 MUSTACHE TEMPLATES
 
@@ -146,6 +154,10 @@ MAIL SENDING
 
 	sendmail(from, rcpt, subj, msg, html)   send email
 
+IMAGE PROCESSING
+
+	resize_image(src_path, dst_path, max_w, max_h)
+
 HTTP SERVER INTEGRATION
 
 	webb_respond(req)                       http_server response handler
@@ -172,10 +184,14 @@ an inherited environment is created.
 ]==]
 
 glue = require'glue'
+pp = require'pp'
 local uri = require'uri'
 local errors = require'errors'
-local http = require'http'
 local sock = require'sock'
+local cjson = require'cjson'
+local fs = require'fs'
+local path = require'path'
+local mustache = require'mustache'
 
 local concat = table.concat
 local remove = table.remove
@@ -577,14 +593,10 @@ end
 
 --print functions for debugging with no output buffering and flushing.
 
-pp = require'pp'
-
 outprint = print_wrapper(glue.printer(tostring))
 outpp    = print_wrapper(glue.printer(pp))
 
 --sockets --------------------------------------------------------------------
-
-local sock = require'sock'
 
 newthread = sock.newthread
 resume = sock.resume
@@ -603,7 +615,7 @@ end
 --dns resolver ---------------------------------------------------------------
 
 local resolver
-function resolve_host(host)
+function resolve(host)
 	resolver = resolver or require'resolver'.new{
 		servers = config('ns', {
 			'1.1.1.1', --cloudflare
@@ -627,7 +639,7 @@ function getpage(arg1, post_data)
 
 		getpage_client = http_client:new(update({
 			libs = 'sock sock_libtls zlib',
-			resolve = function(_, host) return resolve_host(host) end,
+			resolve = function(_, host) return resolve(host) end,
 		}, opt))
 
 	end
@@ -788,7 +800,6 @@ end
 
 --json API -------------------------------------------------------------------
 
-local cjson = require'cjson'
 cjson.encode_sparse_array(false, 0, 0) --encode all sparse arrays
 
 null = cjson.null
@@ -812,14 +823,17 @@ end
 
 --filesystem API -------------------------------------------------------------
 
-local fs = require'fs'
-local path = require'path'
+function fileext(s)
+	return path.ext(s)
+end
 
 function wwwpath(file, type)
 	assert(file)
 	if file:find('..', 1, true) then return end --TODO: use path module for this
+	--look into www_dir
 	local abs_path = assert(path.combine(config'www_dir', file))
 	if fs.is(abs_path, type) then return abs_path end
+	--look into luapower dir
 	local abs_path = assert(path.combine('.', file))
 	if fs.is(abs_path, type) then return abs_path end
 	return nil, file..' not found'
@@ -878,13 +892,35 @@ function outwwwfile(file)
 	out(wwwfile(file)) --TODO: make it buffered
 end
 
+function mkdirs(file)
+	local dir = assert(path.dir(file))
+	if path.dir(dir) then --because mkdir'c:/' gives access denied.
+		assert(fs.mkdir(dir, true))
+	end
+	return file
+end
+
+function fileexists(file, type)
+	return fs.is(file, type)
+end
+
+function filemtime(file, type)
+	return fs.attr(file, 'mtime')
+end
+
+function filename(file)
+	return path.file(file)
+end
+
+function filedir(file)
+	return path.dir(file)
+end
+
 --mustache html templates ----------------------------------------------------
 
 local function underscores(name)
 	return name:gsub('-', '_')
 end
-
-local mustache = require'mustache'
 
 function render_string(s, data, partials)
 	return (mustache.render(s, data, partials))
@@ -1174,6 +1210,84 @@ function sendmail(from, rcpt, subj, msg, html)
 	}
 end
 
+--image processing -----------------------------------------------------------
+
+function resize_image(src_path, dst_path, max_w, max_h)
+
+	local cairo = require'cairo'
+	local box2d = require'box2d'
+
+	glue.fcall(function(finally)
+
+		--decode.
+		local bmp
+		local src_ext = fileext(src_path)
+		if src_ext == 'jpg' or src_ext == 'jpeg' then
+			local libjpeg = require'libjpeg'
+			local f = assert(fs.open(src_path, 'r'), 'not_found')
+			finally(function() f:close() end)
+			local read = f:buffered_read()
+			local img = assert(libjpeg.open{read = read})
+			finally(function() img:free() end)
+			local w, h = box2d.fit(img.w, img.h, max_w, max_h)
+			local sn = math.ceil(glue.clamp(math.max(w / img.w, h / img.h) * 8, 1, 8))
+			bmp = assert(img:load{
+				accept = {bgra8 = true},
+				scale_num = sn,
+				scale_denom = 8,
+			})
+		else
+			assert(false)
+		end
+
+		--scale down, if necessary.
+		local w, h = box2d.fit(bmp.w, bmp.h, max_w, max_h)
+		if w < bmp.w or h < bmp.h then
+			local src_sr = cairo.image_surface(bmp)
+			local dst_sr = cairo.image_surface('bgra8', w, h)
+			local cr = dst_sr:context()
+			local sx = w / bmp.w
+			local sy = h / bmp.h
+			cr:scale(sx, sy)
+			cr:source(src_sr)
+			cr:paint()
+			cr:free()
+			src_sr:free()
+			bmp = dst_sr:bitmap()
+			finally(function() dst_sr:free() end)
+		end
+
+		--encode back.
+		local dst_ext = fileext(dst_path)
+		if dst_ext == 'jpg' or dst_ext == 'jpeg' then
+			local libjpeg = require'libjpeg'
+			local tmp_path = dst_path..'.tmp'
+			mkdirs(tmp_path)
+			local f = assert(fs.open(tmp_path, 'w'))
+			finally(function() if f then f:close() end end)
+			local function write(buf, len)
+				assert(f:write(buf, len) == len)
+			end
+			assert(libjpeg.save{
+				bitmap = bmp,
+				write = write,
+				quality = 90,
+			})
+			f:close()
+			f = nil
+			local ok, err = glue.replacefile(tmp_path, dst_path)
+			if not ok then
+				os.remove(tmp_path)
+				assertf(false, 'glue.replacefile(%s, %s): %s', tmp_path, dst_path, err)
+			end
+		else
+			assert(false)
+		end
+
+	end)
+
+end
+
 --http_server respond function -----------------------------------------------
 
 function webb_respond(req, thread)
@@ -1208,7 +1322,6 @@ end
 --standalone operation -------------------------------------------------------
 
 function request(arg1, ...)
-	local pp = require'pp'
 	local function main()
 		check(action(unpack(args())))
 	end
