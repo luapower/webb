@@ -6,6 +6,7 @@
 ACTION ALIASES
 
 	lang([s]) -> s                        get/set current language
+	default_lang() -> s                   get default language
 	alias(name_en, name, lang)            set an action alias for a language
 	lang_url(s[, target_lang]) -> s       translate URL based on alias
 	setlinks(s) -> s                      html filter to translate URLs
@@ -37,12 +38,12 @@ require'webb'
 
 --multi-language actions & links ---------------------------------------------
 
+function default_lang()
+	return config('lang', 'en')
+end
+
 function lang(s)
-	if s then
-		cx().lang = s
-	else
-		return cx().lang or args'lang' or config('lang', 'en')
-	end
+	return args'lang' or default_lang()
 end
 
 --[[
@@ -366,7 +367,7 @@ local function run_action(fallback, action, handler, ext, ...)
 end
 
 setmetatable(actions, {__call = function(self, action, ...)
-	local handler, ext = action_handler(action, ...)
+	local handler, ext = action_handler(find_action(action, ...))
 	return run_action(true, action, handler, ext, ...)
 end})
 action = actions

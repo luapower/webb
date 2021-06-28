@@ -16,11 +16,11 @@ PREPROCESSOR
 
 EXECUTION
 
-	[p]query[_on]([ns,]s, args...) -> res     query and return result table (compact)
-	[p]kv_query[_on]([ns,]s, args...) -> res  query and return result table (key-val)
-	[p]query1[_on]([ns,]s, args...) -> t      query and return first row
-	[p]iquery[_on]([ns,]s, args...) -> id     query and return insert id
-	atomic(func)                              execute func in transaction
+	[p]query[_on]([ns,][opt,]sql, args...) -> res     query and return result table (compact)
+	[p]kv_query[_on]([ns,][opt,]sql, args...) -> res  query and return result table (key-val)
+	[p]query1[_on]([ns,][opt,]sql, args...) -> t      query and return first row
+	[p]iquery[_on]([ns,][opt,]sql, args...) -> id     query and return insert id
+	atomic(func)                                      execute func in transaction
 
 RESULT PROCESSING
 
@@ -29,11 +29,15 @@ RESULT PROCESSING
 
 DDL
 
-	create_database(name)                     create a database
-	fk(tbl, col, ...)                         create a foreign key
 	allow_drop([t|f]) -> t|f                  control dropping of tables and fks
-	drop_fk(name)                             drop foreign key
+	create_database(name)                     create a database
 	drop_table(name)                          drop table
+	create_fk(tbl, col, ...)                  create a foreign key
+	create_uk(tbl, col)                       create a unique key
+	create_ix(tbl, col)                       create an index
+	drop_fk(tbl, col)                         drop foreign key
+	drop_uk(tbl, col)                         drop unique key
+	drop_ix(tbl, col)                         drop index
 
 DEBUGGING
 
@@ -137,30 +141,50 @@ local function process_result(t, cols, compact)
 	return t
 end
 
-local function run_query_on(ns, compact, traceq, sql, ...)
+local function run_query(compact, traceq, ns, opt, sql, ...)
+	local t = ...
+	if type(opt) == 'string' then --sql, ...
+		sql, t = opt, sql
+		opt = nil
+		if type(t) ~= 'table' then
+			t = {t, ...}
+		end
+	else --opt, sql, ...
+		if type(t) ~= 'table' then
+			t = {...}
+		end
+	end
 	local db = connect(ns)
-	local t = type((...)) ~= 'table' and {...} or ...
-	local sql, params = spp.query(sql, t)
-	local qtrace = traceq and trace('QUERY', '\n%s', glue.outdent(sql))
-	assert_db(db:send_query(sql))
-	local t, err, cols = assert_db(db:read_result(nil, compact and 'compact'))
-	t = process_result(t, cols, compact)
-	if err == 'again' then --multi-result/multi-statement query
-		t = {t}
-		repeat
-			local t1, err = assert_db(db:read_result())
-			t1 = process_result(t1, cols, compact)
-			t[#t+1] = t1
-		until not err
+	local sqls, params = spp.queries(sql, t)
+	local t, cols, params, ts
+	for sql_i, sql in ipairs(sqls) do
+		ts = ts or (sql_i > 1 and {{t, cols, params}})
+		local qtrace = traceq and trace('QUERY', '\n%s', glue.outdent(sql))
+		assert_db(db:send_query(sql))
+		t, err, cols = assert_db(db:read_result(nil, compact and 'compact'))
+		t = process_result(t, cols, compact)
+		if err == 'again' then --multi-result/multi-statement query
+			t = {t}
+			repeat
+				local t1, err = assert_db(db:read_result())
+				t1 = process_result(t1, cols, compact)
+				t[#t+1] = t1
+			until not err
+		end
+		if qtrace then
+			qtrace('QUERY', '%s', #t > 0 and 'rows: '..#t or pp.format(t))
+		end
+		if ts then add(ts, {t, cols, params}) end
 	end
-	if qtrace then
-		qtrace('QUERY', '%s', #t > 0 and 'rows: '..#t or pp.format(t))
+	if ts then
+		return ts
+	else
+		return t, cols, params
 	end
-	return t, cols, params
 end
 
-local function run_query1_on(ns, traceq, ...) --query first row (or first row/column) and close
-	local rows, cols, params = run_query_on(ns, false, traceq, ...)
+local function run_query1(...) --query first row (or first row/column) and close
+	local rows, cols, params = run_query(...)
 	local row = rows[1]
 	if not row then return end
 	if #cols == 1 then
@@ -169,27 +193,28 @@ local function run_query1_on(ns, traceq, ...) --query first row (or first row/co
 	return row, params --first row
 end
 
-local function run_iquery_on(ns, traceq, ...) --insert query: return the value of the auto_increment field.
-	local t, cols, params = run_query_on(ns, true, traceq, ...)
+local function run_iquery(...) --insert query: return the value of the auto_increment field.
+	local t, cols, params = run_query(...)
 	local id = t.insert_id
 	return id ~= 0 and id or nil, params
 end
 
-function query_on     (ns, ...) return run_query_on (ns , true,  false, ...) end
-function pquery_on    (ns, ...) return run_query_on (ns , true,  true , ...) end
-function kv_query_on  (ns, ...) return run_query_on (ns , false, false, ...) end
-function pkv_query_on (ns, ...) return run_query_on (ns , false, true , ...) end
-function query1_on    (ns, ...) return run_query1_on(ns , false , ...) end
-function pquery1_on   (ns, ...) return run_query1_on(ns , true  , ...) end
-function iquery_on    (ns, ...) return run_iquery_on(ns , false , ...) end
-function piquery_on   (ns, ...) return run_iquery_on(ns , true  , ...) end
-function query        (...)     return query_on     (nil, ...) end
-function pquery       (...)     return pquery_on    (nil, ...) end
-function kv_query     (...)     return kv_query_on  (nil, ...) end
-function pkv_query    (...)     return pkv_query_on (nil, ...) end
-function query1       (...)     return query1_on    (nil, ...) end
-function iquery       (...)     return iquery_on    (nil, ...) end
-function piquery      (...)     return piquery_on   (nil, ...) end
+function query_on     (...) return run_query  (true , false, ...) end
+function pquery_on    (...) return run_query  (true , true , ...) end
+function kv_query_on  (...) return run_query  (false, false, ...) end
+function pkv_query_on (...) return run_query  (false, true , ...) end
+function query1_on    (...) return run_query1 (false, false, ...) end
+function pquery1_on   (...) return run_query1 (false, true , ...) end
+function iquery_on    (...) return run_iquery (true , false, ...) end
+function piquery_on   (...) return run_iquery (true , true , ...) end
+function query        (...) return run_query  (true , false, nil, ...) end
+function pquery       (...) return run_query  (true , true , nil, ...) end
+function kv_query     (...) return run_query  (false, false, nil, ...) end
+function pkv_query    (...) return run_query  (false, true , nil, ...) end
+function query1       (...) return run_query1 (false, false, nil, ...) end
+function pquery1      (...) return run_query1 (false, true , nil, ...) end
+function iquery       (...) return run_iquery (true , false, nil, ...) end
+function piquery      (...) return run_iquery (true , true , nil, ...) end
 
 function atomic(func)
 	query'start transaction'
@@ -241,9 +266,13 @@ local function with_query(f)
 	end
 end
 create_database = with_query(spp.create_database)
-fk = with_query(spp.fk)
 drop_table = with_query(spp.drop_table)
+create_fk = with_query(spp.create_fk)
+create_uk = with_query(spp.create_uk)
+create_ix = with_query(spp.create_ix)
 drop_fk = with_query(spp.drop_fk)
+drop_uk = with_query(spp.drop_uk)
+drop_ix = with_query(spp.drop_ix)
 
 --debugging ------------------------------------------------------------------
 
