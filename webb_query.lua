@@ -25,19 +25,24 @@ EXECUTION
 RESULT PROCESSING
 
 	changed(res) -> t|f                       check if any rows were updated
-	groupby(res, col) -> t                    group rows by a column
+	groupby(col, res) -> t                    group rows by a column
 
 DDL
 
 	allow_drop([t|f]) -> t|f                  control dropping of tables and fks
 	create_database(name)                     create a database
 	drop_table(name)                          drop table
-	create_fk(tbl, col, ...)                  create a foreign key
-	create_uk(tbl, col)                       create a unique key
-	create_ix(tbl, col)                       create an index
+	drop_tables('T1 T2 ...')                  drop multiple tables
+	[re]add_fk(tbl, col, ...)                 (re)create a foreign key
+	[re]add_uk(tbl, col)                      (re)create a unique key
+	[re]add_ix(tbl, col)                      (re)create an index
+	[re]add_trigger(name, tbl, on, code)      (re)create a trigger
 	drop_fk(tbl, col)                         drop foreign key
 	drop_uk(tbl, col)                         drop unique key
 	drop_ix(tbl, col)                         drop index
+	drop_trigger(name, tbl, on)               drop trigger
+	add_column(tbl, name, type, pos)          add column
+	rename_column(tbl, old_name, new_name)    rename column
 
 DEBUGGING
 
@@ -229,7 +234,7 @@ function changed(res)
 	return tonumber(res.message:match'Changed: (%d+)') > 0
 end
 
-function groupby(items, col)
+function groupby(col, items)
 	local t = {}
 	local v
 	local st
@@ -246,7 +251,7 @@ function groupby(items, col)
 		st[#st+1] = e
 		v = v1
 	end
-	return ipairs(t)
+	return t
 end
 
 --ddl ------------------------------------------------------------------------
@@ -259,20 +264,7 @@ function allow_drop(on)
 	end
 end
 
-local function with_query(f)
-	return function(...)
-		spp.run_query = query
-		return f(...)
-	end
-end
-create_database = with_query(spp.create_database)
-drop_table = with_query(spp.drop_table)
-create_fk = with_query(spp.create_fk)
-create_uk = with_query(spp.create_uk)
-create_ix = with_query(spp.create_ix)
-drop_fk = with_query(spp.drop_fk)
-drop_uk = with_query(spp.drop_uk)
-drop_ix = with_query(spp.drop_ix)
+update(_G, spp.command_api(pquery))
 
 --debugging ------------------------------------------------------------------
 
