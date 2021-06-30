@@ -37,6 +37,7 @@ DDL
 	[re]add_uk(tbl, col)                      (re)create a unique key
 	[re]add_ix(tbl, col)                      (re)create an index
 	[re]add_trigger(name, tbl, on, code)      (re)create a trigger
+	[re]add_column_locks(tbl, cols)           trigger to make columns read-only
 	drop_fk(tbl, col)                         drop foreign key
 	drop_uk(tbl, col)                         drop unique key
 	drop_ix(tbl, col)                         drop index
@@ -236,6 +237,7 @@ end
 
 function groupby(col, items)
 	local t = {}
+	if not col or not items then return t end
 	local v
 	local st
 	local group_func = col

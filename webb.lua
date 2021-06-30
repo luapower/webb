@@ -1382,7 +1382,7 @@ function http_server(opt)
 		debug = {
 			--protocol = true,
 			--stream = true,
-			tracebacks = true,
+			--tracebacks = true,
 		},
 		respond = webb_respond,
 		cleanup = webb_cleanup,
