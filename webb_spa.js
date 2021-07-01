@@ -155,7 +155,7 @@ let action_handler = function(url_s) {
 	args.shift() // remove /
 	args.shift() // remove act
 	return function() {
-		handler.call(null, args, t.params)
+		handler.call(null, args, t.params, t.hash)
 	}
 }
 
@@ -172,7 +172,7 @@ let url_changed = function() {
 	if (ignore_url_changed)
 		return
 	document.fire('url_changed')
-	let handler = action_handler(location.pathname + location.search)
+	let handler = action_handler(location.pathname + location.search + location.hash)
 	if (handler)
 		handler()
 	else

@@ -44,6 +44,7 @@ DDL
 	drop_trigger(name, tbl, on)               drop trigger
 	add_column(tbl, name, type, pos)          add column
 	rename_column(tbl, old_name, new_name)    rename column
+	drop_column(tbl, col)                     remove column
 
 DEBUGGING
 
