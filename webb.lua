@@ -157,6 +157,7 @@ MAIL SENDING
 IMAGE PROCESSING
 
 	resize_image(src_path, dst_path, max_w, max_h)
+	base64_image_src(s)
 
 HTTP SERVER INTEGRATION
 
@@ -189,6 +190,7 @@ local uri = require'uri'
 local errors = require'errors'
 local sock = require'sock'
 local cjson = require'cjson'
+local b64 = require'libb64'
 local fs = require'fs'
 local path = require'path'
 local mustache = require'mustache'
@@ -1299,6 +1301,10 @@ function resize_image(src_path, dst_path, max_w, max_h)
 
 	end)
 
+end
+
+function base64_image_src(s)
+	return 'data:image/png;base64, '..b64.encode(s)
 end
 
 --http_server respond function -----------------------------------------------

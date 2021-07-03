@@ -13,6 +13,7 @@ API
 
 	cssfile(file)                       add one or more css files to all.css
 	jsfile(file)                        add one or more js files to all.js
+	fontfile(file)                      add one or more font files to the preload list
 	css(s)                              add css code to inline.css
 	js(s)                               add js code to inline.js
 
@@ -52,6 +53,8 @@ LOADS
 
 require'webb'
 require'webb_action'
+
+local format = string.format
 
 --pass required config values to the client
 action['config.js'] = function()
@@ -112,6 +115,13 @@ wwwfile['all.js.cat'] = function()
 	return jsfile() .. ' inline.js' --append inline code at the end
 end
 
+local fontfiles = {}
+function fontfile(file)
+	for file in file:gmatch'[^%s]+' do
+		table.insert(fontfiles, file)
+	end
+end
+
 css = sepbuffer'\n'
 wwwfile['inline.css'] = function()
 	return css()
@@ -131,18 +141,19 @@ config.js   // dynamic config
 strings.js  // strings in current language
 ]]
 
---format js and css refs as separate refs or as a single ref based on a .cat action
+--format js and css refs as separate refs or as a single ref based on a .cat action.
+--NOTE: with `embed` mode, urls in css files must be absolute paths!
 
 local function jslist(cataction, mode)
 	if mode == 'bundle' then
-		out(string.format('	<script src="%s"></script>', lang_url('/'..cataction)))
+		out(format('	<script src="%s"></script>', lang_url('/'..cataction)))
 	elseif mode == 'embed' then
 		out'<script>'
 		outcatlist(cataction..'.cat')
 		out'</script>\n'
 	elseif mode == 'separate' then
 		for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
-			out(string.format('	<script src="%s"></script>\n', lang_url('/'..file)))
+			out(format('\t<script src="%s"></script>\n', lang_url('/'..file)))
 		end
 	else
 		assert(false)
@@ -151,17 +162,23 @@ end
 
 local function csslist(cataction, mode)
 	if mode == 'bundle' then
-		out(string.format('	<link rel="stylesheet" type="text/css" href="/%s">', cataction))
+		out(format('\t<link rel="stylesheet" type="text/css" href="/%s">', cataction))
 	elseif mode == 'embed' then
 		out'<style>'
 		outcatlist(cataction..'.cat')
 		out'</style>\n'
 	elseif mode == 'separate' then
 		for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
-			out(string.format('	<link rel="stylesheet" type="text/css" href="%s">\n', lang_url('/'..file)))
+			out(format('\t<link rel="stylesheet" type="text/css" href="%s">\n', lang_url('/'..file)))
 		end
 	else
 		assert(false)
+	end
+end
+
+local function preloadlist()
+	for i,file in ipairs(fontfiles) do
+		out(format('\t<link rel="preload" href="/%s" as="font" crossorigin>\n', file))
 	end
 end
 
@@ -173,8 +190,10 @@ local spa_template = [[
 <head>
 	<meta charset=utf-8>
 	<title>{{title}}{{title_suffix}}</title>
-{{{all_js}}}
+	{{#favicon}}<link rel="icon" href="/{{favicon}}">{{/favicon}}
+{{{preload}}}
 {{{all_css}}}
+{{{all_js}}}
 {{{head}}}
 	<script>
 		var client_action = {{client_action}}
@@ -202,9 +221,12 @@ function spa(p)
 	t.head = p.head
 	t.title = page_title(p.title, t.body)
 	t.title_suffix = config('page_title_suffix', ' - '..host())
+	t.favicon = p.favicon or config'favicon'
 	t.client_action = p.client_action or false
 	t.all_js  = record(jslist , 'all.js' , p.js_mode  or config('js_mode' , 'separate'))
 	t.all_css = record(csslist, 'all.css', p.css_mode or config('css_mode', 'separate'))
+	t.preload = record(preloadlist)
+
 	local buf = stringbuffer()
 	for _,name in ipairs(template()) do
 		buf(mustache_wrap(template(name), name))
