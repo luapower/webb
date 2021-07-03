@@ -309,7 +309,6 @@ function render(template_name, data) {
 }
 
 method(Element, 'render_string', function(s, data, ev) {
-	this.fire('clear')
 	this.html = render_string(s, data)
 	this.fire('render', data, ev)
 })
@@ -321,13 +320,13 @@ method(Element, 'render', function(data, ev) {
 
 // init ----------------------------------------------------------------------
 
-on_dom_load(function() {
+on_dom_load('url_changed', function() {
 	window.on('popstate', function(ev) {
 		loading = false
 		url_changed()
 	})
 	if (client_action) // set from server.
 		url_changed()
-}, 'url_changed')
+})
 
 } // module scope.

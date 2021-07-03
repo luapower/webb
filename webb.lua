@@ -574,6 +574,19 @@ mime_types = {
 	mp3  = 'audio/mpeg',
 }
 
+mime_types_compressed = glue.index{
+	'image/jpeg',
+	'image/png',
+	'font/woff',
+	'font/woff2',
+	'application/zip',
+	'application/x-gzip',
+	'application/x-gzip',
+	'application/x-xz',
+	'application/x-bz2',
+	'audio/mpeg',
+}
+
 function setmime(ext)
 	setheader('content-type', mime_types[ext])
 end
