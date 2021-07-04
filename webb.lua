@@ -1319,7 +1319,7 @@ function resize_image(src_path, dst_path, max_w, max_h)
 end
 
 function base64_image_src(s)
-	return 'data:image/png;base64, '..b64.encode(s)
+	return s and 'data:image/png;base64, '..b64.encode(s)
 end
 
 --http_server respond function -----------------------------------------------
