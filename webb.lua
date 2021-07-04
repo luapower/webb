@@ -35,6 +35,7 @@ REQUEST
 	cookie(name) -> s | nil                 get cookie value
 	method([method]) -> s|b                 get/check http method
 	post([name]) -> s | t | nil             get POST arg or all
+	upload(file) -> true | nil              upload POST data to a file
 	args([n|name]) -> s | t | nil           get path element or GET arg or all
 	scheme([s]) -> s | t|f                  get/check request scheme
 	host([s]) -> s | t|f                    get/check request host
@@ -383,8 +384,22 @@ function post(v)
 	if v then
 		return post[v]
 	else
-		return unpack(post)
+		return post
 	end
+end
+
+function upload(file)
+	return glue.fcall(function(finally)
+		local f = assert(fs.open(file..'.tmp', 'w'))
+		finally(function() f:close() end)
+		local function write(buf, sz)
+			assert(f:write(buf, sz))
+		end
+		cx.req:read_body(write)
+		assert(f:close())
+		assert(fs.move(file..'.tmp', file))
+		return file
+	end)
 end
 
 function scheme(s)
