@@ -42,6 +42,8 @@ REQUEST
 	port([p]) -> p | t|f                    get/check server port
 	email(user) -> s                        get email address of user
 	client_ip() -> s                        get client's ip address
+	googlebot() -> t|f                      check if UA is the google bot
+	mobile() -> t|F                         check if UA is a mobile browser
 
 ARG PARSING
 
@@ -50,6 +52,7 @@ ARG PARSING
 	enum_arg(s, values...) -> s | nil       validate enum arg
 	list_arg(s[, arg_f]) -> t               validate comma-separated list arg
 	checkbox_arg(s) -> 'checked' | nil      validate checkbox value from html form
+	url_arg(s) -> t                         decode url
 
 OUTPUT
 
@@ -69,10 +72,10 @@ HTML ENCODING
 
 	html(s) -> s                            escape html
 
-URL ENCODING & DECODING
+URL ENCODING
 
-	url([path], [params]) -> t | s          encode/decode/update url
-	absurl([path]) -> s                     get the absolute url for a path
+	url{...} -> t | s                       encode url
+	absurl([path]) -> s                     get the absolute url for a local url
 	slug(id, s) -> s                        encode id and s to `s-id`
 
 RESPONSE
@@ -101,8 +104,8 @@ HTTP REQUESTS
 
 JSON ENCODING/DECODING
 
-	json(s) -> t                            decode json
-	json(t) -> s                            encode json
+	json_arg(s) -> t                        decode JSON
+	json(t) -> s                            encode JSON
 	null                                    value to encode json `null`
 
 FILESYSTEM
@@ -185,8 +188,8 @@ an inherited environment is created.
 
 ]==]
 
-glue = require'glue'
-pp = require'pp'
+local glue = require'glue'
+local pp = require'pp'
 local uri = require'uri'
 local errors = require'errors'
 local sock = require'sock'
@@ -204,6 +207,9 @@ local update = glue.update
 local assertf = glue.assert
 local memoize = glue.memoize
 local _ = string.format
+
+_G.glue = glue
+_G.pp = pp
 
 errors.errortype'http_response'.__tostring = function(self)
 	local s = self.traceback or self.message or ''
@@ -374,7 +380,7 @@ function post(v)
 			if ct.media_type == 'application/x-www-form-urlencoded' then
 				post = uri.parse_args(s)
 			elseif ct.media_type == 'application/json' then --prevent ENCTYPE CORS
-				post = s and json(s)
+				post = json_arg(s)
 			end
 		else
 			post = s
@@ -437,7 +443,15 @@ function client_ip()
 		or cx.req.http.tcp.remote_addr
 end
 
---arg validation
+function googlebot()
+	return headers'user-agent':find'googlebot' and true or false
+end
+
+function mobile()
+	return headers'user-agent':find'mobi' and true or false
+end
+
+--arg validation & decoding --------------------------------------------------
 
 function id_arg(s)
 	if not s or type(s) == 'number' then return s end
@@ -472,6 +486,10 @@ end
 
 function checkbox_arg(s)
 	return s == 'on' and 'checked' or nil
+end
+
+function url_arg(s)
+	return type(s) == 'string' and uri.parse(s) or s
 end
 
 --output API -----------------------------------------------------------------
@@ -675,12 +693,12 @@ function getpage(arg1, post_data)
 	end
 
 	local headers = {}
-	if type(post_data) == 'table' then
+	if type(post_data) ~= 'string' then
 		post_data = json(post_data)
 		headers.content_type = mime_types.json
 	end
 
-	local u = type(arg1) == 'string' and url(arg1) or arg1.url and opt(arg1.url)
+	local u = type(arg1) == 'string' and uri.parse(arg1) or arg1.url and opt(arg1.url)
 
 	local res, req, err_class = getpage_client:request(update({
 		host = u and u.host,
@@ -701,7 +719,7 @@ function getpage(arg1, post_data)
 	local s = res.content
 	local ct = res.headers['content-type']
 	if ct and ct.media_type == mime_types.json then
-		s = json(s)
+		s = json_arg(s)
 	end
 	return s
 end
@@ -720,53 +738,10 @@ function html(s)
 	end))
 end
 
---url encoding/decoding ------------------------------------------------------
+--url encoding ---------------------------------------------------------------
 
---use cases:
---  decode url: url('a/b?a&b=1') -> {'a', 'b', a=true, b='1'}
---  encode url: url{'a', 'b', a=true, b='1'} -> 'a/b?a&b=1'
---  update url: url('a/b?a&b=1', {'c', b=2}) -> 'c/b?a&b=2'
---  decode params only: url(nil, 'a&b=1') -> {a=true, b=1}
---  encode params only: url(nil, {a=true, b=1}) -> 'a&b=1'
-function url(path, params)
-	if type(path) == 'string' then --decode or update url
-		local t = uri.parse(path)
-		if params then --update url
-			update(t, params) --also updates any path elements
-			return url(t) --re-encode url
-		else --decode url
-			return t
-		end
-	elseif path then --encode url
-		local s1 = uri.format(path)
-	else --encode or decode params only
-		if type(params) == 'table' then
-			return uri.format_args(params)
-		else
-			return uri.parse_args(params)
-		end
-	end
-end
-
-if false then
-	local p = print
-	p(pp.format(url('a/b?a&b=1')))
-	p(url{'a', 'b', a=true, b=1})
-	p()
-	p(pp.format(url('?a&b=1')))
-	p(url{'', a=true, b=1})
-	p()
-	p(pp.format(url('a/b?')))
-	p(url{'a', 'b', ['']=true})
-	p()
-	p(pp.format(url('a/b')))
-	p(url{'a', 'b'})
-	p()
-	p(url('a/b?a&b=1', {'c', b=2}))
-	p()
-	p(pp.format(url(nil, 'a&b=1')))
-	p(url(nil, {a=true, b=1}))
-	p()
+function url(t)
+	return type(t) == 'table' and  uri.format(t) or t
 end
 
 function absurl(path)
@@ -834,21 +809,19 @@ cjson.encode_sparse_array(false, 0, 0) --encode all sparse arrays
 
 null = cjson.null
 
+function json_arg(v)
+	if type(v) ~= 'string' then return v end
+	return cjson.decode(v)
+end
+
 function json(v)
-	if type(v) == 'table' then
-		return cjson.encode(v)
-	elseif type(v) == 'string' then
-		return cjson.decode(v)
-	elseif v == nil then
-		return nil
-	else
-		error('invalid arg '..type(v))
-	end
+	if v == nil then return nil end
+	return cjson.encode(v)
 end
 
 function out_json(v)
 	setmime'json'
-	setcontent(cjson.encode(v))
+	setcontent(json(v))
 end
 
 --filesystem API -------------------------------------------------------------

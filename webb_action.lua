@@ -8,7 +8,7 @@ ACTION ALIASES
 	lang([s]) -> s                        get/set current language
 	default_lang() -> s                   get default language
 	alias(name_en, name, lang)            set an action alias for a language
-	lang_url(s[, target_lang]) -> s       translate URL based on alias
+	href(s|t[, target_lang]) -> s         translate page URL based on alias
 	setlinks(s) -> s                      html filter to translate URLs
 
 ACTIONS
@@ -50,7 +50,7 @@ end
 It is assumed that action names are always in english even if they actually
 request a page in the default language which can configured to be different
 than english. Action name translation is done automatically provided that
-1) all links are passed through lang_url(), 2) routing is done by calling
+1) all links are passed through href(), 2) routing is done by calling
 action(req, unpack(args())) which calls find_action() and 3) action names are
 translated in different languages with alias(). Using action aliases is
 the key to avoiding the appending of ?lang=xx to links. Aliases for the
@@ -89,28 +89,20 @@ function alias(en_action, alias_action, alias_lang)
 	glue.attr(aliases_json.to_lang, en_action)[alias_lang] = alias_action
 end
 
-local function decode_url(s)
-	return type(s) == 'string' and url(s) or s
-end
-
-local function url_action(s)
-	local t = decode_url(s)
-	return t[1] == '' and t[2] and action_name(t[2]) or nil
-end
-
---given an url (in encoded or decoded form), if it's an action url,
+--given a url (in encoded or decoded form), if it's an action url,
 --replace its action name with a language-specific alias for a given
 --(or current) language if any, or add ?lang= if the given language
 --is not the default language.
-function lang_url(s, target_lang)
-	local t = decode_url(s)
+function href(s, target_lang)
+	local t = url_arg(s)
+	local segs = t.segments
+	local action = not t.host and (segs[1] == '' and segs[2] and action_name(segs[2])) or nil
+	if not action then
+		return url(s)
+	end
 	local default_lang = config('lang', 'en')
 	local target_lang = target_lang or t.lang or lang()
-	local action = url_action(t)
-	if not action then
-		return s
-	end
-	local is_root = t[2] == ''
+	local is_root = segs[2] == ''
 	if is_root then
 		action = action_name(config('root_action', 'en'))
 	end
@@ -123,7 +115,7 @@ function lang_url(s, target_lang)
 	elseif target_lang ~= default_lang then
 		t.lang = target_lang
 	end
-	t[2] = action_urlname(t[2])
+	segs[2] = action_urlname(segs[2])
 	return url(t)
 end
 
@@ -147,7 +139,7 @@ end
 --html output filter for rewriting links based on current language aliases
 function setlinks(s)
 	local function repl(prefix, s)
-		return prefix..lang_url(s)
+		return prefix..href(s)
 	end
 	s = s:gsub('(%shref=")([^"]+)', repl)
 	s = s:gsub('(%shref=)([^ >]+)', repl)
@@ -157,7 +149,7 @@ end
 --override redirect to automatically translate URLs.
 local webb_redirect = redirect
 function redirect(url, ...)
-	return webb_redirect(lang_url(url), ...)
+	return webb_redirect(href(url), ...)
 end
 
 --serving plain files --------------------------------------------------------

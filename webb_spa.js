@@ -11,11 +11,11 @@ CONFIG API
 
 ACTIONS
 
-	lang_url(url, [lang]) -> url           traslate a URL
-	e.setlink([url])                       hook an action to a link
-	e.setlinks([filter])                   hook actions to all links
+	href(url, [lang]) -> url               traslate a URL
+	e.sethref([url])                       hook an action to a link
+	e.sethrefs()                           hook actions to all links
 	page_loading() -> t|f                  was current page loaded or exec()'ed?
-	exec(url)                              change the tab URL
+	exec(url[, opt])                       change the tab URL
 	back()                                 go back to last URL in history
 	setscroll([top])                       set scroll to last position or reset
 	settitle([title])                      set title to <h1> contents or arg
@@ -43,7 +43,7 @@ TEMPLATES
 
 // some of the values come from the server (see config.js action).
 {
-let t = {}
+let t = obj()
 function config(name, val) {
 	if (val && !t[name])
 		t[name] = val
@@ -54,7 +54,7 @@ function config(name, val) {
 
 // global S() for internationalizing strings.
 {
-let t = {}
+let t = obj()
 function S(name, val) {
 	if (val && !t[name])
 		t[name] = val
@@ -75,19 +75,6 @@ let action_urlname = function(action) {
 	return action.replaceAll('_', '-')
 }
 
-let decode_url = function(url_) {
-	if (typeof url_ == 'string') {
-		let t = url(url)
-		if (params)
-			for (k in params)
-				if (params.hasOwnProperty(k))
-					t.params[k] = params[k]
-		return t
-	} else {
-		return {path: path, params: params || {}}
-	}
-}
-
 // extract the action from a decoded url
 let url_action = function(t) {
 	if (t.segments[0] == '' && t.segments.length >= 2)
@@ -98,10 +85,10 @@ let url_action = function(t) {
 // replace its action name with a language-specific alias for a given
 // (or current) language if any, or add ?lang= if the given language
 // is not the default language.
-function lang_url(url_s, target_lang) {
-	let t = url(url_s)
+function href(url_s, target_lang) {
+	let t = url_arg(url_s)
 	let default_lang = config('lang')
-	target_lang = target_lang || t.params.lang || lang()
+	target_lang = target_lang || t.args.lang || lang()
 	let action = url_action(t)
 	if (action === undefined)
 		return url(t)
@@ -114,17 +101,17 @@ function lang_url(url_s, target_lang) {
 		if (!(is_root && target_lang == default_lang))
 			t.segments[1] = lang_action
 	} else if (target_lang != default_lang) {
-		t.params.lang = target_lang
+		t.args.lang = target_lang
 	}
 	t.segments[1] = action_urlname(t.segments[1])
 	return url(t)
 }
 
-action = {} // {name->handler}
+action = obj() // {name->handler}
 
 // given a url (in encoded form), find its action and return the handler.
 let action_handler = function(url_s) {
-	let t = url(url_s)
+	let t = url_arg(url_s)
 	let act = url_action(t)
 	if (act === undefined)
 		return
@@ -151,11 +138,12 @@ let action_handler = function(url_s) {
 	}
 	if (!handler)
 		return
-	let args = t.segments
-	args.shift() // remove /
-	args.shift() // remove act
-	return function() {
-		handler.call(null, args, t.params, t.hash)
+	let segs = t.segments
+	segs.shift() // remove /
+	segs.shift() // remove act
+	return function(ev) {
+		assign(t, ev.detail)
+		handler.call(null, segs, t)
 	}
 }
 
@@ -168,22 +156,21 @@ function page_loading() {
 
 let ignore_url_changed
 
-let url_changed = function() {
+let url_changed = function(ev) {
 	if (ignore_url_changed)
 		return
-	document.fire('url_changed')
+	document.fire('url_changed', ev.detail)
 	let handler = action_handler(location.pathname + location.search + location.hash)
 	if (handler)
-		handler()
+		handler(ev)
 	else
-		document.fire('action_not_found')
-	document.fire('after_exec')
+		document.fire('action_not_found', ev.detail)
 }
 
 document.on('action_not_found', function() {
 	if (location.pathname == '/')
 		return // no home action
-	exec('/')
+	exec('/', {samepage: true})
 })
 
 function _save_scroll_state(top) {
@@ -207,12 +194,17 @@ let check_exec = function() {
 	return !exec_aborted
 }
 
-function exec(url) {
+function exec(url, opt) {
 	if (!check_exec())
 		return
 	_save_scroll_state(window.scrollY)
-	history.pushState(null, null, lang_url(url))
-	window.fire('popstate')
+	if (opt && opt.samepage)
+		history.replaceState(null, null, href(url))
+	else
+		history.pushState(null, null, href(url))
+	let ev = new PopStateEvent('popstate')
+	ev.detail = opt
+	window.fire(ev)
 }
 
 function back() {
@@ -231,37 +223,49 @@ function setscroll(top) {
 			return
 		let top = state.data && state.data.top || 0
 	}
-	window.scrollY = top
+	window.scrollTo(0, top)
 }
 
-method(Element, 'setlink', function(url) {
+method(Element, 'sethref', function(url, opt) {
 	if (this._hooked)
 		return
 	if (this.attr('target'))
 		return
+	if (this.attr('href') == '')
+		this.attr('href', null)
 	url = url || this.attr('href')
 	if (!url)
 		return
-	url = lang_url(url)
+	if (this.bool_attr('samepage') || this.bool_attr('sameplace')) {
+		opt = opt || {}
+		opt.samepage = this.bool_attr('samepage')
+		opt.sameplace = this.bool_attr('sameplace')
+	}
+	url = href(url)
 	this.attr('href', url)
 	let handler = action_handler(url)
 	if (!handler)
 		return
-	this.on('click', function(event) {
-		// shit/ctrl+click passes through to open in new window or tab
-		if (event.shiftKey || event.ctrlKey)
+	this.on('click', function(ev) {
+		// shit/ctrl+click passes through to open in new window or tab.
+		if (ev.shiftKey || ev.ctrlKey)
 			return
-		event.preventDefault()
-		exec(url)
+		ev.preventDefault()
+		exec(url, opt)
 	})
 	this._hooked = true
 	return this
 })
 
-method(Element, 'setlinks', function(selector) {
-	this.$(selector || 'a[href],area[href]').setlink()
+method(Element, 'sethrefs', function(selector) {
+	for (let ce of this.$(selector || 'a[href]'))
+		ce.sethref()
 	return this
 })
+
+bind_component('a', function(e) {
+	e.sethref()
+}, 'a[href]')
 
 function settitle(title) {
 	title = title
@@ -300,7 +304,7 @@ function static_template(name) {
 }
 
 function render_string(s, data) {
-	return Mustache.render(s, data || {}, template)
+	return Mustache.render(s, data || obj(), template)
 }
 
 function render(template_name, data) {
@@ -323,10 +327,10 @@ method(Element, 'render', function(data, ev) {
 on_dom_load('url_changed', function() {
 	window.on('popstate', function(ev) {
 		loading = false
-		url_changed()
+		url_changed(ev)
 	})
 	if (client_action) // set from server.
-		url_changed()
+		url_changed(ev)
 })
 
 } // module scope.

@@ -35,7 +35,7 @@ INTERNAL API
 	action['inline.js']                 output of js() calls
 	action['inline.css']                output of css() calls
 
-	config'aliases'                     for lang_url() and find_action()
+	config'aliases'                     for href() and find_action()
 	config'page_title_suffix'           for pagetitle()
 
 	config'facebook_app_id'             for webb.auth.facebook.js
@@ -146,14 +146,14 @@ strings.js  // strings in current language
 
 local function jslist(cataction, mode)
 	if mode == 'bundle' then
-		out(format('	<script src="%s"></script>', lang_url('/'..cataction)))
+		out(format('	<script src="%s"></script>', href('/'..cataction)))
 	elseif mode == 'embed' then
 		out'<script>'
 		outcatlist(cataction..'.cat')
 		out'</script>\n'
 	elseif mode == 'separate' then
 		for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
-			out(format('\t<script src="%s"></script>\n', lang_url('/'..file)))
+			out(format('\t<script src="%s"></script>\n', href('/'..file)))
 		end
 	else
 		assert(false)
@@ -169,7 +169,7 @@ local function csslist(cataction, mode)
 		out'</style>\n'
 	elseif mode == 'separate' then
 		for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
-			out(format('\t<link rel="stylesheet" type="text/css" href="%s">\n', lang_url('/'..file)))
+			out(format('\t<link rel="stylesheet" type="text/css" href="%s">\n', href('/'..file)))
 		end
 	else
 		assert(false)
