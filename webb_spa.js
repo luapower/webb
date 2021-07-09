@@ -318,7 +318,7 @@ method(Element, 'render_string', function(s, data, ev) {
 })
 
 method(Element, 'render', function(data, ev) {
-	let s = this.template_string || template(this.template)
+	let s = this.template_string || template(this.template || this.id || this.tag)
 	this.render_string(s, data, ev)
 })
 
