@@ -130,18 +130,41 @@ end
 
 --query execution ------------------------------------------------------------
 
-local function process_result(t, cols, compact)
+local function col_index(name, cols)
+	for i,col in ipairs(cols) do
+		if col.name == name then
+			return i
+		end
+	end
+end
+
+local function process_result(t, cols, compact, opt)
 	if cols and #cols == 1 then --single column result: return it as array
 		local t0 = t
 		t = {}
+		local convert = opt and opt.convert and opt.convert[cols[1].name]
 		if compact then
 			for i,row in ipairs(t0) do
-				t[i] = row[1]
+				local v = row[1]
+				if convert then
+					v = convert(v)
+				end
+				t[i] = v
 			end
 		else
 			for i,row in ipairs(t0) do
 				local k,v = next(row)
+				if convert then
+					v = convert(v)
+				end
 				t[i] = v
+			end
+		end
+	elseif opt and opt.convert then
+		for col, convert in pairs(opt.convert) do
+			local fi = compact and assert(col_index(col, cols)) or col
+			for _,row in ipairs(t) do
+				row[fi] = convert(row[fi])
 			end
 		end
 	end
@@ -169,7 +192,7 @@ local function run_query(compact, traceq, ns, opt, sql, ...)
 		local qtrace = traceq and trace('QUERY', '\n%s', glue.outdent(sql))
 		assert_db(db:send_query(sql))
 		t, err, cols = assert_db(db:read_result(nil, compact and 'compact'))
-		t = process_result(t, cols, compact)
+		t = process_result(t, cols, compact, opt)
 		if err == 'again' then --multi-result/multi-statement query
 			t = {t}
 			repeat

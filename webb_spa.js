@@ -26,6 +26,11 @@ ACTIONS
 	opt_arg(s)
 	slug(id, s)
 
+PAGE FLAPS
+
+	flap.NAME = function(on) { ... }
+	setflaps('NAME1 ...')
+
 TEMPLATES
 
 	template(name) -> s                    get a template
@@ -45,9 +50,9 @@ TEMPLATES
 {
 let t = obj()
 function config(name, val) {
-	if (val && !t[name])
+	if (val !== undefined && t[name] === undefined)
 		t[name] = val
-	if (typeof(t[name]) == 'undefined')
+	if (t[name] === undefined)
 		warn('missing config value for', name)
 	return t[name]
 }}
@@ -56,7 +61,7 @@ function config(name, val) {
 {
 let t = obj()
 function S(name, val) {
-	if (val && !t[name])
+	if (val !== undefined && t[name] === undefined)
 		t[name] = val
 	return t[name]
 }}
@@ -290,6 +295,25 @@ function id_arg(s) {
 function opt_arg(s) {
 	return s && ('/' + s) || ''
 }
+
+// page flaps ----------------------------------------------------------------
+
+{
+let cur_cx
+flap = {}
+function setflaps(new_cx) {
+	if (cur_cx == new_cx)
+		return
+	let cx0 = cur_cx && cur_cx.split(/\s+/).tokeys() || empty
+	let cx1 = new_cx && new_cx.split(/\s+/).tokeys() || empty
+	for (let cx in cx0)
+		if (!cx1[cx])
+			flap[cx](false)
+	for (let cx in cx1)
+		if (!cx0[cx])
+			flap[cx](true)
+	cur_cx = new_cx
+}}
 
 // templates -----------------------------------------------------------------
 

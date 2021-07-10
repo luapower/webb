@@ -66,7 +66,6 @@ OUTPUT
 	setheader(name, val)                    set a header (unless we're buffering)
 	setmime(ext)                            set content-type based on file extension
 	outprint(...)                           like Lua's print but uses out()
-	outfile(path)                           buffered out(readfile(path))
 
 HTML ENCODING
 
@@ -111,17 +110,19 @@ JSON ENCODING/DECODING
 FILESYSTEM
 
 	wwwpath(file, [type]) -> path           get www subpath (and check if exists)
-	wwwfile(file) -> s                      get file contents
+	wwwfile[_cached](file) -> s             get file contents
 	wwwfile.filename <- s|f(filename)       set virtual file contents
 	wwwfiles([filter]) -> {name->true}      list www files
-	outwwwfile(file)                        buffered out(readfile(file))
+	out[www]file[_cached](file)             buffered out(readfile(file))
 	varpath(file) -> path                   get var subpath (no check that it exists)
 	varpath.filename <- s|f(filename)       set virtual file contents
+	varfile[_cached](file) -> s
 
+	readfile[_cached](file) -> s            cached readfile() for small static files
 	fileext(s) -> s                         get file extension (in lowercase)
 	mkdirs(file) -> file | nil              make dirs for file path
 	fileexists(file, [type]) -> file | nil  check if file exists
-	filemtime(file) -> mtime                get file mtime
+	filemtime(file, [type]) -> mtime        get file mtime
 	filename(filepath) -> file              get file name from full path
 	filedir(filepath) -> dir                get dir name from full path
 
@@ -201,12 +202,13 @@ local mustache = require'mustache'
 
 local concat = table.concat
 local remove = table.remove
-local insert = table.insert
+local add = table.insert
 local readfile = glue.readfile
 local update = glue.update
 local assertf = glue.assert
 local memoize = glue.memoize
 local _ = string.format
+local format = string.format
 
 _G.glue = glue
 _G.pp = pp
@@ -479,7 +481,7 @@ function list_arg(s, arg_f)
 	arg_f = arg_f or str_arg
 	local t = {}
 	for s in glue.gsplit(s, ',', 1, true) do
-		insert(t, arg_f(s))
+		add(t, arg_f(s))
 	end
 	return t
 end
@@ -546,7 +548,7 @@ function push_out(f)
 	if not cx.outfuncs then
 		cx.outfuncs = {}
 	end
-	insert(cx.outfuncs, cx.outfunc)
+	add(cx.outfuncs, cx.outfunc)
 end
 
 function pop_out()
@@ -572,9 +574,11 @@ function record(f, ...)
 	return pass_record(f(...))
 end
 
-function outfile(path)
+local function _outfile(readfile, path)
 	out(readfile(path)) --TODO: make it buffered
 end
+function outfile(path) return _outfile(readfile, path) end
+function outfile_cached(path) return _outfile(readfile_cached, path) end
 
 function setheader(name, val)
 	if out_buffering() then
@@ -826,6 +830,26 @@ end
 
 --filesystem API -------------------------------------------------------------
 
+do
+local cache = {} --{file -> {mtime=, contents=}}
+function readfile_cached(file)
+	local cached = cache[file]
+	local mtime = filemtime(file)
+	if not mtime then --file was removed
+		cache[file] = nil
+		return nil, 'not_found'
+	end
+	local s
+	if not cached or cached.mtime < mtime then
+		s = readfile(file)
+		cache[file] = {mtime = mtime, contents = s}
+	else
+		s = cached.contents
+	end
+	return s
+end
+end
+
 function fileext(s)
 	return path.ext(s)
 end
@@ -846,7 +870,7 @@ function varpath(file)
 	return assert(path.combine(config'var_dir' or config'www_dir', file))
 end
 
-local function file_object(findfile) --{filename -> content | handler(filename)}
+local function file_object(findfile, readfile) --{filename -> content | handler(filename)}
 	return setmetatable({}, {
 		__call = function(self, file)
 			local f = self[file]
@@ -861,8 +885,10 @@ local function file_object(findfile) --{filename -> content | handler(filename)}
 		end,
 	})
 end
-wwwfile = file_object(wwwpath)
-varfile = file_object(varpath)
+wwwfile        = file_object(wwwpath, readfile)
+wwwfile_cached = file_object(wwwpath, readfile_cached)
+varfile        = file_object(varpath, readfile)
+varfile_cached = file_object(varpath, readfile_cached)
 
 function wwwfiles(filter)
 	filter = filter or glue.pass
@@ -891,9 +917,8 @@ function wwwfiles(filter)
 	return t
 end
 
-function outwwwfile(file)
-	out(wwwfile(file)) --TODO: make it buffered
-end
+function outwwwfile(file) outfile(wwwpath(file)) end
+function outwwwfile_cached(file) outfile_cached(wwwpath(file)) end
 
 function mkdirs(file)
 	local dir = assert(path.dir(file))
@@ -964,7 +989,7 @@ local template_names = {} --keep template names in insertion order
 local function add_template(template, name, s)
 	name = underscores(name)
 	rawset(template, name, s)
-	insert(template_names, name)
+	add(template_names, name)
 end
 
 --gather all the templates from the filesystem.
@@ -1035,20 +1060,20 @@ local function lp_translate(s)
 				break
 			end
 		end
-		insert(res, lp_out(s, start, ip-1))
+		add(res, lp_out(s, start, ip-1))
 		if target ~= '' and target ~= 'lua' then
 			--not for Lua; pass whole instruction to the output
-			insert(res, lp_out(s, ip, fp))
+			add(res, lp_out(s, ip, fp))
 		else
 			if exp == '=' then --expression?
-				insert(res, _(' out(%s);', code))
+				add(res, _(' out(%s);', code))
 			else --command
-				insert(res, _(' %s ', code))
+				add(res, _(' %s ', code))
 			end
 		end
 		start = fp + 1
 	end
-	insert(res, lp_out(s, start))
+	add(res, lp_out(s, start))
 	return concat(res)
 end
 
@@ -1137,7 +1162,7 @@ function catlist_files(s)
 	for file in s:gmatch'([^%s]+)' do
 		if not already[file] then
 			already[file] = true
-			insert(t, file)
+			add(t, file)
 		end
 	end
 	return t
@@ -1157,19 +1182,19 @@ function outcatlist(listfile, ...)
 	for i,file in ipairs(catlist_files(wwwfile(listfile))) do
 		if wwwfile[file] then --virtual file
 			local s = wwwfile(file)
-			insert(t, s)
-			insert(c, function() out(s) end)
+			add(t, s)
+			add(c, function() out(s) end)
 		else
 			local path = wwwpath(file)
 			if path then --plain file, get its mtime
 				local mtime = fs.attr(path, 'mtime')
-				insert(t, tostring(mtime))
-				insert(c, function() outfile(path) end)
+				add(t, tostring(mtime))
+				add(c, function() outfile(path) end)
 			elseif action then --file not found, try an action
 				local s, found = record(exec, file, ...)
 				if found then
-					insert(t, s)
-					insert(c, function() out(s) end)
+					add(t, s)
+					add(c, function() out(s) end)
 				else
 					assertf(false, 'file not found: %s', file)
 				end
