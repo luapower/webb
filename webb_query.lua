@@ -75,7 +75,7 @@ end
 
 --db connection --------------------------------------------------------------
 
-local function assert_db(ret, ...)
+local function assertq(ret, ...)
 	if ret ~= nil then
 		return ret, ...
 	end
@@ -95,18 +95,18 @@ local function pconfig(ns, k, default)
 	end
 end
 
-local free_dbs = {} --{db->true}
+local free_cns = {} --{ns->{cn->true}}
 
 local function connect(ns)
 	ns = ns or false
 	local cx = cx()
-	local db = cx.db
-	if not db then
-		local dbs = free_dbs[ns]
-		db = dbs and next(dbs)
-		if not db then
-			db = assert(mysql:new())
-			cx.db = db
+	local cn = attr(cx, 'cns')[ns]
+	if not cn then
+		local free_cns_ns = free_cns[ns]
+		cn = free_cns_ns and next(free_cns_ns)
+		if not cn then
+			cn = assert(mysql:new())
+			cx.cns[ns] = cn
 			local t = {
 				host     = pconfig(ns, 'db_host', '127.0.0.1'),
 				port     = pconfig(ns, 'db_port', 3306),
@@ -115,17 +115,17 @@ local function connect(ns)
 				password = pconfig(ns, 'db_pass'),
 			}
 			log('CONNECT', '%s:%s user=%s db=%s', t.host, t.port, t.user, t.database)
-			assert_db(db:connect(t))
+			assertq(cn:connect(t))
 		else
-			cx.db = db
-			dbs[db] = nil
+			free_cns_ns[cn] = nil
+			cx.cns[ns] = cn
 		end
 		on_cleanup(function()
-			cx.db = nil
-			attr(free_dbs, ns)[db] = true
+			cx.cns[ns] = nil
+			attr(free_cns, ns)[cn] = true
 		end)
 	end
-	return db
+	return cn
 end
 
 --query execution ------------------------------------------------------------
@@ -184,19 +184,19 @@ local function run_query(compact, traceq, ns, opt, sql, ...)
 			t = {...}
 		end
 	end
-	local db = connect(ns)
+	local cn = connect(ns)
 	local sqls, params = spp.queries(sql, t)
 	local t, cols, params, ts
 	for sql_i, sql in ipairs(sqls) do
 		ts = ts or (sql_i > 1 and {{t, cols, params}})
 		local qtrace = traceq and trace('QUERY', '\n%s', glue.outdent(sql))
-		assert_db(db:send_query(sql))
-		t, err, cols = assert_db(db:read_result(nil, compact and 'compact'))
+		assertq(cn:send_query(sql))
+		t, err, cols = assertq(cn:read_result(nil, compact and 'compact'))
 		t = process_result(t, cols, compact, opt)
 		if err == 'again' then --multi-result/multi-statement query
 			t = {t}
 			repeat
-				local t1, err = assert_db(db:read_result())
+				local t1, err = assertq(cn:read_result())
 				t1 = process_result(t1, cols, compact)
 				t[#t+1] = t1
 			until not err

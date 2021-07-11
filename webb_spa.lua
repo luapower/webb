@@ -190,7 +190,7 @@ local spa_template = [[
 <head>
 	<meta charset=utf-8>
 	<title>{{title}}{{title_suffix}}</title>
-	{{#favicon}}<link rel="icon" href="/{{favicon}}">{{/favicon}}
+	{{#favicon}}<link rel="icon" href="{{favicon}}">{{/favicon}}
 {{{preload}}}
 {{{all_css}}}
 {{{all_js}}}

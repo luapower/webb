@@ -128,16 +128,18 @@ let action_handler = function(url_s) {
 	let handler = action[act] // find a handler
 	if (!handler) {
 		// no handler, find a static template with the same name
-		// to be rendered on the #main element.
+		// to be rendered on the #main element or on document.body.
 		if (template(act)) {
 			handler = function() {
-				if (window.main)
-					window.main.render(act)
+				let main = window.main || document.body
+				if (main)
+					main.render(act)
 			}
 		} else if (static_template(act)) {
 			handler = function() {
-				if (window.main)
-					window.main.html = static_template(act)
+				let main = window.main || document.body
+				if (main)
+					main.unsafe_html = static_template(act)
 			}
 		}
 	}
@@ -304,8 +306,8 @@ flap = {}
 function setflaps(new_cx) {
 	if (cur_cx == new_cx)
 		return
-	let cx0 = cur_cx && cur_cx.split(/\s+/).tokeys() || empty
-	let cx1 = new_cx && new_cx.split(/\s+/).tokeys() || empty
+	let cx0 = cur_cx && cur_cx.names().tokeys() || empty
+	let cx1 = new_cx && new_cx.names().tokeys() || empty
 	for (let cx in cx0)
 		if (!cx1[cx])
 			flap[cx](false)
@@ -337,7 +339,7 @@ function render(template_name, data) {
 }
 
 method(Element, 'render_string', function(s, data, ev) {
-	this.html = render_string(s, data)
+	this.unsafe_html = render_string(s, data)
 	this.fire('render', data, ev)
 })
 
