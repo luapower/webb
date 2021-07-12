@@ -146,14 +146,14 @@ strings.js  // strings in current language
 
 local function jslist(cataction, mode)
 	if mode == 'bundle' then
-		out(format('	<script src="%s"></script>', href('/'..cataction)))
+		out(format('	<script src="%s"></script>', '/'..cataction))
 	elseif mode == 'embed' then
 		out'<script>'
 		outcatlist(cataction..'.cat')
 		out'</script>\n'
 	elseif mode == 'separate' then
 		for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
-			out(format('\t<script src="%s"></script>\n', href('/'..file)))
+			out(format('\t<script src="%s"></script>\n', '/'..file))
 		end
 	else
 		assert(false)
@@ -169,7 +169,7 @@ local function csslist(cataction, mode)
 		out'</style>\n'
 	elseif mode == 'separate' then
 		for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
-			out(format('\t<link rel="stylesheet" type="text/css" href="%s">\n', href('/'..file)))
+			out(format('\t<link rel="stylesheet" type="text/css" href="%s">\n', '/'..file))
 		end
 	else
 		assert(false)

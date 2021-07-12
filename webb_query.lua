@@ -8,6 +8,7 @@ PREPROCESSOR
 	sqlval(s) -> s                            quote string to SQL literal
 	sqlname(s) -> s                           quote string to SQL identifier
 	sqlparams(s, t) -> s                      quote query with ? and :name placeholders.
+	sqlquery(s, t) -> s                       quote query with any preprocessor directives.
 	sqlrows(rows[, opt]) -> s                 quote rows to SQL insert values list
 	sql_default                               placeholder for default value
 	sqlunquoted(s) -> f() -> s                generate an unquoted value to use in sqlrows()
@@ -66,6 +67,7 @@ sqlval = spp.value
 sqlrows = spp.rows
 sqlname = spp.name
 sqlparams = spp.params
+sqlquery = spp.query
 qsubst = spp.subst
 qmacro = spp.macro
 
