@@ -514,7 +514,7 @@ local function default_outfunc(s, len)
 		return
 	end
 	if not cx.send_body then
-		cx.send_body = cx.req:respond(cx.res)
+		cx.send_body = cx.req:respond(cx.res, true)
 	end
 	s = type(s) ~= 'cdata' and tostring(s) or s
 	cx.send_body(s, len)

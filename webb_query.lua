@@ -248,12 +248,18 @@ function pquery1      (...) return run_query1 (false, true , nil, ...) end
 function iquery       (...) return run_iquery (true , false, nil, ...) end
 function piquery      (...) return run_iquery (true , true , nil, ...) end
 
-function atomic(func)
+local function _atomic(query, func, ...)
 	query'start transaction'
-	local ok, err = glue.pcall(func)
-	query(ok and 'commit' or 'rollback')
-	assert(ok, err)
+	local function pass(ok, ...)
+		query(ok and 'commit' or 'rollback')
+		assert(ok, err)
+		return ...
+	end
+	return pass(glue.pcall(func, ...))
 end
+
+function  atomic(func, ...) return _atomic( query, func, ...) end
+function patomic(func, ...) return _atomic(pquery, func, ...) end
 
 --result processing ----------------------------------------------------------
 
