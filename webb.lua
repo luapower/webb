@@ -398,6 +398,7 @@ end
 
 function upload(file)
 	return glue.fcall(function(finally)
+		log('UPLOAD', '%s', file)
 		local f = assert(fs.open(file..'.tmp', 'w'))
 		finally(function() f:close() end)
 		local function write(buf, sz)
