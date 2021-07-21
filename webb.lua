@@ -15,7 +15,9 @@ CONFIG API
 
 	config(name[, default_val]) -> val      get/set config value
 	config{name->val}                       set multiple config values
-	S(name[, default_val])                  get/set internationalized string
+	S_texts(lang, ext) -> s                 get internationalized strings
+	update_S_texts(lang, ext, t)            update internationalized strings
+	S(id, en_s, ...) -> s                   get internationalized string (stub)
 
 REQUEST CONTEXT
 
@@ -266,15 +268,54 @@ do
 	end
 end
 
---separate config function for internationalizing strings.
+--multi-language strings -----------------------------------------------------
+
 do
-	local S_ = {}
-	function S(name, val)
-		if val and not S_[name] then
-			S_[name] = val
-		end
-		return S_[name] or name
+local function s_file(lang, ext)
+	return varpath(format('%s-s-%s%s.lua', assert(config('app_codename')), lang,
+		ext == 'lua' and '' or '-'..ext))
+end
+
+local function load_s_file(file)
+	local f = loadfile(file)
+	return f and f()
+end
+
+local function save_s_file(file, t)
+	writefile(file, 'return '..pp.format(t, '\t'))
+end
+
+local lua_texts = {} --{lang->{id->text}}
+local js_texts  = {} --{lang->{id->text}}
+
+function S_texts(lang, ext)
+	local texts = ext == 'lua' and lua_texts or js_texts
+	local t = texts[lang]
+	if not t then
+		local file = s_file(lang, ext)
+		t = load_s_file(file) or {}
+		texts[lang] = t
 	end
+	return t
+end
+
+function update_S_texts(lang, ext, t)
+	local texts = S_texts(lang, ext)
+	for k,v in pairs(t) do
+		texts[k] = v or nil
+	end
+	local file = s_file(lang, ext)
+	save_s_file(file, texts)
+end
+
+function S(_, s, ...) --stub, reimplemented in `webb_action`
+	if select('#', ...) > 0 then
+		return glue.subst(s, ...)
+	else
+		return s
+	end
+end
+
 end
 
 --per-request environment ----------------------------------------------------
@@ -465,6 +506,10 @@ end
 function str_arg(s)
 	s = glue.trim(s or '')
 	return s ~= '' and s or nil
+end
+
+function json_str_arg(s)
+	return type(s) == 'string' and s or nil
 end
 
 function enum_arg(s, ...)
@@ -833,7 +878,7 @@ end
 
 do
 local cache = {} --{file -> {mtime=, contents=}}
-function readfile_cached(file)
+function readfile_cached(file, do_readfile)
 	local cached = cache[file]
 	local mtime = filemtime(file)
 	if not mtime then --file was removed
@@ -842,7 +887,8 @@ function readfile_cached(file)
 	end
 	local s
 	if not cached or cached.mtime < mtime then
-		s = readfile(file)
+		do_readfile = do_readfile or readfile
+		s = do_readfile(file)
 		cache[file] = {mtime = mtime, contents = s}
 	else
 		s = cached.contents

@@ -85,10 +85,10 @@ action['config.js'] = function()
 
 end
 
---organize string translations in separate files for each langauge
 action['strings.js'] = function()
-	if lang() == 'en' then return end
-	action('strings.'..lang()..'.js')
+	local t = S_texts(lang(), 'js')
+	if not next(t) then return end
+	out'assign(S_texts, '; out_json(t); out')'
 end
 
 --simple API to add js and css snippets and files from server-side code
@@ -146,14 +146,14 @@ strings.js  // strings in current language
 
 local function jslist(cataction, mode)
 	if mode == 'bundle' then
-		out(format('	<script src="%s"></script>', '/'..cataction))
+		out(format('	<script src="%s"></script>', href('/'..cataction)))
 	elseif mode == 'embed' then
 		out'<script>'
 		outcatlist(cataction..'.cat')
 		out'</script>\n'
 	elseif mode == 'separate' then
 		for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
-			out(format('\t<script src="%s"></script>\n', '/'..file))
+			out(format('\t<script src="%s"></script>\n', href('/'..file)))
 		end
 	else
 		assert(false)
@@ -162,14 +162,14 @@ end
 
 local function csslist(cataction, mode)
 	if mode == 'bundle' then
-		out(format('\t<link rel="stylesheet" type="text/css" href="/%s">', cataction))
+		out(format('\t<link rel="stylesheet" type="text/css" href="/%s">', href(cataction)))
 	elseif mode == 'embed' then
 		out'<style>'
 		outcatlist(cataction..'.cat')
 		out'</style>\n'
 	elseif mode == 'separate' then
 		for i,file in ipairs(catlist_files(wwwfile(cataction..'.cat'))) do
-			out(format('\t<link rel="stylesheet" type="text/css" href="%s">\n', '/'..file))
+			out(format('\t<link rel="stylesheet" type="text/css" href="%s">\n', href('/'..file)))
 		end
 	else
 		assert(false)
@@ -178,7 +178,7 @@ end
 
 local function preloadlist()
 	for i,file in ipairs(fontfiles) do
-		out(format('\t<link rel="preload" href="/%s" as="font" crossorigin>\n', file))
+		out(format('\t<link rel="preload" href="%s" as="font" crossorigin>\n', href('/'..file)))
 	end
 end
 

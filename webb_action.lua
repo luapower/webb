@@ -43,7 +43,18 @@ function default_lang()
 end
 
 function lang(s)
-	return args'lang' or default_lang()
+	if s then cx().lang = s end
+	return cx().lang or args'lang' or default_lang()
+end
+
+function S(id, en_s, ...)
+	local t = S_texts(lang(), 'lua')
+	local s = t[id] or en_s or ''
+	if select('#', ...) > 0 then
+		return glue.subst(s, ...)
+	else
+		return s
+	end
 end
 
 --[[
@@ -63,10 +74,6 @@ config('aliases', aliases_json) --we pass those to the client
 
 local function action_name(action)
 	return action:gsub('-', '_')
-end
-
-local function action_urlname(action)
-	return action:gsub('_', '-')
 end
 
 function alias(en_action, alias_action, alias_lang)
@@ -101,7 +108,7 @@ function href(s, target_lang)
 		return url(s)
 	end
 	local default_lang = config('lang', 'en')
-	local target_lang = target_lang or t.lang or lang()
+	local target_lang = target_lang or (t.args and t.args.lang) or lang()
 	local is_root = segs[2] == ''
 	if is_root then
 		action = action_name(config('root_action', 'en'))
@@ -113,9 +120,8 @@ function href(s, target_lang)
 			t[2] = lang_action
 		end
 	elseif target_lang ~= default_lang then
-		t.lang = target_lang
+		attr(t, 'args').lang = target_lang
 	end
-	segs[2] = action_urlname(segs[2])
 	return url(t)
 end
 

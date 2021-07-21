@@ -6,7 +6,7 @@
 CONFIG API
 
 	config(name[, default]) -> value       for global config options
-	S(name[, default]) -> s                for internationalized strings
+	S(name, [default], ...args) -> s       for internationalized strings
 	lang()                                 current language
 
 ACTIONS
@@ -58,13 +58,16 @@ function config(name, val) {
 }}
 
 // global S() for internationalizing strings.
-{
-let t = obj()
-function S(name, val) {
-	if (val !== undefined && t[name] === undefined)
-		t[name] = val
-	return t[name]
-}}
+
+S_texts = obj()
+
+function S(name, en_s, ...args) {
+	let s = or(S_texts[name], en_s) || ''
+	if (args.length)
+		return s.subst(...args)
+	else
+		return s
+}
 
 function lang() {
 	return document.documentElement.lang
@@ -74,10 +77,6 @@ function lang() {
 
 let action_name = function(action) {
 	return action.replaceAll('-', '_')
-}
-
-let action_urlname = function(action) {
-	return action.replaceAll('_', '-')
 }
 
 // extract the action from a decoded url
@@ -108,7 +107,6 @@ function href(url_s, target_lang) {
 	} else if (target_lang != default_lang) {
 		t.args.lang = target_lang
 	}
-	t.segments[1] = action_urlname(t.segments[1])
 	return url(t)
 }
 
