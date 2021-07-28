@@ -30,6 +30,7 @@ RESULT PROCESSING
 
 DDL
 
+	dbname([ns]) -> s                         database name based on app_codename
 	allow_drop([t|f]) -> t|f                  control dropping of tables and fks
 	create_database(name)                     create a database
 	drop_table(name)                          drop table
@@ -99,6 +100,11 @@ end
 
 local free_cns = {} --{ns->{cn->true}}
 
+function dbname(ns)
+	local default = assert(config('app_codename'))..(ns and '_'..ns or '')
+	return pconfig(ns, 'db_schema', default)
+end
+
 local function connect(ns)
 	ns = ns or false
 	local cx = cx()
@@ -112,9 +118,9 @@ local function connect(ns)
 			local t = {
 				host     = pconfig(ns, 'db_host', '127.0.0.1'),
 				port     = pconfig(ns, 'db_port', 3306),
-				database = pconfig(ns, 'db_name'),
 				user     = pconfig(ns, 'db_user', 'root'),
 				password = pconfig(ns, 'db_pass'),
+				database = dbname(ns),
 			}
 			log('CONNECT', '%s:%s user=%s db=%s', t.host, t.port, t.user, t.database)
 			assertq(cn:connect(t))
@@ -141,10 +147,11 @@ local function col_index(name, cols)
 end
 
 local function process_result(t, cols, compact, opt)
-	if cols and #cols == 1 then --single column result: return it as array
+	if cols and #cols == 1 and not (opt and opt.auto_array_result == false) then
+		--single column result: return it as array
 		local t0 = t
 		t = {}
-		local convert = opt and opt.convert and opt.convert[cols[1].name]
+		local convert = opt and opt.convert_result and opt.convert_result[cols[1].name]
 		if compact then
 			for i,row in ipairs(t0) do
 				local v = row[1]
@@ -162,8 +169,8 @@ local function process_result(t, cols, compact, opt)
 				t[i] = v
 			end
 		end
-	elseif opt and opt.convert then
-		for col, convert in pairs(opt.convert) do
+	elseif opt and opt.convert_result then
+		for col, convert in pairs(opt.convert_result) do
 			local fi = compact and assert(col_index(col, cols)) or col
 			for _,row in ipairs(t) do
 				row[fi] = convert(row[fi])

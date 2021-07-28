@@ -70,7 +70,7 @@ function S(name, en_s, ...args) {
 }
 
 function lang() {
-	return document.documentElement.lang
+	return root.lang
 }
 
 // actions -------------------------------------------------------------------

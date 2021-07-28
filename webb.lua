@@ -901,11 +901,19 @@ function fileext(s)
 	return path.ext(s)
 end
 
+local function wwwdir()
+	return config('www_dir', config('app_codename')..'-www')
+end
+
+local function vardir()
+	return config('var_dir', config('app_codename')..'-var')
+end
+
 function wwwpath(file, type)
 	assert(file)
 	if file:find('..', 1, true) then return end --TODO: use path module for this
-	--look into www_dir
-	local abs_path = assert(path.combine(config'www_dir', file))
+	--look into www dir
+	local abs_path = assert(path.combine(wwwdir(), file))
 	if fs.is(abs_path, type) then return abs_path end
 	--look into luapower dir
 	local abs_path = assert(path.combine('.', file))
@@ -914,7 +922,7 @@ function wwwpath(file, type)
 end
 
 function varpath(file)
-	return assert(path.combine(config'var_dir' or config'www_dir', file))
+	return assert(path.combine(vardir(), file))
 end
 
 local function file_object(findfile, readfile) --{filename -> content | handler(filename)}
@@ -945,7 +953,7 @@ function wwwfiles(filter)
 			t[name] = true
 		end
 	end
-	for name, d in fs.dir(config'www_dir') do
+	for name, d in fs.dir(wwwdir()) do
 		if not name then
 			break
 		end
@@ -1373,7 +1381,7 @@ function webb_respond(req, thread)
 	cx = {req = req, res = {headers = {}}}
 	thread_cx[thread] = cx
 	log(req.method, '%s', req.uri)
-	local main = assert(config'main_module')
+	local main = assert(config('main_module', config'app_codename'))
 	local main = type(main) == 'string' and require(main) or main
 	if type(main) == 'table' then
 		main = main.respond
