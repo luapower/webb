@@ -259,7 +259,7 @@ local function _atomic(query, func, ...)
 	query'start transaction'
 	local function pass(ok, ...)
 		query(ok and 'commit' or 'rollback')
-		assert(ok, err)
+		assert(ok, ...)
 		return ...
 	end
 	return pass(glue.pcall(func, ...))
