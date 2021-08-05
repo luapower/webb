@@ -203,10 +203,14 @@ function exec(url, opt) {
 	if (!check_exec())
 		return
 	_save_scroll_state(window.scrollY)
+	url = href(url)
 	if (opt && opt.samepage)
-		history.replaceState(null, null, href(url))
-	else
-		history.pushState(null, null, href(url))
+		history.replaceState(null, null, url)
+	else {
+		if (window.location.href == (new URL(url, document.baseURI)).href)
+			return
+		history.pushState(null, null, url)
+	}
 	let ev = new PopStateEvent('popstate')
 	ev.detail = opt
 	window.fire(ev)

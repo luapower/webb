@@ -627,9 +627,6 @@ function outfile(path) return _outfile(readfile, path) end
 function outfile_cached(path) return _outfile(readfile_cached, path) end
 
 function setheader(name, val)
-	if out_buffering() then
-		return
-	end
 	cx.res.headers[name] = val
 end
 
