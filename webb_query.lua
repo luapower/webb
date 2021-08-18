@@ -125,6 +125,7 @@ for method in pairs{
 	add_uk=1, readd_uk=1, drop_uk=1,
 	add_ix=1, readd_ix=1, drop_ix=1,
 	add_trigger=1, readd_trigger=1, drop_trigger=1,
+	add_proc=1, read_proc=1, drop_proc=1,
 	add_column_locks=1, readd_column_locks=1,
 } do
 	_G[method] = function(...)
