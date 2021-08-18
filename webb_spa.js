@@ -3,6 +3,10 @@
 	webb.js | single-page apps | client-side API
 	Written by Cosmin Apreutesei. Public Domain.
 
+INIT
+
+	init_action()
+
 CONFIG API
 
 	config(name[, default]) -> value       for global config options
@@ -352,13 +356,13 @@ method(Element, 'render', function(data, ev) {
 
 // init ----------------------------------------------------------------------
 
-on_dom_load('url_changed', function() {
+function init_action() {
 	window.on('popstate', function(ev) {
 		loading = false
 		url_changed(ev)
 	})
 	if (client_action) // set from server.
 		url_changed(ev)
-})
+}
 
 } // module scope.

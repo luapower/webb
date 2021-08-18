@@ -81,10 +81,10 @@ URL ENCODING
 
 RESPONSE
 
-	http_error(code[, fmt...])              raise a http error
+	http_error(res)                         raise a http error
 	redirect(url[, status])                 exit with "302 moved temporarily"
-	check(ret[, err...]) -> ret             exit with "404 file not found"
-	allow(ret[, err...]) -> ret             exit with "403 forbidden"
+	check(ret, err) -> ret                  exit with "404 file not found"
+	allow(ret, err) -> ret                  exit with "403 forbidden"
 	check_etag(s)                           exit with "304 not modified"
 
 SOCKETS
@@ -820,14 +820,22 @@ function redirect(uri)
 	http_error{status = 303, headers = {location = uri}}
 end
 
-function check(ret, ...)
+function check(ret, err)
 	if ret then return ret end
-	http_error(404, ...)
+	http_error{
+		status = 404,
+		headers = {['content-type'] = 'application/json'},
+		content = json{error = err},
+	}
 end
 
-function allow(ret, ...)
+function allow(ret, err)
 	if ret then return ret end
-	http_error(403, ...)
+	http_error{
+		status = 403,
+		headers = {['content-type'] = 'application/json'},
+		content = json{error = err},
+	}
 end
 
 --TODO: update xxHash and use xxHash128 for this.
@@ -1272,6 +1280,8 @@ end
 
 function sendmail(from, rcpt, subj, msg, html)
 	--TODO: integrate a few "transactional" email providers here.
+	log('SENDMAIL', 'from=%s rcpt=%s subj=%s', from, rcpt, subj)
+	do return end
 	return send{
 		from = strip_name(from),
 		rcpt = {
@@ -1409,7 +1419,7 @@ function request(arg1, ...)
 	local function main()
 		check(action(unpack(args())))
 	end
-	with_config({main_module = main}, function(...)
+	return with_config({main_module = main}, function(...)
 		local host = 'localhost' --TODO
 		local req = type(arg1) == 'table' and arg1 or {args = {arg1,...}}
 		req = update({
@@ -1427,13 +1437,18 @@ function request(arg1, ...)
 				local_port = nil,
 				remote_addr = nil,
 			}, req.http.tcp)
-		req.respond = function(self, ...)
-			pp(...)
+		req.respond = function(self, res)
+			response = res
 		end
 		req.dbg = cx.req.dbg
+		req.raise = function(self, code, ...)
+			print('RAISE', code, ...)
+		end
 		srun(function()
-			local res = webb_respond(req, coroutine.running())
+			webb_respond(req, coroutine.running())
+			return response
 		end)
+		return response
 	end, ...)
 end
 
