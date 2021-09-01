@@ -60,11 +60,6 @@ local mysql_print = require'mysql_client_print'
 
 spp.keywords[null] = 'null'
 sql_default = spp.keyword.default
-sqlval = spp.val
-sqlrows = spp.rows
-sqlname = spp.name
-sqlparams = spp.params
-sqlquery = spp.query
 qsubst = spp.subst
 qmacro = spp.macro
 
@@ -92,11 +87,12 @@ function db(ns)
 		cn = free_cns_ns and next(free_cns_ns)
 		if not cn then
 			local t = {
-				host     = pconfig(ns, 'db_host', '127.0.0.1'),
-				port     = pconfig(ns, 'db_port', 3306),
-				user     = pconfig(ns, 'db_user', 'root'),
-				password = pconfig(ns, 'db_pass'),
-				database = dbname(ns),
+				host      = pconfig(ns, 'db_host', '127.0.0.1'),
+				port      = pconfig(ns, 'db_port', 3306),
+				user      = pconfig(ns, 'db_user', 'root'),
+				password  = pconfig(ns, 'db_pass'),
+				database  = dbname(ns),
+				charset   = 'utf8mb4',
 			}
 			log('CONNECT', '%s:%s user=%s db=%s', t.host, t.port, t.user, t.database)
 			cn = spp.connect(t)
@@ -114,6 +110,9 @@ function db(ns)
 end
 
 for method in pairs{
+	--preprocessor
+	sqlval=1, sqlrows=1,sqlname=1, sqlparams=1, sqlquery=1,
+	--query execution
 	query=1, first_row=1, each_row=1, each_row_vals=1, each_group=1,
 	atomic=1,
 	--ddl
