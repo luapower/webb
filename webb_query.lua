@@ -52,16 +52,16 @@ DEBUGGING
 ]==]
 
 require'webb'
-local spp = require'sqlpp'.new()
+sqlpp = require'sqlpp'.new()
 require'sqlpp_mysql'
-spp.require'mysql'
-spp.require'mysql_domains'
+sqlpp.require'mysql'
+sqlpp.require'mysql_domains'
 local mysql_print = require'mysql_client_print'
 
-spp.keywords[null] = 'null'
-sql_default = spp.keyword.default
-qsubst = spp.subst
-qmacro = spp.macro
+sqlpp.keywords[null] = 'null'
+sql_default = sqlpp.keyword.default
+qsubst = sqlpp.subst
+qmacro = sqlpp.macro
 
 local function pconfig(ns, k, default)
 	if ns then
@@ -91,11 +91,11 @@ function db(ns)
 				port      = pconfig(ns, 'db_port', 3306),
 				user      = pconfig(ns, 'db_user', 'root'),
 				password  = pconfig(ns, 'db_pass'),
-				database  = dbname(ns),
+				schema    = dbname(ns),
 				charset   = 'utf8mb4',
 			}
 			log('CONNECT', '%s:%s user=%s db=%s', t.host, t.port, t.user, t.database)
-			cn = spp.connect(t)
+			cn = sqlpp.connect(t)
 			cx.cns[ns] = cn
 		else
 			free_cns_ns[cn] = nil
@@ -109,9 +109,17 @@ function db(ns)
 	return cn
 end
 
+function sqlpp.fk_message_remove()
+	return S('fk_message_remove', 'Cannot remove {foreign_entity}: remove any associated {entity} first.')
+end
+
+function sqlpp.fk_message_set()
+	return S('fk_message_set', 'Cannot set {entity}: {foreign_entity} not found in database.')
+end
+
 for method in pairs{
 	--preprocessor
-	sqlval=1, sqlrows=1,sqlname=1, sqlparams=1, sqlquery=1,
+	sqlval=1, sqlrows=1, sqlname=1, sqlparams=1, sqlquery=1,
 	--query execution
 	query=1, first_row=1, each_row=1, each_row_vals=1, each_group=1,
 	atomic=1,
@@ -126,6 +134,8 @@ for method in pairs{
 	add_trigger=1, readd_trigger=1, drop_trigger=1,
 	add_proc=1, read_proc=1, drop_proc=1,
 	add_column_locks=1, readd_column_locks=1,
+	--mdl
+	insert_row=1, insert_or_update_row=1, update_row=1, delete_row=1,
 } do
 	_G[method] = function(...)
 		local db = db()
