@@ -73,7 +73,7 @@ end
 
 local free_cns = {} --{ns->{cn->true}}
 
-local function dbname(ns)
+function dbschema(ns)
 	local default = assert(config('app_codename'))..(ns and '_'..ns or '')
 	return pconfig(ns, 'db_schema', default)
 end
@@ -91,7 +91,7 @@ function db(ns)
 				port      = pconfig(ns, 'db_port', 3306),
 				user      = pconfig(ns, 'db_user', 'root'),
 				password  = pconfig(ns, 'db_pass'),
-				schema    = dbname(ns),
+				schema    = dbschema(ns),
 				charset   = 'utf8mb4',
 			}
 			log('CONNECT', '%s:%s user=%s db=%s', t.host, t.port, t.user, t.database)
@@ -117,11 +117,11 @@ function sqlpp.fk_message_set()
 	return S('fk_message_set', 'Cannot set {entity}: {foreign_entity} not found in database.')
 end
 
-for method in pairs{
+for method, name in pairs{
 	--preprocessor
 	sqlval=1, sqlrows=1, sqlname=1, sqlparams=1, sqlquery=1,
 	--query execution
-	query=1, first_row=1, each_row=1, each_row_vals=1, each_group=1,
+	use='use_schema', query=1, first_row=1, each_row=1, each_row_vals=1, each_group=1,
 	atomic=1,
 	--ddl
 	table_def=1,
@@ -137,7 +137,8 @@ for method in pairs{
 	--mdl
 	insert_row=1, insert_or_update_row=1, update_row=1, delete_row=1,
 } do
-	_G[method] = function(...)
+	name = type(name) == 'string' and name or method
+	_G[name] = function(...)
 		local db = db()
 		return db[method](db, ...)
 	end
