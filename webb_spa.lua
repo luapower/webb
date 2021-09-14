@@ -133,10 +133,11 @@ wwwfile['inline.js'] = function()
 end
 
 jsfile[[
+purify.js
+mustache.js
 glue.js
 divs.js
 webb_spa.js
-mustache.js
 config.js   // dynamic config
 strings.js  // strings in current language
 ]]
@@ -199,7 +200,7 @@ local spa_template = [[
 		var client_action = {{client_action}}
 	</{{undefined}}script>
 </head>
-<body opensans>
+<body opensans class="{{body_classes}}">
 	<div style="display: none;">{{{templates}}}</div>
 {{{body}}}
 </body>
@@ -218,6 +219,7 @@ function spa(p)
 	local t = {}
 	t.lang = lang()
 	t.body = filter_lang(p.body, lang())
+	t.body_classes = p.body_classes
 	t.head = p.head
 	t.title = page_title(p.title, t.body)
 	t.title_suffix = config('page_title_suffix', ' - '..host())

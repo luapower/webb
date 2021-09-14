@@ -125,7 +125,7 @@ for method, name in pairs{
 	atomic=1,
 	--ddl
 	table_def=1,
-	create_database=1,
+	create_schema=1,
 	drop_table=1, drop_tables=1,
 	add_column=1, rename_column=1, drop_column=1,
 	add_fk=1, readd_fk=1, drop_fk=1,
