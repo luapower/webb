@@ -47,6 +47,7 @@ LOADS
 	glue.js
 	divs.js
 	webb_spa.js
+	purify.js
 	mustache.js
 
 ]==]
@@ -133,13 +134,13 @@ wwwfile['inline.js'] = function()
 end
 
 jsfile[[
-purify.js
-mustache.js
 glue.js
 divs.js
 webb_spa.js
 config.js   // dynamic config
 strings.js  // strings in current language
+purify.js
+mustache.js
 ]]
 
 --format js and css refs as separate refs or as a single ref based on a .cat action.
