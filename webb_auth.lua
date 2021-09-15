@@ -502,12 +502,14 @@ function gen_auth_code(validates, s)
 		if not usr then
 			usr = anonymous_usr(session_usr()) or create_user() --grab a new one
 			query('update usr set email = ? where usr = ?', s, usr)
+			clear_userinfo_cache(usr)
 		end
 	elseif validates == 'phone' then
 		usr = phone_usr(s)
 		if not usr then
 			usr = anonymous_usr(session_usr()) or create_user() --grab a new one
 			query('update usr set phone = ? where usr = ?', s, usr)
+			clear_userinfo_cache(usr)
 		end
 	else
 		assert(false)
@@ -548,8 +550,10 @@ local function auth_token(token, auth)
 
 	if validates == 'email' then
 		query('update usr set emailvalid = 1, anonymous = 0 where usr = ?', usr)
+		clear_userinfo_cache(usr)
 	elseif validates == 'phone' then
 		query('update usr set phonevalid = 1, anonymous = 0 where usr = ?', usr)
+		clear_userinfo_cache(usr)
 	end
 
 	--remove the token because it's single use, and also to allow
@@ -847,11 +851,11 @@ if not ... then
 			uri = '/login.json',
 			headers = {
 				cookie = {
-					session = '1|8d9dcbd877276f1a0747ab327f76f9ed|922ddd2bc0700c4ac9801630851b99d7cfe1da67cd82a3e02f8aa82bd5a4c677',
+					session = '1|ac9b46efa4058b1bd70f47143c133193|93c11a3fb3d40bdf3d36c46e49c392107ddde9fd249857c9c8a9e11a022671fb',
 				},
 			},
 		}
-		pp(json_arg(res.content))
+		pp(res)
 		srun(function()
 			--query('delete from usrtoken')
 			--print(gen_auth_code('email', 'admin@mysite'))

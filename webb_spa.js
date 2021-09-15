@@ -16,6 +16,7 @@ CONFIG API
 ACTIONS
 
 	href(url, [lang]) -> url               traslate a URL
+	current_url() -> url
 	e.sethref([url])                       hook an action to a link
 	e.sethrefs()                           hook actions to all links
 	page_loading() -> t|f                  was current page loaded or exec()'ed?
@@ -150,8 +151,8 @@ let action_handler = function(url_s) {
 	let segs = t.segments
 	segs.shift() // remove /
 	segs.shift() // remove act
-	return function(ev) {
-		assign(t, ev.detail)
+	return function(opt) {
+		assign(t, opt)
 		handler.call(null, segs, t)
 	}
 }
@@ -163,22 +164,29 @@ function page_loading() {
 	return loading
 }
 
+function current_url() {
+	return location.pathname + location.search + location.hash
+}
+
 let ignore_url_changed
 
 let url_changed = function(ev) {
 	if (ignore_url_changed)
 		return
-	document.fire('url_changed', ev.detail)
-	let handler = action_handler(location.pathname + location.search + location.hash)
+	let opt = ev.detail
+	document.fire('url_changed', opt)
+	let handler = action_handler(current_url())
 	if (handler)
-		handler(ev)
+		handler(ev.detail)
 	else
 		document.fire('action_not_found', ev.detail)
 }
 
 document.on('action_not_found', function() {
-	if (location.pathname == '/')
+	if (location.pathname == '/') {
+		setflaps('action_not_found')
 		return // no home action
+	}
 	exec('/', {samepage: true})
 })
 
@@ -204,11 +212,13 @@ let check_exec = function() {
 }
 
 function exec(url, opt) {
+	opt = opt || {}
+	opt.prev_url = current_url()
 	if (!check_exec())
 		return
 	_save_scroll_state(window.scrollY)
 	url = href(url)
-	if (opt && opt.samepage)
+	if (opt.samepage)
 		history.replaceState(null, null, url)
 	else {
 		if (window.location.href == (new URL(url, document.baseURI)).href)
@@ -315,11 +325,17 @@ function setflaps(new_cx) {
 	let cx0 = cur_cx && cur_cx.names().tokeys() || empty
 	let cx1 = new_cx && new_cx.names().tokeys() || empty
 	for (let cx in cx0)
-		if (!cx1[cx])
-			flap[cx](false)
+		if (!cx1[cx]) {
+			let handler = flap[cx]
+			if (handler)
+				handler(false)
+		}
 	for (let cx in cx1)
-		if (!cx0[cx])
-			flap[cx](true)
+		if (!cx0[cx]) {
+			let handler = flap[cx]
+			if (handler)
+				handler(true)
+		}
 	cur_cx = new_cx
 }}
 

@@ -868,9 +868,23 @@ cjson.encode_sparse_array(false, 0, 0) --encode all sparse arrays
 
 null = cjson.null
 
-function json_arg(v)
+--TODO: add option to cjson to avoid this crap.
+local function repl_nulls(t, null_val)
+	if type(t) == 'table' then
+		for k,v in pairs(t) do
+			if v == null then
+				v = null_val
+			elseif type(v) == 'table' then
+				repl_nulls(v, null_val)
+			end
+		end
+	end
+	return t
+end
+
+function json_arg(v, null_val)
 	if type(v) ~= 'string' then return v end
-	return cjson.decode(v)
+	return repl_nulls(cjson.decode(v), null_val)
 end
 
 function json(v)
