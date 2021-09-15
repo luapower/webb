@@ -112,15 +112,15 @@ JSON ENCODING/DECODING
 FILESYSTEM
 
 	wwwpath(file, [type]) -> path           get www subpath (and check if exists)
-	wwwfile[_cached](file) -> s             get file contents
-	wwwfile.filename <- s|f(filename)       set virtual file contents
+	wwwfile[_cached](file[,parse]) -> s     get www file contents
+	wwwfile.filename <- s|f(filename)       set virtual www file contents
 	wwwfiles([filter]) -> {name->true}      list www files
-	out[www]file[_cached](file)             buffered out(readfile(file))
+	out[www]file[_cached](file[,parse])     buffered output of www file
 	varpath(file) -> path                   get var subpath (no check that it exists)
 	varpath.filename <- s|f(filename)       set virtual file contents
-	varfile[_cached](file) -> s
+	varfile[_cached](file[,parse]) -> s     get var file contents
 
-	readfile[_cached](file) -> s            cached readfile() for small static files
+	readfile[_cached](file[,parse]) -> s    (cached) readfile for small static files
 	fileext(s) -> s                         get file extension (in lowercase)
 	mkdirs(file) -> file | nil              make dirs for file path
 	fileexists(file, [type]) -> file | nil  check if file exists
@@ -205,7 +205,6 @@ local mustache = require'mustache'
 local concat = table.concat
 local remove = table.remove
 local add = table.insert
-local readfile = glue.readfile
 local update = glue.update
 local assertf = glue.assert
 local memoize = glue.memoize
@@ -221,6 +220,11 @@ errors.errortype'http_response'.__tostring = function(self)
 		s = self.status .. ' ' .. s
 	end
 	return s
+end
+
+function readfile(file, parse)
+	parse = parse or glue.pass
+	return parse(glue.readfile(file))
 end
 
 --thread context switching ---------------------------------------------------
@@ -620,11 +624,11 @@ function record(f, ...)
 	return pass_record(f(...))
 end
 
-local function _outfile(readfile, path)
-	out(readfile(path)) --TODO: make it buffered
+local function _outfile(readfile, path, parse)
+	out(readfile(path, parse)) --TODO: make it buffered
 end
-function outfile(path) return _outfile(readfile, path) end
-function outfile_cached(path) return _outfile(readfile_cached, path) end
+function outfile(path, parse) return _outfile(readfile, path, parse) end
+function outfile_cached(path, parse) return _outfile(readfile_cached, path, parse) end
 
 function setheader(name, val)
 	cx.res.headers[name] = val
@@ -883,7 +887,7 @@ end
 
 do
 local cache = {} --{file -> {mtime=, contents=}}
-function readfile_cached(file, do_readfile)
+function readfile_cached(file, parse)
 	local cached = cache[file]
 	local mtime = filemtime(file)
 	if not mtime then --file was removed
@@ -892,8 +896,7 @@ function readfile_cached(file, do_readfile)
 	end
 	local s
 	if not cached or cached.mtime < mtime then
-		do_readfile = do_readfile or readfile
-		s = do_readfile(file)
+		s = readfile(file, parse)
 		cache[file] = {mtime = mtime, contents = s}
 	else
 		s = cached.contents
@@ -932,7 +935,7 @@ end
 
 local function file_object(findfile, readfile) --{filename -> content | handler(filename)}
 	return setmetatable({}, {
-		__call = function(self, file)
+		__call = function(self, file, parse)
 			local f = self[file]
 			if type(f) == 'function' then
 				return f()
@@ -940,7 +943,7 @@ local function file_object(findfile, readfile) --{filename -> content | handler(
 				return f
 			else
 				local file = findfile(file)
-				return file and readfile(file)
+				return file and readfile(file, parse)
 			end
 		end,
 	})
