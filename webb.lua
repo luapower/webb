@@ -951,6 +951,10 @@ varfile        = file_object(varpath, readfile)
 varfile_cached = file_object(varpath, readfile_cached)
 
 function wwwfiles(filter)
+	if type(filter) == 'string' then
+		local patt = filter
+		filter = function(s) return s:find(patt) end
+	end
 	filter = filter or glue.pass
 	local t = {}
 	for name in pairs(wwwfile) do
@@ -1054,9 +1058,7 @@ end
 
 --gather all the templates from the filesystem.
 local load_templates = memoize(function()
-	local t = wwwfiles(function(s) return s:find'%.html%.mu$' end)
-	t = glue.keys(t)
-	for i,file in ipairs(t) do
+	for i,file in ipairs(glue.keys(wwwfiles'%.html%.mu$')) do
 		local s = wwwfile(file)
 		local _, i = mustache_unwrap(s, template, file)
 		if i == 0 then --must be without the <script> tag

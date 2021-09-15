@@ -133,6 +133,8 @@ wwwfile['inline.js'] = function()
 	return js()
 end
 
+html = sepbuffer'\n'
+
 jsfile[[
 glue.js
 divs.js
@@ -219,7 +221,7 @@ end
 function spa(p)
 	local t = {}
 	t.lang = lang()
-	t.body = filter_lang(p.body, lang())
+	t.body = filter_lang(html(), lang())
 	t.body_classes = p.body_classes
 	t.head = p.head
 	t.title = page_title(p.title, t.body)

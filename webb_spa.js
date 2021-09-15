@@ -347,11 +347,13 @@ function render(template_name, data) {
 method(Element, 'render_string', function(s, data, ev) {
 	this.unsafe_html = render_string(s, data)
 	this.fire('render', data, ev)
+	return this
 })
 
 method(Element, 'render', function(data, ev) {
-	let s = this.template_string || template(this.template || this.id || this.tag)
-	this.render_string(s, data, ev)
+	let s = this.template_string
+		|| template(this.template || this.attr('template') || this.id || this.tag)
+	return this.render_string(s, data, ev)
 })
 
 // init ----------------------------------------------------------------------

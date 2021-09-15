@@ -17,7 +17,6 @@ function xapp.app(codename)
 	require'$'
 	require'webb_spa'
 	require'webb_query'
-	require'webb_auth'
 
 	require'xrowset'
 	require'xrowset_sql'
@@ -40,7 +39,6 @@ function xapp.app(codename)
 			with_config({db_schema = false}, function()
 				create_schema(schema)
 				use_schema(schema)
-				auth_create_tables()
 				app.install()
 			end)
 		end)
@@ -79,58 +77,31 @@ function xapp.app(codename)
 
 	cssfile[[
 	fontawesome.css
-
 	x-widgets.css
-	x-auth.css
 	]]
 
 	jsfile[[
 	markdown-it.js
 	markdown-it-easy-tables.js
-
 	x-widgets.js
 	x-nav.js
 	x-input.js
 	x-listbox.js
 	x-grid.js
 	x-module.js
-	x-auth.js
-	]]
-
-	js[[
-
-	function init_usr() {
-
-		post(href('/login.json'), {}, function(usr) {
-			broadcast('usr_changed', usr)
-		}, function(err) {
-			notify(err, 'error')
-		})
-
-	}
-
-	on_dom_load(function() {
-		init_components()
-		init_usr()
-		init_action()
-	})
-
 	]]
 
 	Sfile[[
 	webb.lua
 	webb_query.lua
-	webb_auth.lua
 	webb_spa.lua
 	webb_xapp.lua
-
 	x-widgets.js
 	x-nav.js
 	x-input.js
 	x-listbox.js
 	x-grid.js
 	x-module.js
-	x-auth.js
 	]]
 
 	Sfile(codename..'.lua')
@@ -146,12 +117,6 @@ function xapp.app(codename)
 			--favicon = '/favicon.ico',
 			client_action = true,
 		}
-	end
-
-	action['login.json'] = function()
-		local auth = post()
-		allow(login(auth))
-		return usr'*'
 	end
 
 	--cmdline -----------------------------------------------------------------
