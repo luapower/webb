@@ -203,7 +203,7 @@ local spa_template = [[
 		var client_action = {{client_action}}
 	</{{undefined}}script>
 </head>
-<body opensans class="{{body_classes}}">
+<body {{body_attrs}} class="{{body_classes}}">
 	<div style="display: none;">{{{templates}}}</div>
 {{{body}}}
 </body>
@@ -212,8 +212,6 @@ local spa_template = [[
 
 function page_title(title, body)
 	return title
-		--infer it from the top heading
-		or (body and body:match'<h1[^>]*>(.-)</h1>')
 		--infer it from the name of the action
 		or args(1):gsub('[-_]', ' ')
 end
@@ -223,6 +221,7 @@ function spa(p)
 	t.lang = lang()
 	t.body = filter_lang(html(), lang())
 	t.body_classes = p.body_classes
+	t.body_attrs = p.body_attrs
 	t.head = p.head
 	t.title = page_title(p.title, t.body)
 	t.title_suffix = config('page_title_suffix', ' - '..host())
