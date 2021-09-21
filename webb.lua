@@ -95,7 +95,7 @@ SOCKETS
 	newthread(f) -> thread                  create thread
 	thread(f, ...) -> thread                create and run thread
 	resume(thread, ...) -> ...              resume thread
-	suspend(thread) -> ...                  suspend thread
+	suspend() -> ...                        suspend thread
 	srun(f)                                 run function in thread
 	resolve(host) -> ip4                    resolve a hostname
 
