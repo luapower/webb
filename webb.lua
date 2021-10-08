@@ -6,6 +6,7 @@
 Exports
 
 	glue
+	pp
 
 CONFIG
 
@@ -22,13 +23,14 @@ CONFIG API
 REQUEST CONTEXT
 
 	once(f, ...)                            memoize for current request
-	cx() -> t                               per-request shared context
+	cx() -> t                               get per-request shared context
+	webb.setcx(thread, t)                   set per-request shared context
 	env([t]) -> t                           per-request shared environment
 	on_cleanup(f)                           add a request finalizer
 
 LOGGING
 
-	log(event, fmt, ...)
+	webb.note(event, fmt, ...)
 	trace(event, fmt, ...) -> log
 
 REQUEST
@@ -83,7 +85,8 @@ RESPONSE
 
 	http_error(res)                         raise a http error
 	redirect(url[, status])                 exit with "302 moved temporarily"
-	check(ret, err) -> ret                  exit with "404 file not found"
+	checkfound(ret, err) -> ret             exit with "404 not found"
+	checkarg(ret, err) -> ret               exit with "400 bad request"
 	allow(ret, err) -> ret                  exit with "403 forbidden"
 	check_etag(s)                           exit with "304 not modified"
 
@@ -96,7 +99,6 @@ SOCKETS
 	thread(f, ...) -> thread                create and run thread
 	resume(thread, ...) -> ...              resume thread
 	suspend() -> ...                        suspend thread
-	srun(f)                                 run function in thread
 	resolve(host) -> ip4                    resolve a hostname
 
 HTTP REQUESTS
@@ -168,13 +170,14 @@ IMAGE PROCESSING
 
 HTTP SERVER INTEGRATION
 
-	webb_respond(req)                       http_server response handler
-	webb_cleanup()
-	http_server([opt]) -> server
+	webb.respond(req)                       webb.server response handler
+	webb.cleanup()
+	webb.server([opt]) -> server
 
 STANDALONE OPERATION
 
-	request(req | arg1,...)                 make a request without a http server.
+	webb.run(f, ...)                        run a function in a webb context.
+	webb.request(req | arg1,...)            make a request without a http server.
 
 API DOCS ---------------------------------------------------------------------
 
@@ -214,6 +217,8 @@ local format = string.format
 _G.glue = glue
 _G.pp = pp
 
+webb = {}
+
 errors.errortype'http_response'.__tostring = function(self)
 	local s = self.traceback or self.message or ''
 	if self.status then
@@ -230,17 +235,22 @@ end
 --thread context switching ---------------------------------------------------
 
 --request context for current thread.
-local cx = {req = {dbg = function(self, topic, ...) print(topic, _(...)) end}}
+do
+	local cx
+	local thread_cx = setmetatable({}, {__mode = 'k'})
+	function sock.save_thread_context(thread)
+		thread_cx[thread] = cx
+	end
+	function sock.restore_thread_context(thread)
+		cx = thread_cx[thread]
+	end
 
-local thread_cx = setmetatable({}, {__mode = 'k'})
-function sock.save_thread_context(thread)
-	thread_cx[thread] = cx
+	function _G.cx() return cx end
+	function webb.setcx(thread, cx1)
+		thread_cx[thread] = cx1
+		cx = cx1
+	end
 end
-function sock.restore_thread_context(thread)
-	cx = thread_cx[thread]
-end
-
-function _G.cx() return cx end
 
 --config function ------------------------------------------------------------
 
@@ -255,8 +265,8 @@ do
 			local val = conf[var]
 			if val == nil then
 				val = default
+				conf[var] = val
 			end
-			conf[var] = val
 			return val
 		end
 	end
@@ -276,7 +286,7 @@ end
 
 do
 local function s_file(lang, ext)
-	return varpath(format('%s-s-%s%s.lua', assert(config('app_codename')), lang,
+	return varpath(format('%s-s-%s%s.lua', config'app_name', lang,
 		ext == 'lua' and '' or '-'..ext))
 end
 
@@ -354,8 +364,8 @@ end
 
 --logging --------------------------------------------------------------------
 
-function log(event, s, ...)
-	cx.req:dbg(event, s, ...)
+function webb.note(event, fmt, ...)
+	cx().req.http:note(event, fmt, ...)
 end
 
 function trace(event, s, ...)
@@ -363,11 +373,11 @@ function trace(event, s, ...)
 		print(debug.traceback())
 		return
 	end
-	log(event, '%4.2f '..s, 0, ...)
+	dbg(event, '%4.2f '..s, 0, ...)
 	local t0 = time()
 	return function(event, s, ...)
 		local dt = time() - t0
-		log(event, '%4.2f '..s, dt, ...)
+		dbg(event, '%4.2f '..s, dt, ...)
 	end
 end
 
@@ -395,7 +405,7 @@ function cookie(name)
 end
 
 function args(v)
-	local args = cx.req.args or cx.args
+	local args = cx().req.args or cx.args
 	if not args then
 		local u = uri.parse(cx.req.uri)
 		args = u.segments
@@ -443,7 +453,7 @@ end
 
 function upload(file)
 	return glue.fcall(function(finally)
-		log('UPLOAD', '%s', file)
+		webb.note('UPLOAD', '%s', file)
 		local f = assert(fs.open(file..'.tmp', 'w'))
 		finally(function() f:close() end)
 		local function write(buf, sz)
@@ -674,7 +684,7 @@ mime_types_compressed = glue.index{
 }
 
 function setmime(ext)
-	setheader('content-type', mime_types[ext])
+	setheader('content-type', assert(mime_types[ext]))
 end
 
 local function print_wrapper(out)
@@ -702,7 +712,6 @@ resume = sock.resume
 suspend = sock.suspend
 thread = sock.thread
 sleep = sock.sleep
-srun = sock.run
 
 function connect(host, port)
 	local skt = sock.tcp()
@@ -816,7 +825,7 @@ end
 --response API ---------------------------------------------------------------
 
 function http_error(...)
-	cx.req:raise(...)
+	cx().req:raise(...)
 end
 
 function redirect(uri)
@@ -824,23 +833,19 @@ function redirect(uri)
 	http_error{status = 303, headers = {location = uri}}
 end
 
-function check(ret, err)
-	if ret then return ret end
-	http_error{
-		status = 404,
-		headers = {['content-type'] = 'application/json'},
-		content = json{error = err},
-	}
+local function checkfunc(code)
+	return function(ret, err)
+		if ret then return ret end
+		http_error{
+			status = code,
+			headers = {['content-type'] = 'application/json'},
+			content = json{error = err},
+		}
+	end
 end
-
-function allow(ret, err)
-	if ret then return ret end
-	http_error{
-		status = 403,
-		headers = {['content-type'] = 'application/json'},
-		content = json{error = err},
-	}
-end
+checkfound = checkfunc(404)
+checkarg   = checkfunc(400)
+allow      = checkfunc(403)
 
 --TODO: update xxHash and use xxHash128 for this.
 local md5 = require'md5'
@@ -924,11 +929,11 @@ function fileext(s)
 end
 
 local function wwwdir()
-	return config('www_dir', config('app_codename')..'-www')
+	return config('www_dir', config('app_name')..'-www')
 end
 
 local function vardir()
-	return config('var_dir', config('app_codename')..'-var')
+	return config('var_dir', config('app_name')..'-var')
 end
 
 function wwwpath(file, type)
@@ -1299,7 +1304,7 @@ end
 
 function sendmail(from, rcpt, subj, msg, html)
 	--TODO: integrate a few "transactional" email providers here.
-	log('SENDMAIL', 'from=%s rcpt=%s subj=%s', from, rcpt, subj)
+	webb.note('SENDMAIL', 'from=%s rcpt=%s subj=%s', from, rcpt, subj)
 	do return end
 	return send{
 		from = strip_name(from),
@@ -1401,54 +1406,73 @@ function base64_image_src(s)
 	return s and 'data:image/png;base64, '..b64.encode(s)
 end
 
---http_server respond function -----------------------------------------------
+--webb.server respond function -----------------------------------------------
 
-function webb_respond(req, thread)
-	cx = {req = req, res = {headers = {}}}
-	thread_cx[thread] = cx
-	log(req.method, '%s', req.uri)
-	local main = assert(config('main_module', config'app_codename'))
+function webb.respond(req)
+	webb.setcx(req.thread, {req = req, res = {headers = {}}})
+	webb.note(req.method, '%s', req.uri)
+	local main = assert(config('main_module', config'app_name'))
 	local main = type(main) == 'string' and require(main) or main
 	if type(main) == 'table' then
 		main = main.respond
 	end
 	on_cleanup(function()
-		cx = nil
-		thread_cx[thread] = nil
+		webb.setcx(req.thread, nil)
 	end)
 	main()
 end
 
 do
-function webb_cleanup()
-	if cx.cleanup then
-		for _,f in ipairs(cx.cleanup) do
-			f()
-		end
-	end
+function webb.cleanup()
+	local f = cx().cleanup
+	if f then f() end
 end
 function on_cleanup(f)
-	add(attr(cx, 'cleanup'), f)
+	glue.after(cx(), 'cleanup', f)
 end
 end
 
 --standalone operation -------------------------------------------------------
 
-function request(arg1, ...)
+function webb.run(f, ...)
+	local note = require'logging'.note
+	if cx() then
+		return f(...)
+	end
+	local http = {}
+	function http:note(event, ...)
+		note('webb', event, ...)
+	end
+	local req = {http = http}
+	local thread = coroutine.running()
+	webb.setcx(thread, {req = req})
+	local function pass(...)
+		webb.setcx(thread, nil)
+		return ...
+	end
+	return pass(sock.run(f, ...))
+end
+
+function webb.request(arg1, ...)
+	local note = require'logging'.note
+	require'webb_action'
 	local function main()
-		check(action(unpack(args())))
+		checkfound(action(unpack(args())))
 	end
 	return with_config({main_module = main}, function(...)
 		local host = 'localhost' --TODO
 		local req = type(arg1) == 'table' and arg1 or {args = {arg1,...}}
 		req = update({
 				method = 'get',
-				uri = concat(map(pack('', arg1, ...), tostring), '/'),
+				uri = concat(glue.map(glue.pack('', arg1, ...), tostring), '/'),
 			}, req)
 		req.headers = update({
 				host = host,
 			}, req.headers)
 		req.http = update({
+				note = function(self, ...)
+					note('webb', ...)
+				end,
 			}, req.http)
 		req.http.tcp = update({
 				istlssocket = true,
@@ -1459,12 +1483,14 @@ function request(arg1, ...)
 		req.respond = function(self, res)
 			response = res
 		end
-		req.dbg = cx.req.dbg
-		req.raise = function(self, code, ...)
-			print('RAISE', code, ...)
+		req.raise = function(self, status, content)
+			local t = type(status) == 'table' and status
+				or {status = status, content = content}
+			print('RAISE', pp.format(t))
 		end
-		srun(function()
-			webb_respond(req, coroutine.running())
+		sock.run(function()
+			req.thread = coroutine.running()
+			webb.respond(req)
 			return response
 		end)
 		return response
@@ -1473,7 +1499,7 @@ end
 
 --pre-configured http app server ---------------------------------------------
 
-function http_server(opt)
+function webb.server(opt)
 	local server = require'http_server'
 	local host       = config('host', 'localhost')
 	local http_addr  = config('http_addr', '127.0.0.1')
@@ -1502,7 +1528,16 @@ function http_server(opt)
 			--stream = true,
 			--tracebacks = true,
 		},
-		respond = webb_respond,
-		cleanup = webb_cleanup,
+		respond = webb.respond,
+		cleanup = webb.cleanup,
 	}, opt))
+end
+
+if not ... then
+	--because we're gonna load `webb_action` which loads back `webb`.
+	package.loaded.webb = true
+
+	config('app_name', 'test')
+	webb.request('')
+
 end

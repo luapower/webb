@@ -74,7 +74,7 @@ end
 local free_cns = {} --{ns->{cn->true}}
 
 function dbschema(ns)
-	local default = assert(config('app_codename'))..(ns and '_'..ns or '')
+	local default = assert(config'app_name')..(ns and '_'..ns or '')
 	return pconfig(ns, 'db_schema', default)
 end
 
@@ -94,7 +94,7 @@ function db(ns)
 				schema    = dbschema(ns),
 				charset   = 'utf8mb4',
 			}
-			log('CONNECT', '%s:%s user=%s db=%s', t.host, t.port, t.user, t.database)
+			webb.note('CONNECT', '%s:%s user=%s db=%s', t.host, t.port, t.user, t.database)
 			cn = sqlpp.connect(t)
 			cx.cns[ns] = cn
 		else
