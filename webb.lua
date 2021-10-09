@@ -1412,7 +1412,7 @@ end
 
 function webb.respond(req)
 	webb.setcx(req.thread, {req = req, res = {headers = {}}})
-	webb.note('webb', 'request', '%s %s', req.method, req.uri)
+	webb.dbg('webb', 'request', '%s %s', req.method, req.uri)
 	local main = assert(config('main_module', config'app_name'))
 	local main = type(main) == 'string' and require(main) or main
 	if type(main) == 'table' then
@@ -1525,11 +1525,11 @@ function webb.server(opt)
 				port = config'http_port',
 			},
 		},
-		debug = {
+		--debug = {
 			--protocol = true,
 			--stream = true,
 			--tracebacks = true,
-		},
+		--},
 		respond = webb.respond,
 		cleanup = webb.cleanup,
 	}, opt))

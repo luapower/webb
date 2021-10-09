@@ -271,7 +271,7 @@ local auth = {} --auth.<type>(auth) -> usr, can_create
 
 local function authenticate(a)
 	assert(type(a) == 'nil' or type(a) == 'table')
-	webb.note('auth', 'auth', '%s', pp.format(a))
+	webb.dbg('auth', 'auth', '%s', pp.format(a))
 	local usr, err, errcode = auth[a and a.type or 'session'](a)
 	if usr then
 		webb.note('auth', 'auth-ok', 'usr=%d', usr)
