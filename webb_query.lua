@@ -94,7 +94,6 @@ function db(ns)
 				schema    = dbschema(ns),
 				charset   = 'utf8mb4',
 			}
-			webb.note('CONNECT', '%s:%s user=%s db=%s', t.host, t.port, t.user, t.database)
 			cn = sqlpp.connect(t)
 			cx.cns[ns] = cn
 		else

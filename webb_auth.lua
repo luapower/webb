@@ -271,13 +271,13 @@ local auth = {} --auth.<type>(auth) -> usr, can_create
 
 local function authenticate(a)
 	assert(type(a) == 'nil' or type(a) == 'table')
-	webb.note('AUTH', '%s', pp.format(a))
+	webb.note('auth', 'auth', '%s', pp.format(a))
 	local usr, err, errcode = auth[a and a.type or 'session'](a)
 	if usr then
-		webb.note('AUTH', 'usr=%d', usr)
+		webb.note('auth', 'auth-ok', 'usr=%d', usr)
 		return usr
 	else
-		webb.note('AUTH', '%s %s', errcode, err)
+		webb.note('auth', 'auth-fail', '%s %s', errcode, err)
 		return nil, err, errcode
 	end
 end
@@ -487,7 +487,7 @@ function gen_auth_token(email)
 
 	local token = pass_hash(random_string(32))
 	local ok, err = register_token(usr, token, 'email', token_lifetime, token_maxcount)
-	webb.note('AUTH-TOKEN', 'usr=%s token=%s'..(ok and '' or ' error=%s'), usr, token, err)
+	webb.note('auth', 'gen-token', 'usr=%s token=%s'..(ok and '' or ' error=%s'), usr, token, err)
 	return ok and token or nil, err
 end
 
@@ -518,7 +518,7 @@ function gen_auth_code(validates, s)
 	local code = pass_hash(random_string(64)):gsub('[a-f]', ''):sub(1, 6)
 	assert(#code == 6)
 	local ok, err = register_token(usr, code, validates, code_lifetime, code_maxcount)
-	webb.note('AUTH-CODE', 'usr=%s code=%s validates=%s'..(ok and '' or ' error=%s'),
+	webb.note('auth', 'gen-code', 'usr=%s code=%s validates=%s'..(ok and '' or ' error=%s'),
 		usr, code, validates, err)
 	return ok and code or nil, err
 end
@@ -585,7 +585,7 @@ local function facebook_graph_request(url, args)
 			return t
 		end
 	end
-	webb.note('FACEBOOK', 'facebook_graph_request: %s %s -> %s',
+	webb.note('auth', 'facebook', 'facebook_graph_request: %s %s -> %s',
 		url, pp.format(args, ' '), pp.format(res, ' '))
 end
 
@@ -629,7 +629,7 @@ local function google_api_request(url, args)
 	if res and res.status == 200 then
 		return json(res.body)
 	end
-	webb.note('GOOGLE', 'google_api_request: %s %s -> %s',
+	webb.note('auth', 'google', 'google_api_request: %s %s -> %s',
 		url, pp.format(args, ' '), pp.format(res, ' '))
 end
 

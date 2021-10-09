@@ -348,7 +348,7 @@ local function run_action(fallback, action, handler, ext, ...)
 		}
 		local nf_action = not_found_actions[mime]
 		if not nf_action then
-			webb.note('NOT FOUND', '%s', table.concat({action, ...}, '/'))
+			webb.note('webb', '404', '%s', table.concat({action, ...}, '/'))
 			return false
 		end
 		local handler, ext = action_handler(nf_action, ...)

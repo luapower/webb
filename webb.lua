@@ -455,7 +455,7 @@ end
 
 function upload(file)
 	return glue.fcall(function(finally)
-		webb.note('UPLOAD', '%s', file)
+		webb.note('webb', 'upload', '%s', file)
 		local f = assert(fs.open(file..'.tmp', 'w'))
 		finally(function() f:close() end)
 		local function write(buf, sz)
@@ -1306,7 +1306,7 @@ end
 
 function sendmail(from, rcpt, subj, msg, html)
 	--TODO: integrate a few "transactional" email providers here.
-	webb.note('SENDMAIL', 'from=%s rcpt=%s subj=%s', from, rcpt, subj)
+	webb.note('webb', 'sendmail', 'from=%s rcpt=%s subj=%s', from, rcpt, subj)
 	do return end
 	return send{
 		from = strip_name(from),
@@ -1412,7 +1412,7 @@ end
 
 function webb.respond(req)
 	webb.setcx(req.thread, {req = req, res = {headers = {}}})
-	webb.note(req.method, '%s', req.uri)
+	webb.note('webb', 'request', '%s %s', req.method, req.uri)
 	local main = assert(config('main_module', config'app_name'))
 	local main = type(main) == 'string' and require(main) or main
 	if type(main) == 'table' then
@@ -1442,8 +1442,8 @@ function webb.run(f, ...)
 		return f(...)
 	end
 	local http = {}
-	function http:note(event, ...)
-		note('webb', event, ...)
+	function http:note(...)
+		note('webb', ...)
 	end
 	local req = {http = http}
 	local thread = coroutine.running()
