@@ -30,8 +30,10 @@ REQUEST CONTEXT
 
 LOGGING
 
-	webb.note(event, fmt, ...)
-	trace(event, fmt, ...) -> log
+	webb.dbg      (module, event, fmt, ...)
+	webb.note     (module, event, fmt, ...)
+	webb.warnif   (module, event, fmt, ...)
+	webb.logerror (module, event, fmt, ...)
 
 REQUEST
 
@@ -235,8 +237,7 @@ end
 --thread context switching ---------------------------------------------------
 
 --request context for current thread.
-do
-	local cx
+local cx do
 	local thread_cx = setmetatable({}, {__mode = 'k'})
 	function sock.save_thread_context(thread)
 		thread_cx[thread] = cx
@@ -364,9 +365,10 @@ end
 
 --logging --------------------------------------------------------------------
 
-function webb.note(event, fmt, ...)
-	cx().req.http:note(event, fmt, ...)
-end
+function webb.dbg      (...) cx.req.http:dbg      (...) end
+function webb.note     (...) cx.req.http:note     (...) end
+function webb.warnif   (...) cx.req.http:warnif   (...) end
+function webb.logerror (...) cx.req.http:logerror (...) end
 
 function trace(event, s, ...)
 	if not event then
@@ -405,7 +407,7 @@ function cookie(name)
 end
 
 function args(v)
-	local args = cx().req.args or cx.args
+	local args = cx.args
 	if not args then
 		local u = uri.parse(cx.req.uri)
 		args = u.segments
@@ -825,7 +827,7 @@ end
 --response API ---------------------------------------------------------------
 
 function http_error(...)
-	cx().req:raise(...)
+	cx.req:raise(...)
 end
 
 function redirect(uri)
@@ -1424,11 +1426,11 @@ end
 
 do
 function webb.cleanup()
-	local f = cx().cleanup
+	local f = cx.cleanup
 	if f then f() end
 end
 function on_cleanup(f)
-	glue.after(cx(), 'cleanup', f)
+	glue.after(cx, 'cleanup', f)
 end
 end
 
@@ -1436,7 +1438,7 @@ end
 
 function webb.run(f, ...)
 	local note = require'logging'.note
-	if cx() then
+	if cx then
 		return f(...)
 	end
 	local http = {}
