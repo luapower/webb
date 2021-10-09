@@ -11,7 +11,7 @@ SESSIONS
 	touch_usr()                               update user's atime
 	gen_auth_token(email) -> token            generate a one-time long-lived auth token
 	gen_auth_code('email', email) -> code     generate a one-time short-lived auth code
-	gen_auth_code('phone', phone) -> code		generate a one-time short-lived auth code
+	gen_auth_code('phone', phone) -> code     generate a one-time short-lived auth code
 
 CONFIG
 
