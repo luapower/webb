@@ -702,7 +702,11 @@ local metamethods = {
 	__mode = 1,
 }
 local function filter(v, k, t)
-	return type(v) ~= 'function' and not (t and getmetatable(t) == t and metamethods[k])
+	return type(v) ~= 'function'
+		and not (t and getmetatable(t) == t and metamethods[k])
+		and (type(v) ~= 'cdata'
+			or ffi.istype(v, 'int64_t')
+			or ffi.istype(v, 'uint64_t'))
 end
 outpp = print_wrapper(glue.printer(out, function(v)
 	return pp.format(v, '   ', {}, nil, nil, nil, true, filter)
