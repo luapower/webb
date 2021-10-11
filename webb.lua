@@ -689,23 +689,24 @@ function setmime(ext)
 	setheader('content-type', assert(mime_types[ext]))
 end
 
-local function print_wrapper(out)
-	return function(s)
-		if not out_buffering() then
-			if cx.res then
-				setheader('content-type', 'text/plain')
-			end
-			out(s)
-		else
-			out(s)
-		end
+local function print_wrapper(print)
+	return function(...)
+		if not out_buffering() and cx.res then setmime'txt' end
+		print(...)
 	end
 end
-
---print functions for debugging with no output buffering and flushing.
-
-outprint = print_wrapper(glue.printer(tostring))
-outpp    = print_wrapper(glue.printer(pp))
+outprint = print_wrapper(glue.printer(out))
+local metamethods = {
+	__index = 1,
+	__newindex = 1,
+	__mode = 1,
+}
+local function filter(v, k, t)
+	return type(v) ~= 'function' and not (t and getmetatable(t) == t and metamethods[k])
+end
+outpp = print_wrapper(glue.printer(out, function(v)
+	return pp.format(v, '   ', {}, nil, nil, nil, true, filter)
+end))
 
 --sockets --------------------------------------------------------------------
 
