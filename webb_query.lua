@@ -5,6 +5,8 @@
 
 PREPROCESSOR
 
+	sqlpp                                          sqlpp instance, for extending.
+
 	sqlval(s) -> s                                 quote string to SQL literal
 	sqlname(s) -> s                                quote string to SQL identifier
 	sqlparams(s, t) -> s                           quote query with :name placeholders.
