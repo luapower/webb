@@ -689,6 +689,7 @@ function setmime(ext)
 	setheader('content-type', assert(mime_types[ext]))
 end
 
+do
 local function print_wrapper(print)
 	return function(...)
 		if not out_buffering() and cx.res then setmime'txt' end
@@ -701,16 +702,19 @@ local metamethods = {
 	__newindex = 1,
 	__mode = 1,
 }
+local i64 = ffi.typeof'int64_t'
+local u64 = ffi.typeof'uint64_t'
 local function filter(v, k, t)
 	return type(v) ~= 'function'
 		and not (t and getmetatable(t) == t and metamethods[k])
 		and (type(v) ~= 'cdata'
-			or ffi.istype(v, 'int64_t')
-			or ffi.istype(v, 'uint64_t'))
+			or ffi.istype(v, i64)
+			or ffi.istype(v, u64))
 end
 outpp = print_wrapper(glue.printer(out, function(v)
 	return pp.format(v, '   ', {}, nil, nil, nil, true, filter)
 end))
+end
 
 --sockets --------------------------------------------------------------------
 
