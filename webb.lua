@@ -670,23 +670,11 @@ mime_types = {
 	bz2  = 'application/x-bz2',
 	tar  = 'application/x-tar',
 	mp3  = 'audio/mpeg',
-}
-
-mime_types_compressed = glue.index{
-	'image/jpeg',
-	'image/png',
-	'font/woff',
-	'font/woff2',
-	'application/zip',
-	'application/x-gzip',
-	'application/x-gzip',
-	'application/x-xz',
-	'application/x-bz2',
-	'audio/mpeg',
+	events = 'text/event-stream',
 }
 
 function setmime(ext)
-	setheader('content-type', assert(mime_types[ext]))
+	cx.res.content_type = assert(mime_types[ext])
 end
 
 do
@@ -723,6 +711,7 @@ resume = sock.resume
 suspend = sock.suspend
 thread = sock.thread
 sleep = sock.sleep
+currentthread = sock.currentthread
 
 function connect(host, port)
 	local skt = sock.tcp()

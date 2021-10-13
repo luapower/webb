@@ -355,7 +355,6 @@ local function run_action(fallback, action, handler, ext, ...)
 		return run_action(false, nf_action, handler, ext, action, ...)
 	end
 	setmime(ext)
-	cx().res.compress = not mime_types_compressed[mime]
 	local filter = mime_type_filters[mime]
 	if filter then
 		filter(handler, ...)
