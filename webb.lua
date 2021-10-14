@@ -100,6 +100,7 @@ SOCKETS
 	newthread(f) -> thread                  create thread
 	thread(f, ...) -> thread                create and run thread
 	resume(thread, ...) -> ...              resume thread
+	transfer(thread, ...) -> ...            transfer to thread
 	suspend() -> ...                        suspend thread
 	resolve(host) -> ip4                    resolve a hostname
 
@@ -709,6 +710,7 @@ end
 newthread = sock.newthread
 resume = sock.resume
 suspend = sock.suspend
+transfer = sock.transfer
 thread = sock.thread
 sleep = sock.sleep
 currentthread = sock.currentthread
