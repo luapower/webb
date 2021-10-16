@@ -28,6 +28,16 @@ REQUEST CONTEXT
 	env([t]) -> t                           per-request shared environment
 	on_cleanup(f)                           add a request finalizer
 
+THREADING
+
+	newthread(f) -> thread                  create thread
+	thread(f, ...) -> thread                create and run thread
+	suspend() -> ...                        suspend thread
+	resume(thread, ...) -> ...              resume thread
+	transfer(thread, ...) -> ...            transfer to thread
+	sleep(n)                                sleep n seconds
+	sleep_until(t)                          sleep until time
+
 LOGGING
 
 	webb.dbg      (module, event, fmt, ...)
@@ -94,14 +104,7 @@ RESPONSE
 
 SOCKETS
 
-	sleep(n)                                sleep n seconds
 	connect(ip, port) -> sock               connect to a server
-	resolve(host) -> ip                     DNS-resolve a host name
-	newthread(f) -> thread                  create thread
-	thread(f, ...) -> thread                create and run thread
-	resume(thread, ...) -> ...              resume thread
-	transfer(thread, ...) -> ...            transfer to thread
-	suspend() -> ...                        suspend thread
 	resolve(host) -> ip4                    resolve a hostname
 
 HTTP REQUESTS
@@ -235,7 +238,7 @@ function readfile(file, parse)
 	return parse(glue.readfile(file))
 end
 
---thread context switching ---------------------------------------------------
+--threads and webb context switching -----------------------------------------
 
 --request context for current thread.
 local cx do
@@ -253,6 +256,15 @@ local cx do
 		cx = cx1
 	end
 end
+
+currentthread = sock.currentthread
+newthread = sock.newthread
+thread = sock.thread
+suspend = sock.suspend
+resume = sock.resume
+transfer = sock.transfer
+sleep_until = sock.sleep_until
+sleep = sock.sleep
 
 --config function ------------------------------------------------------------
 
@@ -706,14 +718,6 @@ end))
 end
 
 --sockets --------------------------------------------------------------------
-
-newthread = sock.newthread
-resume = sock.resume
-suspend = sock.suspend
-transfer = sock.transfer
-thread = sock.thread
-sleep = sock.sleep
-currentthread = sock.currentthread
 
 function connect(host, port)
 	local skt = sock.tcp()
@@ -1525,11 +1529,11 @@ function webb.server(opt)
 				port = config'http_port',
 			},
 		},
-		--debug = {
+		debug = {
 			--protocol = true,
 			--stream = true,
 			--tracebacks = true,
-		--},
+		},
 		respond = webb.respond,
 		cleanup = webb.cleanup,
 	}, opt))
