@@ -173,13 +173,13 @@ let ignore_url_changed
 let url_changed = function(ev) {
 	if (ignore_url_changed)
 		return
-	let opt = ev.detail
+	let opt = ev && ev.detail || empty
 	document.fire('url_changed', opt)
 	let handler = action_handler(current_url())
 	if (handler)
-		handler(ev.detail)
+		handler(opt)
 	else
-		document.fire('action_not_found', ev.detail)
+		document.fire('action_not_found', opt)
 }
 
 document.on('action_not_found', function() {
@@ -380,7 +380,7 @@ function init_action() {
 		url_changed(ev)
 	})
 	if (client_action) // set from server.
-		url_changed(ev)
+		url_changed()
 }
 
 } // module scope.
