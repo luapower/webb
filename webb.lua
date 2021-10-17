@@ -693,7 +693,7 @@ end
 do
 local function print_wrapper(print)
 	return function(...)
-		if not out_buffering() and cx.res then setmime'txt' end
+		if cx.res then setmime'txt' end
 		print(...)
 	end
 end

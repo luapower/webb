@@ -148,3 +148,4 @@ end
 function pqr(rows, cols)
 	return mysql_print.result(rows, cols)
 end
+
