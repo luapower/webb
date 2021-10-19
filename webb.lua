@@ -1470,7 +1470,7 @@ function webb.request(arg1, ...)
 		local req = type(arg1) == 'table' and arg1 or {args = {arg1,...}}
 		req = update({
 				method = 'get',
-				uri = concat(glue.map(glue.pack('', arg1, ...), tostring), '/'),
+				uri = concat(glue.imap(glue.pack('', arg1, ...), tostring), '/'),
 			}, req)
 		req.headers = update({
 				host = host,
