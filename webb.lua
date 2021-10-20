@@ -81,6 +81,7 @@ OUTPUT
 	out_buffering() -> t | f                check if we're buffering output
 	setheader(name, val)                    set a header (unless we're buffering)
 	setmime(ext)                            set content-type based on file extension
+	setcompress(on)                         enable or disable compression
 	outprint(...)                           like Lua's print but uses out()
 
 HTML ENCODING
@@ -636,7 +637,6 @@ function pop_out()
 end
 
 function out(s, len)
-	if not cx.res then return end --not a server context
 	local outfunc = cx.outfunc or default_outfunc
 	outfunc(s, len)
 end
@@ -688,6 +688,10 @@ mime_types = {
 
 function setmime(ext)
 	cx.res.content_type = assert(mime_types[ext])
+end
+
+function setcompress(on)
+	cx.res.compress = on
 end
 
 do
@@ -1451,7 +1455,14 @@ function webb.run(f, ...)
 	end
 	local req = {http = http}
 	local thread = coroutine.running()
-	webb.setcx(thread, {req = req})
+	local function stdout_out(s, len)
+		if type(s) == 'cdata' then
+			s = ffi.string(s, len)
+		end
+		io.stdout:write(s)
+		io.stdout:flush()
+	end
+	webb.setcx(thread, {req = req, outfunc = stdout_out})
 	local function pass(...)
 		webb.setcx(thread, nil)
 		return ...
