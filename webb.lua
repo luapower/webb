@@ -856,6 +856,8 @@ end
 checkfound = checkfunc(404)
 checkarg   = checkfunc(400)
 allow      = checkfunc(403)
+check500   = checkfunc(500)
+check200   = checkfunc(200)
 
 --TODO: update xxHash and use xxHash128 for this.
 local md5 = require'md5'
@@ -1450,19 +1452,25 @@ function webb.run(f, ...)
 		return f(...)
 	end
 	local http = {}
+	local req = {http = http}
+	local cx = {req = req}
 	function http:note(...)
 		note('webb', ...)
 	end
-	local req = {http = http}
 	local thread = coroutine.running()
-	local function stdout_out(s, len)
+	function cx.outfunc(s, len)
 		if type(s) == 'cdata' then
 			s = ffi.string(s, len)
 		end
 		io.stdout:write(s)
 		io.stdout:flush()
 	end
-	webb.setcx(thread, {req = req, outfunc = stdout_out})
+	function req:raise(status, content)
+		local t = type(status) == 'table' and status
+			or {status = status, content = content}
+		print('RAISE', pp.format(t))
+	end
+	webb.setcx(thread, cx)
 	local function pass(...)
 		webb.setcx(thread, nil)
 		return ...
