@@ -843,21 +843,21 @@ function redirect(uri)
 	http_error{status = 303, headers = {location = uri}}
 end
 
-local function checkfunc(code)
+local function checkfunc(code, default_err)
 	return function(ret, err)
 		if ret then return ret end
 		http_error{
 			status = code,
 			headers = {['content-type'] = 'application/json'},
-			content = json{error = err},
+			content = json{error = err or default_err},
 		}
 	end
 end
-checkfound = checkfunc(404)
-checkarg   = checkfunc(400)
-allow      = checkfunc(403)
-check500   = checkfunc(500)
-check200   = checkfunc(200)
+checkfound = checkfunc(404, 'Not found')
+checkarg   = checkfunc(400, 'Invalid argument')
+allow      = checkfunc(403, 'Not allowed')
+check500   = checkfunc(500, 'Server error')
+check200   = checkfunc(200, 'OK')
 
 --TODO: update xxHash and use xxHash128 for this.
 local md5 = require'md5'
