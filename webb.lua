@@ -213,7 +213,7 @@ local b64 = require'libb64'
 local fs = require'fs'
 local path = require'path'
 local mustache = require'mustache'
-local md5 = require'md5' --TODO: use a faster hash
+local xxhash = require'xxhash'
 local prettycjson = require'prettycjson'
 
 local concat = table.concat
@@ -875,7 +875,7 @@ check200   = checkfunc(200, 'OK')
 function check_etag(s)
 	if not method'get' then return s end
 	if out_buffering() then return s end
-	local etag = glue.tohex(md5.sum(s))
+	local etag = xxhash.hash128(s):hex()
 	local etags = headers'if-none-match'
 	if etags and type(etags) == 'table' then
 		for _,t in ipairs(etags) do
