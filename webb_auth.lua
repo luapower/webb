@@ -159,7 +159,7 @@ require'webb_query'
 require'webb_action'
 
 local function fullname(firstname, lastname)
-	return glue.trim((firstname or '')..' '..(lastname or ''))
+	return glue.catargs(firstname, lastname):trim()
 end
 
 local function random_string(n)
@@ -168,6 +168,65 @@ local function random_string(n)
 		t[i] = math.random(0, 255)
 	end
 	return string.char(unpack(t))
+end
+
+--install --------------------------------------------------------------------
+
+function auth_drop_tables()
+	drop_table'usrtoken'
+	drop_table'sess'
+	drop_table'usr'
+end
+
+function auth_create_tables()
+
+	query[[
+	$table usr (
+		usr         $pk,
+		anonymous   $bool1,
+		email       $email,
+		emailvalid  $bool,
+		pass        $hash,
+		facebookid  $name,
+		googleid    $name,
+		gimgurl     $url, --google image url
+		active      $bool1,
+		title       $name,
+		name        $name,
+		phone       $name,
+		phonevalid  $bool,
+		sex         enum('M', 'F'),
+		birthday    date,
+		newsletter  $bool,
+		roles       text,
+		note        text,
+		clientip    $name, --when it was created
+		atime       $atime, --last access time
+		ctime       $ctime, --creation time
+		mtime       $mtime  --last modification time
+	);
+	]]
+
+	query[[
+	$table sess (
+		token       $hash not null primary key,
+		usr         $id not null, $fk(sess, usr, usr, usr, cascade),
+		expires     timestamp not null,
+		clientip    $name, --when it was created
+		ctime       $ctime
+	);
+	]]
+
+	query[[
+	$table usrtoken (
+		token       $hash not null primary key,
+		usr         $id not null, $fk(usrtoken, usr, usr),
+		expires     timestamp not null,
+		validates   enum('email', 'phone') not null,
+		ctime       $ctime
+	);
+	]]
+
 end
 
 --session cookie -------------------------------------------------------------
@@ -783,64 +842,7 @@ function auth.update(auth)
 	return usr
 end
 
---install --------------------------------------------------------------------
-
-function auth_drop_tables()
-	drop_table'usrtoken'
-	drop_table'sess'
-	drop_table'usr'
-end
-
-function auth_create_tables()
-
-	query[[
-	$table usr (
-		usr         $pk,
-		anonymous   $bool1,
-		email       $email,
-		emailvalid  $bool,
-		pass        $hash,
-		facebookid  $name,
-		googleid    $name,
-		gimgurl     $url, --google image url
-		active      $bool1,
-		title       $name,
-		name        $name,
-		phone       $name,
-		phonevalid  $bool,
-		sex         enum('M', 'F'),
-		birthday    date,
-		newsletter  $bool,
-		roles       text,
-		note        text,
-		clientip    $name, --when it was created
-		atime       $atime, --last access time
-		ctime       $ctime, --creation time
-		mtime       $mtime  --last modification time
-	);
-	]]
-
-	query[[
-	$table sess (
-		token       $hash not null primary key,
-		usr         $id not null, $fk(sess, usr, usr, usr, cascade),
-		expires     timestamp not null,
-		clientip    $name, --when it was created
-		ctime       $ctime
-	);
-	]]
-
-	query[[
-	$table usrtoken (
-		token       $hash not null primary key,
-		usr         $id not null, $fk(usrtoken, usr, usr),
-		expires     timestamp not null,
-		validates   enum('email', 'phone') not null,
-		ctime       $ctime
-	);
-	]]
-
-end
+--self-test ------------------------------------------------------------------
 
 if not ... then
 	require'sp'

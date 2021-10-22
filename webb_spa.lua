@@ -74,6 +74,7 @@ action['config.js'] = function()
 			..cjson.encode(config(name))..')\n')
 	end
 
+	C'app_name'
 	C'lang'
 	C'aliases'
 	C'root_action'
