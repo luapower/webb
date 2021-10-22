@@ -1453,7 +1453,7 @@ function webb.run(f, ...)
 	end
 	local http = {}
 	local req = {http = http}
-	local cx = {req = req}
+	local cx = {req = req, fake = true}
 	function http:note(...)
 		note('webb', ...)
 	end
@@ -1488,6 +1488,7 @@ function webb.request(arg1, ...)
 		local host = 'localhost' --TODO
 		local req = type(arg1) == 'table' and arg1 or {args = {arg1,...}}
 		req = update({
+				fake = true,
 				method = 'get',
 				uri = concat(glue.imap(glue.pack('', arg1, ...), tostring), '/'),
 			}, req)
