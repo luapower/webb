@@ -700,7 +700,7 @@ mime_types = {
 }
 
 function setmime(ext)
-	cx.res.content_type = assert(mime_types[ext])
+	cx.res.content_type = checkfound(mime_types[ext])
 end
 
 function setcompress(on)
