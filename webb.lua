@@ -72,7 +72,7 @@ ARG PARSING
 
 OUTPUT
 
-	setcontent(s)                           output a single value
+	outall(s)                               output a single value
 	out(s)                                  output one more non-nil value
 	push_out([f])                           push output function or buffer
 	pop_out() -> s                          pop output function and flush it
@@ -126,7 +126,8 @@ FILESYSTEM
 	wwwfiles([filter]) -> {name->true}      list www files
 	out[www]file[_cached](file[,parse])     buffered output of www file
 	varpath(file) -> path                   get var subpath (no check that it exists)
-	varpath.filename <- s|f(filename)       set virtual file contents
+	tmppath(file) -> path                   get tmp subpath (no check that it exists)
+	varfile.filename <- s|f(filename)       set virtual file contents
 	varfile[_cached](file[,parse]) -> s     get var file contents
 
 	readfile[_cached](file[,parse]) -> s    (cached) readfile for small static files
@@ -201,6 +202,7 @@ an inherited environment is created.
 
 ]==]
 
+local ffi = require'ffi'
 local glue = require'glue'
 local pp = require'pp'
 local uri = require'uri'
@@ -211,6 +213,8 @@ local b64 = require'libb64'
 local fs = require'fs'
 local path = require'path'
 local mustache = require'mustache'
+local md5 = require'md5' --TODO: use a faster hash
+local prettycjson = require'prettycjson'
 
 local concat = table.concat
 local remove = table.remove
@@ -236,7 +240,16 @@ end
 
 function readfile(file, parse)
 	parse = parse or glue.pass
-	return parse(glue.readfile(file))
+	local s, err = glue.readfile(file)
+	if not s then return nil, err end
+	return parse(s)
+end
+
+function writefile(file, s)
+	webb.note('webb', 'wrfile', '%s', file)
+	local ok, err = glue.writefile(file, s)
+	if ok then return ok end
+	webb.logerror('webb', 'writefile', 'failed writing file %s: %s', file, err)
 end
 
 --threads and webb context switching -----------------------------------------
@@ -572,7 +585,7 @@ end
 
 --output API -----------------------------------------------------------------
 
-function setcontent(s)
+function outall(s)
 	if cx.send_body or out_buffering() then
 		out(s)
 	else
@@ -859,9 +872,6 @@ allow      = checkfunc(403, 'Not allowed')
 check500   = checkfunc(500, 'Server error')
 check200   = checkfunc(200, 'OK')
 
---TODO: update xxHash and use xxHash128 for this.
-local md5 = require'md5'
-
 function check_etag(s)
 	if not method'get' then return s end
 	if out_buffering() then return s end
@@ -904,14 +914,18 @@ function json_arg(v, null_val)
 	return repl_nulls(cjson.decode(v), null_val)
 end
 
-function json(v)
+function json(v, indent)
 	if v == nil then return nil end
-	return cjson.encode(v)
+	if indent and indent ~= '' then
+		return prettycjson(v, nil, indent)
+	else
+		return cjson.encode(v)
+	end
 end
 
 function out_json(v)
 	setmime'json'
-	setcontent(json(v))
+	outall(json(v))
 end
 
 --filesystem API -------------------------------------------------------------
@@ -940,29 +954,37 @@ function fileext(s)
 	return path.ext(s)
 end
 
+--make a path by combining dir and file.
+function indir(dir, file)
+	return assert(path.combine(dir, file))
+end
+
 local function wwwdir()
-	return config('www_dir', config('app_name')..'-www')
+	return config'www_dir' or config('www_dir', config('app_name')..'-www')
 end
 
 local function vardir()
-	return config('var_dir', config('app_name')..'-var')
+	return config'var_dir' or config('var_dir', config('app_name')..'-var')
+end
+
+local function tmpdir()
+	return config'tmp_dir' or config('tmp_dir', indir('tmp', config('app_name')))
 end
 
 function wwwpath(file, type)
 	assert(file)
 	if file:find('..', 1, true) then return end --TODO: use path module for this
 	--look into www dir
-	local abs_path = assert(path.combine(wwwdir(), file))
+	local abs_path = indir(wwwdir(), file)
 	if fs.is(abs_path, type) then return abs_path end
 	--look into luapower dir
-	local abs_path = assert(path.combine('.', file))
+	local abs_path = indir('.', file)
 	if fs.is(abs_path, type) then return abs_path end
 	return nil, file..' not found'
 end
 
-function varpath(file)
-	return assert(path.combine(vardir(), file))
-end
+function varpath(file) return indir(vardir(), file) end
+function tmppath(file) return indir(tmpdir(), file) end
 
 local function file_object(findfile, readfile) --{filename -> content | handler(filename)}
 	return setmetatable({}, {
@@ -1455,7 +1477,7 @@ function webb.run(f, ...)
 	local req = {http = http}
 	local cx = {req = req, fake = true}
 	function http:note(...)
-		note('webb', ...)
+		note(...)
 	end
 	local thread = coroutine.running()
 	function cx.outfunc(s, len)
@@ -1497,7 +1519,7 @@ function webb.request(arg1, ...)
 			}, req.headers)
 		req.http = update({
 				note = function(self, ...)
-					note('webb', ...)
+					note(...)
 				end,
 			}, req.http)
 		req.http.tcp = update({

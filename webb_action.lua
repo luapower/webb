@@ -208,7 +208,7 @@ local function html_filter(handler, ...)
 	local s = record(handler, ...)
 	local s = setlinks(filter_lang(filter_comments(s), lang()))
 	check_etag(s)
-	setcontent(s)
+	outall(s)
 end
 
 local function json_filter(handler, ...)
@@ -218,7 +218,7 @@ local function json_filter(handler, ...)
 	end
 	if s then
 		check_etag(s)
-		setcontent(s)
+		outall(s)
 	end
 end
 
@@ -231,7 +231,7 @@ local function js_filter(handler, ...)
 	local s = record(handler, ...)
 	s = minify(s)
 	check_etag(s)
-	setcontent(s)
+	outall(s)
 end
 
 local mime_type_filters = {
@@ -312,7 +312,7 @@ local function action_handler(action, ...)
 	if handler and type(handler) ~= 'function' then
 		local s = handler
 		handler = function()
-			setcontent(s)
+			outall(s)
 		end
 	end
 
