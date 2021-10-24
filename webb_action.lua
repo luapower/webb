@@ -15,7 +15,7 @@ ACTIONS
 
 	action(name, args...) -> t|f          execute action as http response
 	fileaction(path) -> t|f               serve a plain file
-	exec(name, args...) -> ret...|true    execute action internally
+	execaction(name, args...) -> ret...|true    execute action internally
 
 	function action.NAME(args) end        set an inline action handler
 
@@ -329,7 +329,7 @@ local function pass(arg1, ...)
 		return arg1, ...
 	end
 end
-function exec(action, ...)
+function execaction(action, ...)
 	local handler = action_handler(action, ...)
 	if not handler then return false end
 	return pass(handler(...))

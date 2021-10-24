@@ -24,6 +24,7 @@ REQUEST CONTEXT
 
 	once(f, ...)                            memoize for current request
 	cx() -> t                               get per-request shared context
+	cx().fake -> t|f                        context is fake (we're on cmdline)
 	webb.setcx(thread, t)                   set per-request shared context
 	env([t]) -> t                           per-request shared environment
 	on_cleanup(f)                           add a request finalizer
@@ -245,11 +246,12 @@ function readfile(file, parse)
 	return parse(s)
 end
 
-function writefile(file, s)
-	webb.note('webb', 'wrfile', '%s', file)
-	local ok, err = glue.writefile(file, s)
+function writefile(file, s, mode)
+	webb.note('fs', 'writefile', '%s (%s %s)', file,
+		mode or 'w', type(s) == 'string' and #s..' bytes' or type(s))
+	local ok, err = glue.writefile(file, s, mode)
 	if ok then return ok end
-	webb.logerror('webb', 'writefile', 'failed writing file %s: %s', file, err)
+	webb.logerror('fs', 'writefile', 'failed writing file %s: %s', file, err)
 end
 
 --threads and webb context switching -----------------------------------------
@@ -392,10 +394,13 @@ end
 
 --logging --------------------------------------------------------------------
 
-function webb.dbg      (...) cx.req.http:dbg      (...) end
-function webb.note     (...) cx.req.http:note     (...) end
-function webb.warnif   (...) cx.req.http:warnif   (...) end
-function webb.logerror (...) cx.req.http:logerror (...) end
+function webb.dbg      (...) cx.req.http:log(''     , ...) end
+function webb.note     (...) cx.req.http:log('note' , ...) end
+function webb.logerror (...) cx.req.http:log('ERROR', ...) end
+function webb.warnif   (module, event, cond, ...)
+	if not cond then return end
+	cx.req.http:log('WARN', module, event, ...)
+end
 
 function trace(event, s, ...)
 	if not event then
@@ -1444,7 +1449,7 @@ end
 
 function webb.respond(req)
 	webb.setcx(req.thread, {req = req, res = {headers = {}}})
-	webb.dbg('webb', 'request', '%s %s', req.method, req.uri)
+	webb.note('webb', 'request', '%s %s', req.method, req.uri)
 	local main = assert(config('main_module', config'app_name'))
 	local main = type(main) == 'string' and require(main) or main
 	if type(main) == 'table' then
@@ -1488,9 +1493,16 @@ function webb.run(f, ...)
 		io.stdout:flush()
 	end
 	function req:raise(status, content)
-		local t = type(status) == 'table' and status
-			or {status = status, content = content}
-		print('RAISE', pp.format(t))
+		local err
+		if type(status) == 'number' then
+			err = {status = status, content = content}
+		elseif type(status) == 'table' then
+			err = status
+		else
+			assert(false)
+		end
+		print('http_error', err.status, err.content)
+		os.exit(1)
 	end
 	webb.setcx(thread, cx)
 	local function pass(...)
