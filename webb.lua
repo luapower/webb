@@ -38,6 +38,7 @@ THREADING
 	transfer(thread, ...) -> ...            transfer to thread
 	sleep(n)                                sleep n seconds
 	sleep_until(t)                          sleep until time
+	sleep_job()                             make a sleep job
 
 LOGGING
 
@@ -280,6 +281,7 @@ suspend = sock.suspend
 resume = sock.resume
 transfer = sock.transfer
 sleep_until = sock.sleep_until
+sleep_job = sock.sleep_job
 sleep = sock.sleep
 
 --config function ------------------------------------------------------------
