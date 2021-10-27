@@ -27,7 +27,6 @@ REQUEST CONTEXT
 	cx().fake -> t|f                        context is fake (we're on cmdline)
 	webb.setcx(thread, t)                   set per-request shared context
 	env([t]) -> t                           per-request shared environment
-	onrequestfinish(f)                      add a request finalizer
 
 THREADING
 
@@ -40,7 +39,7 @@ THREADING
 	transfer(thread, ...) -> ...            transfer to thread
 	sleep(n)                                sleep n seconds
 	sleep_until(t)                          sleep until time
-	sleep_job()                             make a sleep job
+	sleep_job() -> sj                       make a sleep job
 
 LOGGING
 
@@ -106,6 +105,8 @@ RESPONSE
 	checkarg(ret, err) -> ret               exit with "400 bad request"
 	allow(ret, err) -> ret                  exit with "403 forbidden"
 	check_etag(s)                           exit with "304 not modified"
+	onrequestfinish(f)                      add a request finalizer
+	http_close()                            close the connection after this request.
 
 SOCKETS
 
@@ -899,6 +900,10 @@ function check_etag(s)
 	--send etag to client as weak etag so that gzip filter still apply.
 	setheader('etag', 'W/'..etag)
 	return s
+end
+
+function http_close()
+	cx.res.close = true
 end
 
 --json API -------------------------------------------------------------------
