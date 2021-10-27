@@ -18,7 +18,7 @@ PREPROCESSOR
 
 EXECUTION
 
-	db(ns) -> db                                   get a connection's query API
+	db(ns) -> db                                   get a sqlpp connection
 	[db:]query([opt,]sql, ...) -> rows             query and return rows in a table
 	[db:]first_row([opt,]sql, ...) -> t            query and return first row or value
 	[db:]each_row([opt,]sql, ...) -> iter          query and iterate rows
@@ -59,6 +59,7 @@ require'sqlpp_mysql'
 sqlpp.require'mysql'
 sqlpp.require'mysql_domains'
 local mysql_print = require'mysql_client_print'
+local pool = require'connpool'.new{logging = require'logging'}
 
 sqlpp.keywords[null] = 'null'
 sql_default = sqlpp.keyword.default
@@ -73,41 +74,53 @@ local function pconfig(ns, k, default)
 	end
 end
 
-local free_cns = {} --{ns->{cn->true}}
-
 function dbschema(ns)
 	local default = assert(config'app_name')..(ns and '_'..ns or '')
 	return pconfig(ns, 'db_schema', default)
 end
 
+local conn_opt = memoize(function(ns)
+	local t = {}
+	t.host      = pconfig(ns, 'db_host', '127.0.0.1')
+	t.port      = pconfig(ns, 'db_port', 3306)
+	t.user      = pconfig(ns, 'db_user', 'root')
+	t.password  = pconfig(ns, 'db_pass')
+	t.schema    = dbschema(ns)
+	t.charset   = 'utf8mb4'
+	t.pool_key = t.host..':'..t.port..':'..(t.schema or '')
+	return t
+end)
+
 function db(ns)
 	ns = ns or false
-	local cx = cx()
-	local cn = attr(cx, 'cns')[ns]
-	if not cn then
-		local free_cns_ns = free_cns[ns]
-		cn = free_cns_ns and next(free_cns_ns)
-		if not cn then
-			local t = {
-				host      = pconfig(ns, 'db_host', '127.0.0.1'),
-				port      = pconfig(ns, 'db_port', 3306),
-				user      = pconfig(ns, 'db_user', 'root'),
-				password  = pconfig(ns, 'db_pass'),
-				schema    = dbschema(ns),
-				charset   = 'utf8mb4',
-			}
-			cn = sqlpp.connect(t)
-			cx.cns[ns] = cn
-		else
-			free_cns_ns[cn] = nil
-			cx.cns[ns] = cn
-		end
-		on_cleanup(function()
-			cx.cns[ns] = nil
-			attr(free_cns, ns)[cn] = true
+	local opt = conn_opt(ns)
+	local key = opt.pool_key
+	local thread = currentthread()
+	local env = attr(threadenv, thread)
+	local dbs = env.dbs
+	if not dbs then
+		dbs = {}
+		env.dbs = dbs
+		onthreadfinish(thread, function()
+			for _,db in pairs(dbs) do
+				db:release()
+			end
 		end)
 	end
-	return cn
+	local db, err = dbs[key]
+	if not db then
+		db, err = pool:get(key)
+		if not db then
+			if err == 'empty' then
+				db = sqlpp.connect(opt)
+				pool:put(key, db, db.rawconn.tcp)
+				dbs[key] = db
+			else
+				assert(nil, err)
+			end
+		end
+	end
+	return db
 end
 
 function sqlpp.fk_message_remove()
@@ -148,4 +161,3 @@ end
 function pqr(rows, cols)
 	return mysql_print.result(rows, cols)
 end
-

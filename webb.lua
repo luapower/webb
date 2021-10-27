@@ -27,12 +27,14 @@ REQUEST CONTEXT
 	cx().fake -> t|f                        context is fake (we're on cmdline)
 	webb.setcx(thread, t)                   set per-request shared context
 	env([t]) -> t                           per-request shared environment
-	on_cleanup(f)                           add a request finalizer
+	onrequestfinish(f)                      add a request finalizer
 
 THREADING
 
 	newthread(f) -> thread                  create thread
 	thread(f, ...) -> thread                create and run thread
+	cosafewrap(f, ...) -> f                 create iterator
+	onthreadfinish(thread, f)               add a thread finalizer
 	suspend() -> ...                        suspend thread
 	resume(thread, ...) -> ...              resume thread
 	transfer(thread, ...) -> ...            transfer to thread
@@ -181,7 +183,7 @@ IMAGE PROCESSING
 HTTP SERVER INTEGRATION
 
 	webb.respond(req)                       webb.server response handler
-	webb.cleanup()
+	webb.request_finish()
 	webb.server([opt]) -> server
 
 STANDALONE OPERATION
@@ -274,9 +276,12 @@ local cx do
 	end
 end
 
-currentthread = sock.currentthread
 newthread = sock.newthread
 thread = sock.thread
+cosafewrap = sock.cosafewrap
+onthreadfinish = sock.onthreadfinish
+threadenv = sock.threadenv
+currentthread = sock.currentthread
 suspend = sock.suspend
 resume = sock.resume
 transfer = sock.transfer
@@ -1457,20 +1462,17 @@ function webb.respond(req)
 	if type(main) == 'table' then
 		main = main.respond
 	end
-	on_cleanup(function()
-		webb.setcx(req.thread, nil)
-	end)
 	main()
 end
 
-do
-function webb.cleanup()
-	local f = cx.cleanup
+function webb.request_finish()
+	local f = cx.request_finish
 	if f then f() end
+	webb.setcx(cx.req.thread, nil)
 end
-function on_cleanup(f)
-	glue.after(cx, 'cleanup', f)
-end
+
+function onrequestfinish(f)
+	glue.after(cx, 'request_finish', f)
 end
 
 --standalone operation -------------------------------------------------------
@@ -1591,7 +1593,7 @@ function webb.server(opt)
 			--tracebacks = true,
 		},
 		respond = webb.respond,
-		cleanup = webb.cleanup,
+		request_finish = webb.request_finish,
 	}, opt))
 end
 

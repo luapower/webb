@@ -159,7 +159,7 @@ require'webb_query'
 require'webb_action'
 
 local function fullname(firstname, lastname)
-	return glue.catargs(firstname, lastname):trim()
+	return glue.catargs('', firstname, lastname):trim()
 end
 
 local function random_string(n)
