@@ -106,7 +106,7 @@ RESPONSE
 	allow(ret, err) -> ret                  exit with "403 forbidden"
 	check_etag(s)                           exit with "304 not modified"
 	onrequestfinish(f)                      add a request finalizer
-	http_close()                            close the connection after this request.
+	setconnectionclose()                    close the connection after this request.
 
 SOCKETS
 
@@ -902,7 +902,7 @@ function check_etag(s)
 	return s
 end
 
-function http_close()
+function setconnectionclose()
 	cx.res.close = true
 end
 
