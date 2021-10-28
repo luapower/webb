@@ -402,12 +402,13 @@ end
 
 --logging --------------------------------------------------------------------
 
-function webb.dbg      (...) cx.req.http:log(''     , ...) end
-function webb.note     (...) cx.req.http:log('note' , ...) end
-function webb.logerror (...) cx.req.http:log('ERROR', ...) end
+function webb.log      (...) cx.req.http:log(...) end
+function webb.dbg      (...) webb.log(''     , ...) end
+function webb.note     (...) webb.log('note' , ...) end
+function webb.logerror (...) webb.log('ERROR', ...) end
 function webb.warnif   (module, event, cond, ...)
 	if not cond then return end
-	cx.req.http:log('WARN', module, event, ...)
+	webb.log('WARN', module, event, ...)
 end
 
 function trace(event, s, ...)
@@ -1489,7 +1490,7 @@ function webb.run(f, ...)
 	end
 	local http = {}
 	local req = {http = http}
-	local cx = {req = req, fake = true}
+	local cx = {req = req, res = {}, fake = true}
 	function http:note(...)
 		note(...)
 	end

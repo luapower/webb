@@ -59,7 +59,7 @@ require'sqlpp_mysql'
 sqlpp.require'mysql'
 sqlpp.require'mysql_domains'
 local mysql_print = require'mysql_client_print'
-local pool = require'connpool'.new{logging = require'logging'}
+local pool = require'connpool'.new{log = webb.log}
 
 sqlpp.keywords[null] = 'null'
 sql_default = sqlpp.keyword.default
