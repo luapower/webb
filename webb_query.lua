@@ -19,6 +19,7 @@ PREPROCESSOR
 EXECUTION
 
 	db(ns) -> db                                   get a sqlpp connection
+	create_schema([ns])                            create database schema
 	[db:]query([opt,]sql, ...) -> rows             query and return rows in a table
 	[db:]first_row([opt,]sql, ...) -> t            query and return first row or value
 	[db:]each_row([opt,]sql, ...) -> iter          query and iterate rows
@@ -29,7 +30,6 @@ EXECUTION
 DDL
 
 	[db:]table_def(tbl) -> def                     table definition
-	[db:]create_database(name)                     create database
 	[db:]drop_table(name)                          drop table
 	[db:]drop_tables('T1 T2 ...')                  drop multiple tables
 	[db:]add_column(tbl, name, type, pos)          add column
@@ -91,7 +91,7 @@ local conn_opt = memoize(function(ns)
 	return t
 end)
 
-function db(ns)
+function db(ns, without_schema)
 	ns = ns or false
 	local opt = conn_opt(ns)
 	local key = opt.pool_key
@@ -112,6 +112,11 @@ function db(ns)
 		db, err = pool:get(key)
 		if not db then
 			if err == 'empty' then
+				local schema = opt.schema
+				if without_schema then
+					opt = update({}, opt)
+					opt.schema = nil
+				end
 				db = sqlpp.connect(opt)
 				pool:put(key, db, db.rawconn.tcp)
 				dbs[key] = db
@@ -121,6 +126,13 @@ function db(ns)
 		end
 	end
 	return db
+end
+
+function create_schema(ns)
+	local db = db(ns, true)
+	local schema = dbschema(ns)
+	db:create_schema(schema)
+	db:use(schema)
 end
 
 function sqlpp.fk_message_remove()
@@ -139,7 +151,6 @@ for method, name in pairs{
 	atomic=1,
 	--ddl
 	table_def=1,
-	create_schema=1,
 	drop_table=1, drop_tables=1,
 	add_column=1, rename_column=1, drop_column=1,
 	add_fk=1, readd_fk=1, drop_fk=1,

@@ -25,8 +25,7 @@ CONFIG
 	config('auth_code_lifetime', 300)         forgot-password token lifetime
 	config('auth_code_maxcount', 6)           max unexpired tokens allowed
 
-	auth_create_tables()                      (re)create usr & session tables
-	auth_drop_tables()
+	auth_create_tables()                      create usr & session tables
 
 API DOCS
 
@@ -171,12 +170,6 @@ local function random_string(n)
 end
 
 --install --------------------------------------------------------------------
-
-function auth_drop_tables()
-	drop_table'usrtoken'
-	drop_table'sess'
-	drop_table'usr'
-end
 
 function auth_create_tables()
 
