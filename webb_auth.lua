@@ -16,6 +16,7 @@ SESSIONS
 CONFIG
 
 	config('session_cookie_name', 'session')  name of the session cookie
+	config('secret')                          default for session_secret and pass_salt
 	config('session_secret')                  for encrypting session cookies
 	config('pass_salt')                       for encrypting passwords in db
 	config('auto_create_user', true)          auto-create an anonymous users
@@ -217,7 +218,7 @@ end
 --session cookie -------------------------------------------------------------
 
 local function session_hash(sid)
-	local secret = assert(config'session_secret')
+	local secret = assert(config('session_secret', config'secret'), 'session_secret missing')
 	assert(#secret >= 32, 'session_secret too short')
 	return glue.tohex(hmac.sha256(sid, secret))
 end
@@ -408,7 +409,7 @@ end
 --password authentication ----------------------------------------------------
 
 local function pass_hash(pass)
-	local salt = assert(config'pass_salt', 'pass_salt missing')
+	local salt = assert(config('pass_salt', config'secret'), 'pass_salt missing')
 	local token = hmac.sha256(pass, salt)
 	return glue.tohex(token) --64 bytes
 end
