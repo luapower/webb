@@ -161,14 +161,6 @@ local function fullname(firstname, lastname)
 	return glue.catargs('', firstname, lastname):trim()
 end
 
-local function random_string(n)
-	local t = {}
-	for i=1,n do
-		t[i] = math.random(0, 255)
-	end
-	return string.char(unpack(t))
-end
-
 --install --------------------------------------------------------------------
 
 function auth_create_tables()
