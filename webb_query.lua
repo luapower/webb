@@ -79,7 +79,7 @@ function dbschema(ns)
 	return pconfig(ns, 'db_schema', default)
 end
 
-local conn_opt = memoize(function(ns)
+local conn_opt = glue.memoize(function(ns)
 	local t = {}
 	t.host      = pconfig(ns, 'db_host', '127.0.0.1')
 	t.port      = pconfig(ns, 'db_port', 3306)

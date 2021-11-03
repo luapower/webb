@@ -1488,11 +1488,14 @@ function webb.run(f, ...)
 	if cx then
 		return f(...)
 	end
-	local http = {}
+	local tcp = {}
+	tcp.istlssocket = true
+	local http = {tcp = tcp}
 	local req = {http = http}
+	req.headers = {}
 	local cx = {req = req, res = {}, fake = true}
-	function http:note(...)
-		note(...)
+	function http:log(...)
+		log(...)
 	end
 	local thread = coroutine.running()
 	function cx.outfunc(s, len)
@@ -1522,48 +1525,21 @@ function webb.run(f, ...)
 	return pass(sock.run(f, ...))
 end
 
-function webb.request(arg1, ...)
+function webb.request(...)
 	local note = require'logging'.note
 	require'webb_action'
-	local function main()
-		checkfound(action(unpack(args())))
-	end
-	return with_config({main_module = main}, function(...)
-		local host = 'localhost' --TODO
+	webb.run(function(arg1, ...)
 		local req = type(arg1) == 'table' and arg1 or {args = {arg1,...}}
-		req = update({
-				fake = true,
-				method = 'get',
-				uri = concat(glue.imap(glue.pack('', arg1, ...), tostring), '/'),
-			}, req)
-		req.headers = update({
-				host = host,
-			}, req.headers)
-		req.http = update({
-				note = function(self, ...)
-					note(...)
-				end,
-			}, req.http)
-		req.http.tcp = update({
-				istlssocket = true,
-				local_addr = 'localhost',
-				local_port = nil,
-				remote_addr = nil,
-			}, req.http.tcp)
-		req.respond = function(self, res)
-			response = res
+		cx.req.method = req.method or 'get'
+		cx.req.uri = req.uri or concat(glue.imap(glue.pack('', arg1, ...), tostring), '/')
+		update(cx.req.headers, req.headers)
+		function req.respond(req, res, want_write_body)
+			assert(not want_write_body)
+			if res.content then
+				out(res.content)
+			end
 		end
-		req.raise = function(self, status, content)
-			local t = type(status) == 'table' and status
-				or {status = status, content = content}
-			print('RAISE', pp.format(t))
-		end
-		sock.run(function()
-			req.thread = coroutine.running()
-			webb.respond(req)
-			return response
-		end)
-		return response
+		checkfound(action(unpack(args())))
 	end, ...)
 end
 

@@ -15,10 +15,8 @@ SESSIONS
 
 CONFIG
 
+	config('secret')                          secret to encrypt sessions and passwords
 	config('session_cookie_name', 'session')  name of the session cookie
-	config('secret')                          default for session_secret and pass_salt
-	config('session_secret')                  for encrypting session cookies
-	config('pass_salt')                       for encrypting passwords in db
 	config('auto_create_user', true)          auto-create an anonymous users
 
 	config('auth_token_lifetime', 3600)       forgot-password token lifetime
@@ -26,7 +24,7 @@ CONFIG
 	config('auth_code_lifetime', 300)         forgot-password token lifetime
 	config('auth_code_maxcount', 6)           max unexpired tokens allowed
 
-	auth_create_tables()                      create usr & session tables
+	auth_create_tables()                      create auth tables
 
 API DOCS
 
@@ -215,11 +213,18 @@ function auth_create_tables()
 
 end
 
+--config ---------------------------------------------------------------------
+
+webb.secret = glue.memoize(function()
+	local s = assert(config'secret', 'secret not configured')
+	assert(#s >= 32, 'secret too short')
+	return s
+end)
+
 --session cookie -------------------------------------------------------------
 
 local function session_hash(sid)
-	local secret = assert(config('session_secret', config'secret'), 'session_secret missing')
-	assert(#secret >= 32, 'session_secret too short')
+	local secret = webb.secret()
 	return glue.tohex(hmac.sha256(sid, secret))
 end
 
@@ -409,8 +414,11 @@ end
 --password authentication ----------------------------------------------------
 
 local function pass_hash(pass)
-	local salt = assert(config('pass_salt', config'secret'), 'pass_salt missing')
-	local token = hmac.sha256(pass, salt)
+	local salt = webb.secret()
+	--TODO: build & bind OpenWall's bcrypt or use libsodium's pwhash here.
+	--This scheme only protects the passwords against dictionary attacks
+	--if the attacker doesn't know the secret, so don't store the secret.
+	local token = hmac.sha256(token, salt)
 	return glue.tohex(token) --64 bytes
 end
 
@@ -833,9 +841,10 @@ end
 if not ... then
 	require'sp'
 	if false then
-		srun(auth_create_tables)
+		webb.run(auth_create_tables)
 	else
-		local res = request{
+		config('secret', '!xpAi$^!@#)fas!`5@cXiOZ{!9fdsjdkfh7zk')
+		webb.request{
 			uri = '/login.json',
 			headers = {
 				cookie = {
@@ -843,8 +852,7 @@ if not ... then
 				},
 			},
 		}
-		pp(res)
-		srun(function()
+		webb.run(function()
 			--query('delete from usrtoken')
 			--print(gen_auth_code('email', 'admin@mysite'))
 			--prq(query'select * from sess')
@@ -852,4 +860,3 @@ if not ... then
 		end)
 	end
 end
-
