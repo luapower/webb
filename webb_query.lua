@@ -88,6 +88,7 @@ local conn_opt = glue.memoize(function(ns)
 	t.schema    = dbschema(ns)
 	t.charset   = 'utf8mb4'
 	t.pool_key = t.host..':'..t.port..':'..(t.schema or '')
+	t.tracebacks = true
 	return t
 end)
 
