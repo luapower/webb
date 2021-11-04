@@ -2,8 +2,8 @@
 require'webb_query'
 
 function qmacro.lang_fk(tbl, col)
-	return _('char(2) character set ascii not null, foreign key %s',
-		pp.macro.fk(tbl, col or 'lang', 'lang', 'lang'))
+	return _('char(2) character set ascii not null, %s',
+		sqlpp.macro.fk(tbl, col or 'lang', 'lang', 'lang'))
 end
 
 function lang_create_tables()
@@ -18,9 +18,13 @@ function lang_create_tables()
 	);
 	]]
 
+	local function noparse_query(s)
+		return query({parse = false}, s)
+	end
+
 	--https://en.wikipedia.org/wiki/Languages_used_on_the_Internet
 	--https://meta.wikimedia.org/wiki/Template:List_of_language_names_ordered_by_code
-	query[[
+	noparse_query[[
 		insert ignore into lang
 			(lang, en_name, decimal_separator, thousands_separator, name)
 		values
@@ -73,7 +77,7 @@ function lang_create_tables()
 	]]
 
 	--https://en.wikipedia.org/wiki/List_of_circulating_currencies
-	query[[
+	noparse_query[[
 		insert ignore into currency
 			(currency, decimals, en_name, symbol)
 		values
@@ -258,7 +262,7 @@ function lang_create_tables()
 	--https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes
 	--https://wiki.openstreetmap.org/wiki/Nominatim/Country_Codes
 	--https://unece.org/fileadmin/DAM/cefact/recommendations/bkup_htm/cocucod1.htm
-	query[[
+	noparse_query[[
 		insert ignore into country
 			(country, lang, currency, imperial_system, en_name)
 		values
