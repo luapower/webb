@@ -1,9 +1,9 @@
 
 require'webb_query'
 
-function qmacro.lang_fk(tbl, col)
+function qmacro.lang_fk(self, tbl, col)
 	return _('char(2) character set ascii not null, %s',
-		sqlpp.macro.fk(tbl, col or 'lang', 'lang', 'lang'))
+		sqlpp.macro.fk(self, tbl, col or 'lang', 'lang', 'lang'))
 end
 
 function lang_create_tables()
