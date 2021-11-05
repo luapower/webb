@@ -26,7 +26,7 @@ REQUEST CONTEXT
 	cx() -> t                               get per-request shared context
 	cx().fake -> t|f                        context is fake (we're on cmdline)
 	webb.setcx(thread, t)                   set per-request shared context
-	env([t]) -> t                           per-request shared environment
+	webb.env([t]) -> t                      per-request shared environment
 
 THREADING
 
@@ -198,7 +198,7 @@ API DOCS ---------------------------------------------------------------------
 
 Memoize function for current request.
 
-	env([t]) -> t
+	webb.env([t]) -> t
 
 Per-request shared environment. Inherits _G. Scripts run with `include()`
 and `run()` run in this environment by default. If the `t` argument is given,
@@ -385,7 +385,7 @@ function once(f)
 end
 
 --per-request shared environment to use in all app code.
-function env(t)
+function webb.env(t)
 	local env = cx.env
 	if not env then
 		env = {__index = _G}
@@ -1221,7 +1221,7 @@ end
 local function compile_string(s, chunkname)
 	local f = lp_compile(s, chunkname)
 	return function(_env, ...)
-		setfenv(f, _env or env())
+		setfenv(f, _env or webb.env())
 		f(...)
 	end
 end
@@ -1243,7 +1243,7 @@ end
 local function compile_lua_string(s, chunkname)
 	local f = assert(loadstring(s, chunkname))
 	return function(env_, ...)
-		setfenv(f, env_ or env())
+		setfenv(f, env_ or webb.env())
 		return f(...)
 	end
 end
