@@ -29,9 +29,11 @@ EXECUTION
 
 DDL
 
+	[db:]schema_exists(schema) -> t|f              check if schema exists
 	[db:]table_def(tbl) -> def                     table definition
 	[db:]drop_table(name)                          drop table
 	[db:]drop_tables('T1 T2 ...')                  drop multiple tables
+	[db:]table_exists(tbl) -> t|f                  check if table exists
 	[db:]add_column(tbl, name, type, pos)          add column
 	[db:]rename_column(tbl, old_name, new_name)    rename column
 	[db:]drop_column(tbl, col)                     remove column
@@ -151,8 +153,9 @@ for method, name in pairs{
 	use='use_schema', query=1, first_row=1, each_row=1, each_row_vals=1, each_group=1,
 	atomic=1,
 	--ddl
+	schema_exists=1,
 	table_def=1,
-	drop_table=1, drop_tables=1,
+	drop_table=1, drop_tables=1, table_exists=1,
 	add_column=1, rename_column=1, drop_column=1,
 	add_check=1, readd_check=1, drop_check=1,
 	add_fk=1, readd_fk=1, drop_fk=1,
