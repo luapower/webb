@@ -17,6 +17,7 @@ CONFIG
 
 	config('secret')                          secret to encrypt sessions and passwords
 	config('session_cookie_name', 'session')  name of the session cookie
+	config('session_cookie_secure_flag',true) set Secure flag to cookie
 	config('auto_create_user', true)          auto-create an anonymous users
 
 	config('auth_token_lifetime', 3600)       forgot-password token lifetime
@@ -229,6 +230,7 @@ local function session_hash(sid)
 end
 
 local function save_session(sess)
+	local secure_flag = config('session_cookie_secure_flag', true)
 	local session_cookie_name = config('session_cookie_name', 'session')
 	sess.expires = sess.expires or time() + 2 * 365 * 24 * 3600 --2 years
 	if sess.usr then --login
@@ -260,7 +262,7 @@ local function save_session(sess)
 				attrs = {
 					Domain = host(),
 					Expires = sess.expires,
-					Secure = true,
+					Secure = secure_flag,
 					HttpOnly = true,
 				},
 			},
@@ -272,7 +274,7 @@ local function save_session(sess)
 				value = '0',
 				attrs = {
 					Expires = 0,
-					Secure = true,
+					Secure = secure_flag,
 					HttpOnly = true,
 				},
 			},
