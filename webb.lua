@@ -1491,7 +1491,7 @@ function webb.run(f, ...)
 	local tcp = {}
 	tcp.istlssocket = true
 	local http = {tcp = tcp}
-	local req = {http = http}
+	local req = {http = http, uri = '/'}
 	req.headers = {}
 	local cx = {req = req, res = {}, fake = true}
 	function http:log(...)
