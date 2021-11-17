@@ -224,7 +224,7 @@ local uri = require'uri'
 local errors = require'errors'
 local sock = require'sock'
 local cjson = require'cjson'
-local b64 = require'libb64'
+local b64 = require'base64'.encode
 local fs = require'fs'
 local path = require'path'
 local mustache = require'mustache'
@@ -1471,7 +1471,7 @@ function resize_image(src_path, dst_path, max_w, max_h)
 end
 
 function base64_image_src(s)
-	return s and 'data:image/png;base64, '..b64.encode(s)
+	return s and 'data:image/png;base64, '..b64(s)
 end
 
 --webb.server respond function -----------------------------------------------
