@@ -31,15 +31,25 @@ REQUEST CONTEXT
 THREADING
 
 	newthread(f) -> thread                  create thread
-	thread(f, ...) -> thread                create and run thread
-	cosafewrap(f, ...) -> f                 create iterator
-	onthreadfinish(thread, f)               add a thread finalizer
-	suspend() -> ...                        suspend thread
+	thread(f, ...) -> thread                create and resume thread
 	resume(thread, ...) -> ...              resume thread
+	suspend() -> ...                        suspend thread
 	transfer(thread, ...) -> ...            transfer to thread
+	onthreadfinish(thread, f)               add a thread finalizer
+
+ITERATORS
+
+	cowrap(f, ...) -> f                     create iterator
+	yield(...) -> ...                       yield from iterator
+
+TIMERS
+
 	sleep(n)                                sleep n seconds
 	sleep_until(t)                          sleep until time
 	sleep_job() -> sj                       make a sleep job
+	runat(ts, f)                            run f at time
+	runafter(s, f)                          run f after s seconds
+	runevery(s, f)                          run f every s seconds
 
 LOGGING
 
@@ -277,18 +287,24 @@ local cx do
 	end
 end
 
-newthread = sock.newthread
-thread = sock.thread
-cosafewrap = sock.cosafewrap
+threadenv      = sock.threadenv
+
+--from $sock.lua
+newthread      = sock.newthread
+thread         = sock.thread
+resume         = sock.resume
+suspend        = sock.suspend
+transfer       = sock.transfer
+cowrap         = sock.cowrap
+yield          = sock.yield
+currentthread  = sock.currentthread
 onthreadfinish = sock.onthreadfinish
-threadenv = sock.threadenv
-currentthread = sock.currentthread
-suspend = sock.suspend
-resume = sock.resume
-transfer = sock.transfer
-sleep_until = sock.sleep_until
-sleep_job = sock.sleep_job
-sleep = sock.sleep
+sleep_until    = sock.sleep_until
+sleep          = sock.sleep
+sleep_job      = sock.sleep_job
+runat          = sock.runat
+runafter       = sock.runafter
+runevery       = sock.runevery
 
 --config function ------------------------------------------------------------
 
