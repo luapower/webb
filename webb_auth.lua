@@ -25,7 +25,7 @@ CONFIG
 	config('auth_code_lifetime', 300)         forgot-password token lifetime
 	config('auth_code_maxcount', 6)           max unexpired tokens allowed
 
-	auth_create_tables()                      create auth tables
+	webb.auth_schema                          auth schema
 
 API DOCS
 
@@ -149,69 +149,65 @@ anonymous then that user is also deleted afterwards.
 
 ]==]
 
+require'webb'
+require'webb_query'
+require'webb_action'
+require'schema'
 require'sha2'
 local hmac = require'hmac'
 local glue = require'glue'
 
-require'webb'
-require'webb_query'
-require'webb_action'
+--schema ---------------------------------------------------------------------
+
+function webb.auth_schema()
+
+	import'schema_std'
+
+	tables.usr = {
+		usr         , pk      ,
+		anonymous   , bool1   ,
+		email       , email   ,
+		emailvalid  , bool0   ,
+		pass        , hash    ,
+		facebookid  , name    ,
+		googleid    , name    ,
+		gimgurl     , url     , --google image url
+		active      , bool1   ,
+		title       , name    ,
+		name        , name    ,
+		phone       , name    ,
+		phonevalid  , bool0   ,
+		sex         , enum'M F',
+		birthday    , date    ,
+		newsletter  , bool0   ,
+		roles       , text    ,
+		note        , text    ,
+		clientip    , name    , --when it was created
+		atime       , atime   , --last access time
+		ctime       , ctime   , --creation time
+		mtime       , mtime   , --last modification time
+	}
+
+	tables.sess = {
+		token       , hash   , not_null, pk,
+		usr         , id     , not_null, child_fk,
+		expires     , time   , not_null,
+		clientip    , name   , --when it was created
+		ctime       , ctime  ,
+	}
+
+	tables.usrtoken = {
+		token       , hash   , not_null, pk,
+		usr         , id     , not_null, child_fk,
+		expires     , time   , not_null,
+		validates   , enum'email phone', not_null,
+		ctime       , ctime  ,
+	}
+
+end
 
 local function fullname(firstname, lastname)
 	return glue.catargs('', firstname, lastname):trim()
-end
-
---install --------------------------------------------------------------------
-
-function auth_create_tables()
-
-	query[[
-	$table usr (
-		usr         $pk,
-		anonymous   $bool1,
-		email       $email,
-		emailvalid  $bool,
-		pass        $hash,
-		facebookid  $name,
-		googleid    $name,
-		gimgurl     $url, --google image url
-		active      $bool1,
-		title       $name,
-		name        $name,
-		phone       $name,
-		phonevalid  $bool,
-		sex         enum('M', 'F'),
-		birthday    date,
-		newsletter  $bool,
-		roles       text,
-		note        text,
-		clientip    $name, --when it was created
-		atime       $atime, --last access time
-		ctime       $ctime, --creation time
-		mtime       $mtime  --last modification time
-	);
-	]]
-
-	query[[
-	$table sess (
-		token       $hash not null primary key,
-		usr         $id not null, $fk(sess, usr, usr, usr, cascade),
-		expires     timestamp not null,
-		clientip    $name, --when it was created
-		ctime       $ctime
-	);
-	]]
-
-	query[[
-	$table usrtoken (
-		token       $hash not null primary key,
-		usr         $id not null, $fk(usrtoken, usr, usr),
-		expires     timestamp not null,
-		validates   enum('email', 'phone') not null,
-		ctime       $ctime
-	);
-	]]
-
 end
 
 --config ---------------------------------------------------------------------
