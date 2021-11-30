@@ -12,7 +12,8 @@ PREPROCESSOR
 	sqlparams(s, t) -> s                           quote query with :name placeholders.
 	sqlquery(s, t) -> s                            quote query with any preprocessor directives.
 	sqlrows(rows[, opt]) -> s                      quote rows to SQL insert values list
-	sql_default                                    placeholder for default value
+	null                                           placeholder for null value in params and results
+	sql_default                                    placeholder for "default value" in params
 	qsubst(typedef)                                create a substitution definition
 	qmacro.<name> = f(args...)                     create a macro definition
 
@@ -58,8 +59,8 @@ DEBUGGING
 require'webb'
 sqlpp = require'sqlpp'.new()
 require'sqlpp_mysql'
-sqlpp.require'mysql'
-sqlpp.require'mysql_domains'
+sqlpp.import'mysql'
+sqlpp.import'mysql_domains'
 local mysql_print = require'mysql_client_print'
 local pool = require'connpool'.new{log = webb.log}
 

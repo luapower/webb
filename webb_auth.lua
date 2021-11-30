@@ -207,7 +207,7 @@ function webb.auth_schema()
 end
 
 local function fullname(firstname, lastname)
-	return glue.catargs('', firstname, lastname):trim()
+	return (glue.catargs('', firstname, lastname) or ''):trim()
 end
 
 --config ---------------------------------------------------------------------
