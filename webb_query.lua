@@ -20,7 +20,8 @@ PREPROCESSOR
 EXECUTION
 
 	db(ns) -> db                                   get a sqlpp connection
-	create_schema([ns])                            create database schema
+	create_db([ns])                                create database
+	[db:]use_db(dbname)                            change current database
 	[db:]query([opt,]sql, ...) -> rows             query and return rows in a table
 	[db:]first_row([opt,]sql, ...) -> t            query and return first row or value
 	[db:]each_row([opt,]sql, ...) -> iter          query and iterate rows
@@ -30,7 +31,7 @@ EXECUTION
 
 DDL
 
-	[db:]schema_exists(schema) -> t|f              check if schema exists
+	[db:]db_exists(dbname) -> t|f                  check if db exists
 	[db:]table_def(tbl) -> def                     table definition
 	[db:]drop_table(name)                          drop table
 	[db:]drop_tables('T1 T2 ...')                  drop multiple tables
@@ -77,9 +78,9 @@ local function pconfig(ns, k, default)
 	end
 end
 
-function dbschema(ns)
+function dbname(ns)
 	local default = assert(config'app_name')..(ns and '_'..ns or '')
-	return pconfig(ns, 'db_schema', default)
+	return pconfig(ns, 'db_name', default)
 end
 
 local conn_opt = glue.memoize(function(ns)
@@ -88,14 +89,14 @@ local conn_opt = glue.memoize(function(ns)
 	t.port      = pconfig(ns, 'db_port', 3306)
 	t.user      = pconfig(ns, 'db_user', 'root')
 	t.password  = pconfig(ns, 'db_pass')
-	t.schema    = dbschema(ns)
+	t.db        = dbname(ns)
 	t.charset   = 'utf8mb4'
-	t.pool_key = t.host..':'..t.port..':'..(t.schema or '')
+	t.pool_key = t.host..':'..t.port..':'..(t.db or '')
 	t.tracebacks = true
 	return t
 end)
 
-function db(ns, without_schema)
+function db(ns, without_current_db)
 	ns = ns or false
 	local opt = conn_opt(ns)
 	local key = opt.pool_key
@@ -116,10 +117,10 @@ function db(ns, without_schema)
 		db, err = pool:get(key)
 		if not db then
 			if err == 'empty' then
-				local schema = opt.schema
-				if without_schema then
+				local db = opt.db
+				if without_current_db then
 					opt = update({}, opt)
-					opt.schema = nil
+					opt.db = nil
 				end
 				db = sqlpp.connect(opt)
 				pool:put(key, db, db.rawconn.tcp)
@@ -132,11 +133,11 @@ function db(ns, without_schema)
 	return db
 end
 
-function create_schema(ns)
+function create_db(ns)
 	local db = db(ns, true)
-	local schema = dbschema(ns)
-	db:create_schema(schema)
-	db:use(schema)
+	local dbname = dbname(ns)
+	db:create_db(dbname)
+	db:use(dbname)
 end
 
 function sqlpp.fk_message_remove()
@@ -151,10 +152,10 @@ for method, name in pairs{
 	--preprocessor
 	sqlval=1, sqlrows=1, sqlname=1, sqlparams=1, sqlquery=1,
 	--query execution
-	use='use_schema', query=1, first_row=1, each_row=1, each_row_vals=1, each_group=1,
+	use='use_db', query=1, first_row=1, each_row=1, each_row_vals=1, each_group=1,
 	atomic=1,
 	--ddl
-	schema_exists=1,
+	db_exists=1,
 	table_def=1,
 	drop_table=1, drop_tables=1, table_exists=1,
 	add_column=1, rename_column=1, drop_column=1,
