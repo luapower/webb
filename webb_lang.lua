@@ -7,8 +7,8 @@ function webb.lang_schema()
 		lang                , lang, pk,
 		en_name             , name, not_null, uk(en_name),
 		name                , name, not_null, uk(name),
-		decimal_separator   , str, {maxlen = 4}, not_null, default ',',
-		thousands_separator , str, {maxlen = 4}, not_null, default '.',
+		decimal_separator   , str, {maxlen = 4, size = 16}, utf8_bin, not_null, default ',',
+		thousands_separator , str, {maxlen = 4, size = 16}, utf8_bin, not_null, default '.',
 	}
 
 	local function noparse_query(s)

@@ -164,7 +164,7 @@ function webb.auth_schema()
 	import'schema_std'
 
 	tables.usr = {
-		usr         , pk      ,
+		usr         , idpk    ,
 		anonymous   , bool1   ,
 		email       , email   ,
 		emailvalid  , bool0   ,
