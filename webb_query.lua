@@ -61,7 +61,6 @@ require'webb'
 sqlpp = require'sqlpp'.new()
 require'sqlpp_mysql'
 sqlpp.import'mysql'
-sqlpp.import'mysql_domains'
 local mysql_print = require'mysql_client_print'
 local pool = require'connpool'.new{log = webb.log}
 
