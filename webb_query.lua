@@ -19,7 +19,7 @@ PREPROCESSOR
 
 EXECUTION
 
-	db(ns) -> db                                   get a sqlpp connection
+	db([ns]) -> db                                 get a sqlpp connection
 	create_db([ns])                                create database
 	[db:]use_db(dbname)                            change current database
 	[db:]query([opt,]sql, ...) -> rows             query and return rows in a table
@@ -90,8 +90,9 @@ local conn_opt = glue.memoize(function(ns)
 	t.password  = pconfig(ns, 'db_pass')
 	t.db        = dbname(ns)
 	t.charset   = 'utf8mb4'
-	t.pool_key = t.host..':'..t.port..':'..(t.db or '')
+	t.pool_key  = t.host..':'..t.port..':'..(t.db or '')
 	t.tracebacks = true
+	t.schema    = pconfig(ns, 'db_schema')
 	return t
 end)
 
@@ -116,12 +117,13 @@ function db(ns, without_current_db)
 		db, err = pool:get(key)
 		if not db then
 			if err == 'empty' then
-				local db = opt.db
+				local dbname = opt.db
 				if without_current_db then
 					opt = update({}, opt)
 					opt.db = nil
 				end
 				db = sqlpp.connect(opt)
+				db.schemas[dbname] = app_schema
 				pool:put(key, db, db.rawconn.tcp)
 				dbs[key] = db
 			else
