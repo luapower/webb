@@ -117,13 +117,11 @@ function db(ns, without_current_db)
 		db, err = pool:get(key)
 		if not db then
 			if err == 'empty' then
-				local dbname = opt.db
 				if without_current_db then
 					opt = update({}, opt)
 					opt.db = nil
 				end
 				db = sqlpp.connect(opt)
-				db.schemas[dbname] = app_schema
 				pool:put(key, db, db.rawconn.tcp)
 				dbs[key] = db
 			else
