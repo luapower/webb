@@ -21,7 +21,6 @@ EXECUTION
 
 	db([ns]) -> db                                 get a sqlpp connection
 	create_db([ns])                                create database
-	[db:]use_db(dbname)                            change current database
 	[db:]query([opt,]sql, ...) -> rows             query and return rows in a table
 	[db:]first_row([opt,]sql, ...) -> t            query and return first row or value
 	[db:]each_row([opt,]sql, ...) -> iter          query and iterate rows
@@ -58,14 +57,12 @@ DEBUGGING
 ]==]
 
 require'webb'
-sqlpp = require'sqlpp'.new()
-require'sqlpp_mysql'
-sqlpp.import'mysql'
+sqlpp = require'sqlpp_mysql'.new()
 local mysql_print = require'mysql_client_print'
 local pool = require'connpool'.new{log = webb.log}
 
-sqlpp.keywords[null] = 'null'
-sql_default = sqlpp.keyword.default
+sqlpp.define_symbol('null', null)
+sql_default = sqlpp.define_symbol'default'
 qsubst = sqlpp.subst
 qmacro = sqlpp.macro
 
@@ -151,7 +148,7 @@ for method, name in pairs{
 	--preprocessor
 	sqlval=1, sqlrows=1, sqlname=1, sqlparams=1, sqlquery=1,
 	--query execution
-	use='use_db', query=1, first_row=1, each_row=1, each_row_vals=1, each_group=1,
+	query=1, first_row=1, each_row=1, each_row_vals=1, each_group=1,
 	atomic=1,
 	--ddl
 	db_exists=1,
