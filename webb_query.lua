@@ -57,14 +57,26 @@ DEBUGGING
 ]==]
 
 require'webb'
-sqlpp = require'sqlpp_mysql'.new()
-local mysql_print = require'mysql_client_print'
+sqlpps = {}
+sqlpps.mysql     = require'sqlpp'.new'mysql'
+sqlpps.tarantool = require'sqlpp'.new'tarantool'
+local default_port = {mysql = 3306, tarantool = 3301}
 local pool = require'connpool'.new{log = webb.log}
+local mysql_print = require'mysql_print'
 
-sqlpp.define_symbol('null', null)
-sql_default = sqlpp.define_symbol'default'
-qsubst = sqlpp.subst
-qmacro = sqlpp.macro
+sql_default = {'default'}
+
+sqlpps.mysql    .define_symbol('null', null)
+sqlpps.tarantool.define_symbol('null', null)
+
+sqlpps.mysql    .define_symbol('default', sql_default)
+sqlpps.tarantool.define_symbol('default', sql_default)
+
+qsubst = sqlpps.mysql.subst
+qmacro = sqlpps.mysql.macro
+
+ttsubst = sqlpps.tarantool.subst
+ttmacro = sqlpps.tarantool.macro
 
 local function pconfig(ns, k, default)
 	if ns then
@@ -81,15 +93,17 @@ end
 
 local conn_opt = glue.memoize(function(ns)
 	local t = {}
-	t.host      = pconfig(ns, 'db_host', '127.0.0.1')
-	t.port      = pconfig(ns, 'db_port', 3306)
-	t.user      = pconfig(ns, 'db_user', 'root')
-	t.password  = pconfig(ns, 'db_pass')
-	t.db        = dbname(ns)
-	t.charset   = 'utf8mb4'
-	t.pool_key  = t.host..':'..t.port..':'..(t.db or '')
+	local engine = pconfig(ns, 'db_engine', 'mysql')
+	t.sqlpp      = assert(sqlpps[engine])
+	t.host       = pconfig(ns, 'db_host', '127.0.0.1')
+	t.port       = pconfig(ns, 'db_port', assert(default_port[engine]))
+	t.user       = pconfig(ns, 'db_user', 'root')
+	t.password   = pconfig(ns, 'db_pass')
+	t.db         = dbname(ns)
+	t.charset    = 'utf8mb4'
+	t.pool_key   = t.user..'@'..t.host..':'..t.port..':'..(t.db or '')
 	t.tracebacks = true
-	t.schema    = pconfig(ns, 'db_schema')
+	t.schema     = pconfig(ns, 'db_schema')
 	return t
 end)
 
@@ -118,7 +132,7 @@ function db(ns, without_current_db)
 					opt = update({}, opt)
 					opt.db = nil
 				end
-				db = sqlpp.connect(opt)
+				db = opt.sqlpp.connect(opt)
 				pool:put(key, db, db.rawconn.tcp)
 				dbs[key] = db
 			else
@@ -136,11 +150,11 @@ function create_db(ns)
 	db:use(dbname)
 end
 
-function sqlpp.fk_message_remove()
+function sqlpps.mysql.fk_message_remove()
 	return S('fk_message_remove', 'Cannot remove {foreign_entity}: remove any associated {entity} first.')
 end
 
-function sqlpp.fk_message_set()
+function sqlpps.mysql.fk_message_set()
 	return S('fk_message_set', 'Cannot set {entity}: {foreign_entity} not found in database.')
 end
 

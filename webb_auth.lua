@@ -858,3 +858,5 @@ if not ... then
 		end)
 	end
 end
+
+return webb.auth_schema
