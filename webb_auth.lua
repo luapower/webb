@@ -319,7 +319,7 @@ local auth = {} --auth.<type>(auth) -> usr, can_create
 
 local function authenticate(a)
 	assert(type(a) == 'nil' or type(a) == 'table')
-	webb.dbg('auth', 'auth', '%s', pp.format(a))
+	webb.dbg('auth', 'auth', '%s', pp.format(a, false))
 	local usr, err, errcode = auth[a and a.type or 'session'](a)
 	if usr then
 		webb.note('auth', 'auth-ok', 'usr=%d', usr)
@@ -637,7 +637,7 @@ local function facebook_graph_request(url, args)
 		end
 	end
 	webb.note('auth', 'facebook', 'facebook_graph_request: %s %s -> %s',
-		url, pp.format(args, ' '), pp.format(res, ' '))
+		url, pp.format(args), pp.format(res))
 end
 
 function auth.facebook(auth)
@@ -681,7 +681,7 @@ local function google_api_request(url, args)
 		return json(res.body)
 	end
 	webb.note('auth', 'google', 'google_api_request: %s %s -> %s',
-		url, pp.format(args, ' '), pp.format(res, ' '))
+		url, pp.format(args), pp.format(res))
 end
 
 function auth.google(auth)
