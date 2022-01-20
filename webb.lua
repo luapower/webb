@@ -616,7 +616,7 @@ end
 --output API -----------------------------------------------------------------
 
 function outall(s)
-	if cx.send_body or out_buffering() then
+	if cx.http_out or out_buffering() then
 		out(s)
 	else
 		cx.res.content = s ~= nil and tostring(s) or ''
@@ -632,11 +632,12 @@ local function default_outfunc(s, len)
 	if s == nil or s == '' or len == 0 then
 		return
 	end
-	if not cx.send_body then
-		cx.send_body = cx.req:respond(cx.res, true)
+	if not cx.http_out then
+		cx.res.want_out_function = true
+		cx.http_out = cx.req:respond(cx.res)
 	end
 	s = type(s) ~= 'cdata' and tostring(s) or s
-	cx.send_body(s, len)
+	cx.http_out(s, len)
 end
 
 function stringbuffer(t)
@@ -1549,8 +1550,8 @@ function webb.request(...)
 		cx.req.method = req.method or 'get'
 		cx.req.uri = req.uri or concat(glue.imap(glue.pack('', arg1, ...), tostring), '/')
 		update(cx.req.headers, req.headers)
-		function req.respond(req, res, want_write_body)
-			assert(not want_write_body)
+		function req.respond(req, res)
+			assert(not res.want_out_function)
 			if res.content then
 				out(res.content)
 			end
@@ -1601,5 +1602,4 @@ if not ... then
 
 	config('app_name', 'test')
 	webb.request('')
-
 end
